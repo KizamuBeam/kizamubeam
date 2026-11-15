@@ -142,6 +142,9 @@ test('v11: schlanke Werkzeugleiste aus der v10-Standardbelegung', () => {
   assert.match(items('grp:bool'), /'shape-builder'/);
   assert.match(items('grp:path'), /'vectorfit'/);
   assert.match(items('grp:contour'), /'offset', 'outline', 'contouroffset'/);
+  // contour group: outer contour has its own icon, not the union cloud of the Boolean group
+  assert.equal(actionIcons.get('outline'), 'outline');
+  assert.notEqual(ICONS.outline, ICONS.union);
   assert.match(readFileSync(new URL('../src/laser.ts', import.meta.url), 'utf8'), /onclick: \(\) => togglePositionPick\(ed\)/);
 });
 

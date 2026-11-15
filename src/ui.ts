@@ -1113,7 +1113,7 @@ function buildBars(ed: Editor) {
     },
     { id: 'intersect', cat: M, icon: 'intersect', label: t('Schnittmenge (Alt+*): nur die gemeinsame Fläche behalten'), run: () => ed.booleanSel('intersect'), enabled: sel2 },
     { id: 'boolopts', cat: M, icon: 'settings', small: true, label: t('Boolesche Optionen: Basis und Originale behalten'), run: () => openBooleanDialog(ed) },
-    { id: 'outline', cat: M, icon: 'union', label: t('Außenkontur und Inseln ableiten …'), run: () => void openOutlineDialog(ed), enabled: sel1 },
+    { id: 'outline', cat: M, icon: 'outline', label: t('Außenkontur und Inseln ableiten …'), run: () => void openOutlineDialog(ed), enabled: sel1 },
     { id: 'offset', cat: M, icon: 'offset', label: t('Offset (Alt+O)'), run: () => openOffsetDialog(ed), enabled: sel1 },
     { id: 'warp', cat: M, icon: 'warp', label: t('Verformen: Formen, Text und Bilder biegen, wölben oder perspektivisch verzerren'), run: () => openWarpDialog(ed), enabled: sel1 },
     { id: 'gridarray', cat: M, icon: 'gridArray', label: t('Rasterarray: Auswahl in Spalten und Zeilen kopieren (Ctrl+Shift+A)'), run: () => openGridArrayDialog(ed), enabled: sel1 },
