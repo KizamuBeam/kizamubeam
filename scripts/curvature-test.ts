@@ -372,6 +372,41 @@ test('render previews closed contour while linenode drag hovers the start anchor
   assert.ok((curveStrokes[0].args[0] as MockPath2D).ops.some((o)=>o.op==='closePath'));
 });
 const ptrEv=(x:number,y:number)=>({pointerId:1,button:0,clientX:x,clientY:y,ctrlKey:false,metaKey:false,shiftKey:false,altKey:false} as unknown as PointerEvent);
+test('render previews closed contour and handle arms throughout armed start-point drag even far from start',()=>{
+  const ed=editor();ed.snapObjects=false;ed.snapGrid=false;
+  const {ctx,calls}=mockCtx();
+  ed.ctx=ctx;
+  ed.dpr=2;
+  ed.view={zoom:2,ox:60,oy:40};
+  ed.draft={nodes:[{x:0,y:0,smooth:false},{x:10,y:0,smooth:false},{x:10,y:10,smooth:false}],closed:false};
+  const s=ed.toScreen({x:0,y:0});
+  ed.onDown(ptrEv(s.x,s.y));
+  ed.onMove(ptrEv(s.x+60,s.y));
+  calls.length=0;
+  ed.render();
+  const curveStrokes=calls.filter((c)=>c.op==='stroke' && c.args[0] instanceof MockPath2D && (c.args[0] as MockPath2D).ops.some((o)=>o.op==='bezierCurveTo'));
+  assert.equal(curveStrokes.length,1);
+  assert.ok((curveStrokes[0].args[0] as MockPath2D).ops.some((o)=>o.op==='closePath'));
+  const arcCalls=calls.filter((c)=>c.op==='arc');
+  assert.equal(arcCalls.length,2);
+  assert.deepEqual(arcCalls[0].mat,[2,0,0,2,0,0]);
+});
+test('render previews closed contour for line tool during armed start-point drag',()=>{
+  const ed=editor();ed.tool='line';ed.snapObjects=false;ed.snapGrid=false;
+  const {ctx,calls}=mockCtx();
+  ed.ctx=ctx;
+  ed.dpr=2;
+  ed.view={zoom:2,ox:60,oy:40};
+  ed.draft={nodes:[{x:0,y:0},{x:10,y:0},{x:10,y:10}],closed:false};
+  const s=ed.toScreen({x:0,y:0});
+  ed.onDown(ptrEv(s.x,s.y));
+  ed.onMove(ptrEv(s.x+60,s.y));
+  calls.length=0;
+  ed.render();
+  const lineStrokes=calls.filter((c)=>c.op==='stroke' && c.args[0] instanceof MockPath2D && (c.args[0] as MockPath2D).ops.some((o)=>o.op==='lineTo'));
+  assert.equal(lineStrokes.length,1);
+  assert.ok((lineStrokes[0].args[0] as MockPath2D).ops.some((o)=>o.op==='closePath'));
+});
 test('press on start arms close instead of committing',()=>{
   const ed=editor();ed.snapObjects=false;ed.snapGrid=false;
   ed.draft={nodes:[{x:0,y:0},{x:10,y:0,smooth:false},{x:10,y:10,smooth:false}],closed:false};

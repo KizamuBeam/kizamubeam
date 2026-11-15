@@ -54,6 +54,8 @@ export class EditorRender {
   draftCloseHit(this: Editor): boolean {
     const ns = this.draft?.nodes;
     if (!ns || ns.length < 2) return false;
+    if (this.drag?.type === 'linenode' && this.drag.close) return true;
+    if (this.drag && this.drag.type !== 'linenode') return false;
     const f = this.toScreen(ns[0]), c = this.toScreen(this.cursor);
     return Math.hypot(f.x - c.x, f.y - c.y) < 8;
   }
@@ -275,10 +277,10 @@ export class EditorRender {
 
     // Linie im Entstehen (nur Geometrie im Welt-Transform; Anker-/Anfasser-Markierungen liegen in renderOverlay)
     if (this.draft && this.draft.nodes.length) {
-      const closeHit = (!this.drag || this.drag.type === 'linenode') && this.draftCloseHit();
+      const closeHit = this.draftCloseHit();
       const sp: SubPath = this.tool === 'curvature'
         ? curvaturePreview(this.draft, this.drag ? null : this.cursor, closeHit)
-        : { nodes: !this.drag ? [...this.draft.nodes, { x: this.cursor.x, y: this.cursor.y }] : [...this.draft.nodes], closed: false };
+        : { nodes: !this.drag && !closeHit ? [...this.draft.nodes, { x: this.cursor.x, y: this.cursor.y }] : [...this.draft.nodes], closed: closeHit };
       const tmp: Obj = { id: 0, m: IDENT, layer: this.currentLayer, shape: { kind: 'path', subs: [sp] } };
       ctx.strokeStyle = this.layerDrawColor(this.currentLayer);
       ctx.lineWidth = 1.2 * px;
@@ -655,7 +657,7 @@ export class EditorRender {
     this.renderSnap(ctx);
     // Kurvenwerkzeug: gesetzte Anker und Anfasser im Screen-Space (konsistent zum Knoten-Werkzeug)
     if (this.tool === 'curvature' && this.draft && this.draft.nodes.length) {
-      const closeHit = (!this.drag || this.drag.type === 'linenode') && this.draftCloseHit();
+      const closeHit = this.draftCloseHit();
       const preview = curvaturePreview(this.draft, this.drag ? null : this.cursor, closeHit);
       const active = this.drag?.type === 'linenode' ? this.draft.nodes.indexOf(this.drag.node) : -1;
       for (const [i, mk] of draftHandleMarks(preview.nodes, this.draft.nodes.length).entries()) {
@@ -686,7 +688,7 @@ export class EditorRender {
     if (this.draft && this.draft.nodes.length >= 2) {
       const q = this.toScreen(this.draft.nodes[0]);
       ctx.strokeStyle = '#20a040';
-      ctx.lineWidth = this.tool === 'curvature' && (!this.drag || this.drag.type === 'linenode') && this.draftCloseHit() ? 2 : 1.5;
+      ctx.lineWidth = this.draftCloseHit() ? 2 : 1.5;
       ctx.strokeRect(q.x - 5, q.y - 5, 10, 10);
     }
   }
