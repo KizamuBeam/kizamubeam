@@ -29,7 +29,7 @@ let count=0;const test=(name:string,f:()=>void)=>{f();count++;console.log('PASS 
 function editor(){
   const ed=Object.create(Editor.prototype) as Editor;
   Object.assign(ed,{doc:newDoc(),currentLayer:0,sel:[],tool:'curvature',draft:null,continuedFrom:null,drag:null,nodeSets:new Map(),segmentSets:new Map(),handleSets:new Map(),nodeSel:new Set(),history:new History(),batching:false,
-    view:{zoom:1,ox:0,oy:0},canvas:{width:800,height:600,style:{}},dpr:1,grid:{...DEFAULT_GRID,show:false},filled:false,dark:false,centerMarks:'off',
+    view:{zoom:1,ox:0,oy:0},canvas:{width:800,height:600,style:{},getBoundingClientRect:()=>({left:0,top:0}),setPointerCapture(){}},dpr:1,grid:{...DEFAULT_GRID,show:false},filled:false,dark:false,centerMarks:'off',
     cursor:{x:0,y:0},snapHit:null,alignGuides:[],nodeEditObj:null,nodeHover:null,segHover:null,jointPicks:[],jointHover:null,jointHingeMode:false,
     trimHover:null,startHover:null,relPicks:[],relHover:null,measure:null,measureCircle:null,sketchEdit:null,builderSession:null,
     isolation:null,vectorPreview:null,hingePreview:null,patternPreview:null,outlinePreview:null,offsetPreview:null,arrayPreview:null,
@@ -363,5 +363,73 @@ test('render previews closed contour while linenode drag hovers the start anchor
   const curveStrokes=calls.filter((c)=>c.op==='stroke' && c.args[0] instanceof MockPath2D && (c.args[0] as MockPath2D).ops.some((o)=>o.op==='bezierCurveTo'));
   assert.equal(curveStrokes.length,1);
   assert.ok((curveStrokes[0].args[0] as MockPath2D).ops.some((o)=>o.op==='closePath'));
+});
+const ptrEv=(x:number,y:number)=>({pointerId:1,button:0,clientX:x,clientY:y,ctrlKey:false,metaKey:false,shiftKey:false,altKey:false} as unknown as PointerEvent);
+test('press on start arms close instead of committing',()=>{
+  const ed=editor();ed.snapObjects=false;ed.snapGrid=false;
+  ed.draft={nodes:[{x:0,y:0},{x:10,y:0,smooth:false},{x:10,y:10,smooth:false}],closed:false};
+  const s=ed.toScreen({x:0,y:0});
+  ed.onDown(ptrEv(s.x,s.y));
+  assert.ok(ed.draft && !ed.draft.closed);
+  assert.equal(ed.doc.objs.length,0);
+  assert.equal(ed.draft.nodes.length,3);
+  if(ed.drag?.type!=='linenode')throw Error('expected linenode drag');
+  assert.ok(ed.drag.close);
+});
+test('release on start without dragging closes like a click',()=>{
+  const ed=editor();ed.snapObjects=false;ed.snapGrid=false;
+  ed.draft={nodes:[{x:0,y:0},{x:10,y:0,smooth:false},{x:10,y:10,smooth:false}],closed:false};
+  const s=ed.toScreen({x:0,y:0});
+  ed.onDown(ptrEv(s.x,s.y));
+  ed.onUp(ptrEv(s.x,s.y));
+  assert.equal(ed.draft,null);
+  assert.equal(ed.doc.objs.length,1);
+  const shape=ed.doc.objs[0].shape;if(shape.kind!=='path')throw Error();
+  assert.equal(shape.subs[0].closed,true);
+  assert.equal(shape.subs[0].nodes.length,3);
+  assert.equal(ed.history.position,1);
+  ed.doUndo();
+  assert.equal(ed.doc.objs.length,0);
+});
+test('tiny movement on armed close keeps start handles then closes',()=>{
+  const ed=editor();ed.snapObjects=false;ed.snapGrid=false;
+  ed.draft={nodes:[{x:0,y:0,cin:{x:-2,y:0},cout:{x:2,y:0},smooth:true},{x:10,y:0,smooth:false},{x:10,y:10,smooth:false}],closed:false};
+  const s=ed.toScreen({x:0,y:0});
+  ed.onDown(ptrEv(s.x,s.y));
+  ed.onMove(ptrEv(s.x+1,s.y));
+  const n0=ed.draft!.nodes[0];
+  assert.deepEqual(n0.cin,{x:-2,y:0});assert.deepEqual(n0.cout,{x:2,y:0});
+  ed.onUp(ptrEv(s.x+1,s.y));
+  assert.equal(ed.draft,null);
+  const shape=ed.doc.objs[0].shape;if(shape.kind!=='path')throw Error();
+  assert.deepEqual(shape.subs[0].nodes[0].cout,{x:2,y:0});
+});
+test('drag far from start shapes the joint and keeps the draft open',()=>{
+  const ed=editor();ed.snapObjects=false;ed.snapGrid=false;
+  ed.draft={nodes:[{x:0,y:0,smooth:false},{x:10,y:0,smooth:false},{x:10,y:10,smooth:false}],closed:false};
+  const s=ed.toScreen({x:0,y:0});
+  ed.onDown(ptrEv(s.x,s.y));
+  ed.onMove(ptrEv(s.x+50,s.y));
+  const n0=ed.draft!.nodes[0];
+  assert.equal(n0.smooth,true);assert.ok(n0.cout);
+  ed.onUp(ptrEv(s.x+50,s.y));
+  assert.ok(ed.draft && !ed.draft.closed);
+  assert.equal(ed.doc.objs.length,0);
+});
+test('Escape during armed close restores start handles',()=>{
+  const ed=editor();ed.snapObjects=false;ed.snapGrid=false;
+  ed.draft={nodes:[{x:0,y:0,cin:{x:-2,y:0},cout:{x:2,y:0},smooth:true},{x:10,y:0,smooth:false},{x:10,y:10,smooth:false}],closed:false};
+  const s=ed.toScreen({x:0,y:0});
+  ed.onDown(ptrEv(s.x,s.y));
+  ed.onMove(ptrEv(s.x+50,s.y));
+  assert.ok(!nearPt(ed.draft!.nodes[0].cout!,{x:2,y:0}));
+  ed.onKey(keyEv('Escape'));
+  assert.equal(ed.drag,null);
+  assert.ok(ed.draft && !ed.draft.closed);
+  assert.equal(ed.draft.nodes.length,3);
+  assert.deepEqual(ed.draft.nodes[0].cin,{x:-2,y:0});
+  assert.deepEqual(ed.draft.nodes[0].cout,{x:2,y:0});
+  assert.equal(ed.draft.nodes[0].smooth,true);
+  assert.equal(ed.doc.objs.length,0);
 });
 console.log(`${count} curvature groups passed`);

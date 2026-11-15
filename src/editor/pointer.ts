@@ -172,8 +172,13 @@ export class EditorPointer {
         if (ns.length >= 2) {
           const f = this.toScreen(ns[0]);
           if (Math.hypot(f.x - sx, f.y - sy) < 8) {
-            this.draft.closed = true;
-            this.finishDraft();
+            // Drücken auf den Startpunkt schärft das Schließen nur vor: Klick
+            // (ohne Ziehen) schließt beim Loslassen wie bisher, Ziehen formt
+            // vorher den Anfangs-Anfasser, Loslassen abseits hält offen.
+            const n0 = ns[0];
+            this.drag = { type: 'linenode', node: n0, close: {
+              cin: n0.cin ? { ...n0.cin } : undefined, cout: n0.cout ? { ...n0.cout } : undefined, smooth: n0.smooth } };
+            this.redraw();
             return;
           }
         }
@@ -573,6 +578,12 @@ export class EditorPointer {
       case 'linenode': {
         const n = d.node;
         const p = this.snapPt(wp, e, { extra: this.draft?.nodes.filter((m) => m !== n) });
+        if (d.close && Math.hypot(p.x - n.x, p.y - n.y) * this.view.zoom < 3) {
+          // Vorgeschärftes Schließen: Kleinstbewegungen formen nichts, damit ein
+          // reiner Klick die Anfasser des Startpunkts unverändert lässt.
+          this.redraw();
+          return;
+        }
         if (Math.hypot(p.x - n.x, p.y - n.y) * this.view.zoom < 3) {
           delete n.cin;
           delete n.cout;
@@ -912,7 +923,13 @@ export class EditorPointer {
         this.dropSnapshot(); this.history.restoreRedo(d.redo);
       }
     } else if (d.type === 'linenode') {
-      if (this.draft) {
+      if (d.close) {
+        // Vorgeschärftes Schließen abgebrochen: Startpunkt bleibt im Draft,
+        // seine Anfasser werden auf den Stand vor dem Drücken zurückgesetzt.
+        if (d.close.cin) d.node.cin = d.close.cin; else delete d.node.cin;
+        if (d.close.cout) d.node.cout = d.close.cout; else delete d.node.cout;
+        if (d.close.smooth === undefined) delete d.node.smooth; else d.node.smooth = d.close.smooth;
+      } else if (this.draft) {
         const i = this.draft.nodes.lastIndexOf(d.node);
         if (i >= 0) this.draft.nodes.splice(i, 1);
         if (!this.draft.nodes.length) { this.draft = null; this.continuedFrom = null; }

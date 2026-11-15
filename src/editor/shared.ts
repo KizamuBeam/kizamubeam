@@ -42,7 +42,7 @@ export type Drag =
   | { type: 'pivot' }
   | { type: 'marquee'; start: Pt; end: Pt; base: Obj[]; mode: 'set' | 'add' | 'toggle' | 'remove' }
   | { type: 'create'; start: Pt; obj: Obj | null; snapSet: SnapSet }
-  | { type: 'linenode'; node: Node }
+  | { type: 'linenode'; node: Node; close?: { cin?: Pt; cout?: Pt; smooth?: boolean } }
   | { type: 'pencil'; points: Pt[]; pointerId: number; overflow: boolean }
   | { type: 'builder'; last: Pt; pointerId: number }
   /** Textwerkzeug: Klicken setzt einen Text, Ziehen einen Textrahmen */
