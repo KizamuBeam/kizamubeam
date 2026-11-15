@@ -50,7 +50,7 @@ Offline-Regressionen: `npm run test:camera`. Tests öffnen keine Hardware.
 - **Werkzeuge → Kurven** setzt Ecken per Klick und formt Kurven durch Ziehen.
   Anker und gezogene Anfasser bleiben beim Zeichnen sichtbar. Ein Klick nahe
   einem offenen Endpunkt eines einfachen offenen Pfads setzt ihn fort (gleiche
-  Ebene, nicht gruppiert, keine Generator-Ausgabe). Startpunkt anklicken oder Loslassen auf dem Startpunkt schließt,
+  Ebene, nicht gruppiert, keine Generator-Ausgabe). Drücken auf den Startpunkt schließt beim Loslassen, Ziehen formt die Schlusstangente
   Doppelklick/Enter übernimmt, Rücktaste löscht den letzten Punkt, Esc verwirft.
   Übernehmen — einschließlich Fortsetzen, das das Original im selben
   Undo-Schritt ersetzt — ist ein Undo-Schritt. Tests: `npm run test:curvature`.

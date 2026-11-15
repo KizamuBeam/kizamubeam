@@ -160,17 +160,21 @@ export class EditorVector {
   }
 
   /**
-   * Schließen per Loslassen: Landet der Loslass-Punkt auf dem Startpunkt
-   * (8-px-Nähe wie Klick-Schließen), wird die Kontur geschlossen statt einen
-   * Knoten abzulegen. Gilt für Linien- und Kurvenwerkzeug (gemeinsame Schleife);
+   * Schließen per Loslassen: Wurde der Drag auf dem Startpunkt begonnen
+   * (armed, force=true), entscheidet die Press-Stelle — Loslassen schließt
+   * immer, der Drag formt nur die Schlusstangente (Pen-Tool-Verhalten).
+   * Bei fremd gestarteten Drags (force=false) schließt nur Loslassen in
+   * 8-px-Nähe wie Klick-Schließen. Gilt für Linien- und Kurvenwerkzeug;
    * der gezogene Knoten bleibt als letzte Ecke erhalten.
    */
-  draftDropClose(this: Editor, sx: number, sy: number): boolean {
+  draftDropClose(this: Editor, sx: number, sy: number, force = false): boolean {
     if (this.tool !== 'line' && this.tool !== 'curvature') return false;
     const d = this.draft;
     if (!d || d.nodes.length < 2) return false;
-    const f = this.toScreen(d.nodes[0]);
-    if (Math.hypot(f.x - sx, f.y - sy) >= 8) return false;
+    if (!force) {
+      const f = this.toScreen(d.nodes[0]);
+      if (Math.hypot(f.x - sx, f.y - sy) >= 8) return false;
+    }
     d.closed = true;
     this.finishDraft();
     return true;

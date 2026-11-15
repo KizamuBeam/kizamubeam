@@ -172,9 +172,9 @@ export class EditorPointer {
         if (ns.length >= 2) {
           const f = this.toScreen(ns[0]);
           if (Math.hypot(f.x - sx, f.y - sy) < 8) {
-            // Drücken auf den Startpunkt schärft das Schließen nur vor: Klick
-            // (ohne Ziehen) schließt beim Loslassen wie bisher, Ziehen formt
-            // vorher den Anfangs-Anfasser, Loslassen abseits hält offen.
+            // Drücken auf den Startpunkt heißt Schließen: Klick (ohne Ziehen)
+            // schließt beim Loslassen, Ziehen formt vorher die
+            // Schlusstangente, Loslassen schließt immer (Press-Stelle zählt).
             const n0 = ns[0];
             this.drag = { type: 'linenode', node: n0, close: {
               cin: n0.cin ? { ...n0.cin } : undefined, cout: n0.cout ? { ...n0.cout } : undefined, smooth: n0.smooth } };
@@ -772,7 +772,9 @@ export class EditorPointer {
       case 'linenode': {
         if (this.tool === 'line' || this.tool === 'curvature') {
           const p = this.evPt(e);
-          if (this.draftDropClose(p.sx, p.sy)) return;
+          // Start-Ursprung (armed) schließt immer — die Press-Stelle
+          // entscheidet; fremde Drags nur bei Loslassen auf dem Startpunkt.
+          if (this.draftDropClose(p.sx, p.sy, d.type === 'linenode' && !!d.close)) return;
         }
         return;
       }

@@ -325,13 +325,20 @@ test('draftDropClose releases on the start anchor to close',()=>{
   ed.doUndo();
   assert.equal(ed.doc.objs.length,0);
 });
-test('draftDropClose far from start keeps the draft',()=>{
+test('draftDropClose far from start keeps the draft unless forced',()=>{
   const ed=editor();
   ed.draft={nodes:[{x:0,y:0},{x:10,y:0,smooth:false},{x:10,y:10,smooth:false}],closed:false};
   assert.equal(ed.draftDropClose(200,200),false);
   assert.ok(ed.draft && !ed.draft.closed);
   assert.equal(ed.doc.objs.length,0);
   assert.equal(ed.history.position,0);
+  assert.ok(ed.draftDropClose(200,200,true));
+  assert.equal(ed.draft,null);
+  const shape=ed.doc.objs[0].shape;if(shape.kind!=='path')throw Error();
+  assert.equal(shape.subs[0].closed,true);
+  assert.equal(ed.history.position,1);
+  ed.doUndo();
+  assert.equal(ed.doc.objs.length,0);
 });
 test('draftDropClose needs two anchors and the draw tool',()=>{
   const ed=editor();
@@ -404,7 +411,7 @@ test('tiny movement on armed close keeps start handles then closes',()=>{
   const shape=ed.doc.objs[0].shape;if(shape.kind!=='path')throw Error();
   assert.deepEqual(shape.subs[0].nodes[0].cout,{x:2,y:0});
 });
-test('drag far from start shapes the joint and keeps the draft open',()=>{
+test('armed drag released far still closes via press origin',()=>{
   const ed=editor();ed.snapObjects=false;ed.snapGrid=false;
   ed.draft={nodes:[{x:0,y:0,smooth:false},{x:10,y:0,smooth:false},{x:10,y:10,smooth:false}],closed:false};
   const s=ed.toScreen({x:0,y:0});
@@ -413,6 +420,25 @@ test('drag far from start shapes the joint and keeps the draft open',()=>{
   const n0=ed.draft!.nodes[0];
   assert.equal(n0.smooth,true);assert.ok(n0.cout);
   ed.onUp(ptrEv(s.x+50,s.y));
+  assert.equal(ed.draft,null);
+  assert.equal(ed.doc.objs.length,1);
+  const shape=ed.doc.objs[0].shape;if(shape.kind!=='path')throw Error();
+  assert.equal(shape.subs[0].closed,true);
+  assert.equal(shape.subs[0].nodes.length,3);
+  assert.equal(ed.history.position,1);
+  ed.doUndo();
+  assert.equal(ed.doc.objs.length,0);
+});
+test('foreign drag dropped far from start keeps the draft open',()=>{
+  const ed=editor();ed.snapObjects=false;ed.snapGrid=false;
+  ed.draft={nodes:[{x:0,y:0,smooth:false},{x:10,y:0,smooth:false},{x:10,y:10,smooth:false}],closed:false};
+  // Neuer Knoten per Drag abgesetzt (kein Start-Ursprung): fern loslassen hält offen.
+  const last=ed.toScreen({x:10,y:10});
+  ed.onDown(ptrEv(last.x,last.y));
+  if(ed.drag?.type!=='linenode')throw Error('expected linenode drag');
+  assert.ok(!ed.drag.close);
+  ed.onMove(ptrEv(last.x+50,last.y));
+  ed.onUp(ptrEv(last.x+50,last.y));
   assert.ok(ed.draft && !ed.draft.closed);
   assert.equal(ed.doc.objs.length,0);
 });
