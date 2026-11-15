@@ -758,7 +758,13 @@ export class EditorPointer {
         this.createText(r.w * this.view.zoom < 6 ? d.start : r, r.w * this.view.zoom < 6 ? 0 : r.w);
         return;
       }
-      case 'linenode':
+      case 'linenode': {
+        if (this.tool === 'line' || this.tool === 'curvature') {
+          const p = this.evPt(e);
+          if (this.draftDropClose(p.sx, p.sy)) return;
+        }
+        return;
+      }
       case 'pivot':
         return;
       case 'node':

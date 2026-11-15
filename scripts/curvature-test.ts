@@ -311,4 +311,57 @@ test('continueHit finds the nearest open endpoint',()=>{
   assert.ok(h0 && h1);assert.equal(h0.o,o);assert.equal(h0.end,0);assert.equal(h1.o,o);assert.equal(h1.end,-1);
   assert.equal(ed.continueHit(s0.x+50,s0.y+50),null);
 });
+test('draftDropClose releases on the start anchor to close',()=>{
+  const ed=editor();
+  ed.draft={nodes:[{x:0,y:0},{x:10,y:0,smooth:false},{x:10,y:10,smooth:false}],closed:false};
+  const s=ed.toScreen({x:0,y:0});
+  assert.ok(ed.draftDropClose(s.x,s.y));
+  assert.equal(ed.draft,null);
+  assert.equal(ed.doc.objs.length,1);
+  const shape=ed.doc.objs[0].shape;if(shape.kind!=='path')throw Error();
+  assert.equal(shape.subs[0].closed,true);
+  assert.equal(shape.subs[0].nodes.length,3);
+  assert.equal(ed.history.position,1);
+  ed.doUndo();
+  assert.equal(ed.doc.objs.length,0);
+});
+test('draftDropClose far from start keeps the draft',()=>{
+  const ed=editor();
+  ed.draft={nodes:[{x:0,y:0},{x:10,y:0,smooth:false},{x:10,y:10,smooth:false}],closed:false};
+  assert.equal(ed.draftDropClose(200,200),false);
+  assert.ok(ed.draft && !ed.draft.closed);
+  assert.equal(ed.doc.objs.length,0);
+  assert.equal(ed.history.position,0);
+});
+test('draftDropClose needs two anchors and the draw tool',()=>{
+  const ed=editor();
+  ed.draft={nodes:[{x:0,y:0}],closed:false};
+  const s=ed.toScreen({x:0,y:0});
+  assert.equal(ed.draftDropClose(s.x,s.y),false);
+  ed.draft={nodes:[{x:0,y:0},{x:10,y:0}],closed:false};
+  ed.tool='select';
+  assert.equal(ed.draftDropClose(s.x,s.y),false);
+  assert.ok(ed.draft);
+});
+test('draftDropClose closes line drafts too',()=>{
+  const ed=editor();ed.tool='line';
+  ed.draft={nodes:[{x:0,y:0},{x:10,y:0}],closed:false};
+  const s=ed.toScreen({x:0,y:0});
+  assert.ok(ed.draftDropClose(s.x,s.y));
+  const shape=ed.doc.objs[0].shape;if(shape.kind!=='path')throw Error();
+  assert.equal(shape.subs[0].closed,true);
+});
+test('render previews closed contour while linenode drag hovers the start anchor',()=>{
+  const ed=editor();
+  const {ctx,calls}=mockCtx();
+  ed.ctx=ctx;
+  ed.view={zoom:2,ox:60,oy:40};
+  ed.draft={nodes:[{x:0,y:0},{x:10,y:0},{x:20,y:10}],closed:false};
+  ed.drag={type:'linenode',node:ed.draft.nodes[2]};
+  ed.cursor={x:0.5,y:0.2};
+  ed.render();
+  const curveStrokes=calls.filter((c)=>c.op==='stroke' && c.args[0] instanceof MockPath2D && (c.args[0] as MockPath2D).ops.some((o)=>o.op==='bezierCurveTo'));
+  assert.equal(curveStrokes.length,1);
+  assert.ok((curveStrokes[0].args[0] as MockPath2D).ops.some((o)=>o.op==='closePath'));
+});
 console.log(`${count} curvature groups passed`);

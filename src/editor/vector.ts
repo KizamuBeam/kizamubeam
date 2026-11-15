@@ -158,6 +158,23 @@ export class EditorVector {
     this.redraw();
     return true;
   }
+
+  /**
+   * Schließen per Loslassen: Landet der Loslass-Punkt auf dem Startpunkt
+   * (8-px-Nähe wie Klick-Schließen), wird die Kontur geschlossen statt einen
+   * Knoten abzulegen. Gilt für Linien- und Kurvenwerkzeug (gemeinsame Schleife);
+   * der gezogene Knoten bleibt als letzte Ecke erhalten.
+   */
+  draftDropClose(this: Editor, sx: number, sy: number): boolean {
+    if (this.tool !== 'line' && this.tool !== 'curvature') return false;
+    const d = this.draft;
+    if (!d || d.nodes.length < 2) return false;
+    const f = this.toScreen(d.nodes[0]);
+    if (Math.hypot(f.x - sx, f.y - sy) >= 8) return false;
+    d.closed = true;
+    this.finishDraft();
+    return true;
+  }
 }
 
 /** Glättung für Klick-Anker analog setNodeType: tiefe Kopie, freie manuelle Anfasser, ohne Geister-Arme an offenen Enden. */
@@ -212,9 +229,9 @@ export function smoothAnchors(nodes: Node[], closed: boolean): Node[] {
   return pts;
 }
 
-/** Live-Vorschau für das Kurvenwerkzeug: beim Hovern über Startpunkt geschlossen, sonst mit Cursor-Punkt, beim Ziehen offen. */
+/** Live-Vorschau für das Kurvenwerkzeug: über Startpunkt geschlossen (auch beim Ziehen), sonst mit Cursor-Punkt, beim Ziehen offen. */
 export function curvaturePreview(draft: SubPath, cursor: Pt | null, closeHit: boolean): SubPath {
-  if (!cursor) return { nodes: smoothAnchors(draft.nodes, false), closed: false };
   if (closeHit) return { nodes: smoothAnchors(draft.nodes, true), closed: true };
+  if (!cursor) return { nodes: smoothAnchors(draft.nodes, false), closed: false };
   return { nodes: smoothAnchors([...draft.nodes, { x: cursor.x, y: cursor.y }], false), closed: false };
 }

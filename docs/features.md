@@ -45,8 +45,8 @@ Offline regressions: `npm run test:camera`. No hardware is acquired by the tests
 - **Tools → Curvature** places corners with a click and shapes curves by
   dragging. Anchors and drag handles stay visible while drawing. Clicking
   near an open endpoint of a simple open path continues it (same layer,
-  ungrouped, no generator output); clicking the start anchor closes,
-  double-click/Enter commits, Backspace deletes the last anchor, Escape discards.
+  ungrouped, no generator output); clicking the start anchor or releasing on it
+  closes, double-click/Enter commits, Backspace deletes the last anchor, Escape discards.
   Committing — including a continuation, which replaces the original in the
   same Undo step — is one Undo step. Test: `npm run test:curvature`.
 
