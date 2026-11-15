@@ -27,7 +27,7 @@ test('duplicate points guard against NaN',()=>{
   const out=smoothAnchors([{x:0,y:0},{x:0,y:0},{x:10,y:0}],false);
   assert.ok(finite(out));
 });
-test('manual handles survive smoothing',()=>{
+test('manual handles within limit survive smoothing',()=>{
   const out=smoothAnchors([{x:0,y:0},{x:10,y:0,cout:{x:14,y:0}},{x:20,y:10}],false);
   assert.deepEqual(out[1].cout,{x:14,y:0});assert.ok(out[1].cin);
 });
@@ -84,5 +84,21 @@ test('auto handles stay near anchor with uneven spacing',()=>{
   assert.ok(a<=5+1e-9 && b<=5+1e-9);
   const [c,d]=arm(smoothAnchors([{x:0,y:0},{x:10,y:0},{x:12,y:200}],false)[1]);
   assert.ok(c<=5+1e-9 && d<=5+1e-9);
+});
+test('manual drag handles clamp to half shorter span',()=>{
+  const out=smoothAnchors([{x:0,y:0},{x:10,y:0,cout:{x:22,y:16},cin:{x:-2,y:-16}},{x:20,y:0}],false);
+  assert.deepEqual(out[1].cout,{x:13,y:4});
+  assert.deepEqual(out[1].cin,{x:7,y:-4});
+});
+test('manual handles at open end clamp to present side',()=>{
+  const out=smoothAnchors([{x:0,y:0},{x:10,y:0},{x:100,y:0,cout:{x:280,y:0},cin:{x:-80,y:0}}],false);
+  assert.deepEqual(out[2].cout,{x:145,y:0});
+  assert.deepEqual(out[2].cin,{x:55,y:0});
+});
+test('finishCurvature commits clamped manual handles',()=>{
+  const ed=editor();ed.draft={nodes:[{x:0,y:0},{x:10,y:0,cout:{x:22,y:16},cin:{x:-2,y:-16}},{x:20,y:0}],closed:false};ed.finishCurvature();
+  const shape=ed.doc.objs[0].shape;if(shape.kind!=='path')throw Error();
+  assert.deepEqual(shape.subs[0].nodes[1].cout,{x:13,y:4});
+  assert.deepEqual(shape.subs[0].nodes[1].cin,{x:7,y:-4});
 });
 console.log(`${count} curvature groups passed`);

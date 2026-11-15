@@ -100,28 +100,38 @@ export class EditorVector {
   }
 }
 
-/** Catmull-Rom-Glättung für Klick-Anker: füllt nur fehlende Anfasser, manuell gesetzte bleiben. */
+/** Catmull-Rom-Glättung für Klick-Anker: füllt fehlende Anfasser und begrenzt alle Arme auf die halbe Nachbarspanne. */
 export function smoothAnchors(nodes: Node[], closed: boolean): Node[] {
   const pts = nodes.map((n) => ({ ...n }));
   if (pts.length < 3) return pts;
   const at = (i: number) => pts[closed ? (i + pts.length) % pts.length : Math.min(Math.max(i, 0), pts.length - 1)];
   pts.forEach((p, i) => {
-    if (p.cin && p.cout) return;
     const prev = at(i - 1), next = at(i + 1);
-    let tx = (next.x - prev.x) / 6, ty = (next.y - prev.y) / 6;
-    if (!tx && !ty) return;
-    // Auto-Anfasser auf halbe Laenge der kuerzeren Nachbarstrecke begrenzen:
-    // uniforme CR-Tangenten skalieren mit der vollen Nachbarspanne und erzeugen
-    // bei ungleichen Abstaenden meterlange Arme plus Schleifen am Anker.
     const dPrev = Math.hypot(p.x - prev.x, p.y - prev.y);
     const dNext = Math.hypot(next.x - p.x, next.y - p.y);
-    const max = 0.5 * Math.min(dPrev, dNext);
+    // Zulaessige Armlaenge: halbe kuerzere Nachbarspanne (am offenen Ende die vorhandene Seite).
+    // Gilt auch fuer manuell gezogene Arme, damit Draft und Ergebnis uebereinstimmen (WYSIWYG).
+    const span = dPrev > 0 && dNext > 0 ? Math.min(dPrev, dNext) : Math.max(dPrev, dNext);
+    const max = 0.5 * span;
     if (!(max > 0)) return;
-    const len = Math.hypot(tx, ty);
-    if (len > max) { const s = max / len; tx *= s; ty *= s; }
-    if (!p.cout) p.cout = { x: p.x + tx, y: p.y + ty };
-    if (!p.cin) p.cin = { x: p.x - tx, y: p.y - ty };
-    p.smooth = true;
+    if (!(p.cin && p.cout)) {
+      const tx0 = (next.x - prev.x) / 6, ty0 = (next.y - prev.y) / 6;
+      if (!tx0 && !ty0) return;
+      // Uniforme CR-Tangenten skalieren mit der vollen Nachbarspanne und erzeugen
+      // bei ungleichen Abstaenden meterlange Arme plus Schleifen am Anker.
+      let tx = tx0, ty = ty0;
+      const len = Math.hypot(tx, ty);
+      if (len > max) { const s = max / len; tx *= s; ty *= s; }
+      if (!p.cout) p.cout = { x: p.x + tx, y: p.y + ty };
+      if (!p.cin) p.cin = { x: p.x - tx, y: p.y - ty };
+      p.smooth = true;
+    }
+    // Proportionale Skalierung je Arm; spiegelsymmetrische Paare bleiben symmetrisch.
+    for (const key of ['cin', 'cout'] as const) {
+      const a = p[key]!;
+      const len = Math.hypot(a.x - p.x, a.y - p.y);
+      if (len > max) { const s = max / len; a.x = p.x + (a.x - p.x) * s; a.y = p.y + (a.y - p.y) * s; }
+    }
   });
   return pts;
 }
