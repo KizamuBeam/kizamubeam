@@ -1,5 +1,5 @@
 import type { Editor } from '../editor';
-import { defaultLayer, IDENT, inv, isOff, newId, Obj, Pt, SubPath } from '../model';
+import { defaultLayer, IDENT, inv, isOff, newId, Node, Obj, Pt, SubPath } from '../model';
 import { shapeSubs } from '../geom';
 import { transformSubs } from '../importers';
 import { fitPoints, FitOptions, MAX_VECTOR_SAMPLES, refitSubpath } from '../vectorFit';
@@ -82,4 +82,37 @@ export class EditorVector {
       this.emit('tool');
     }
   }
+
+  finishCurvature(this: Editor) {
+    const d = this.draft;
+    this.draft = null;
+    if (!d || d.nodes.length < 2) {
+      this.redraw();
+      return;
+    }
+    const nodes = smoothAnchors(d.nodes, d.closed);
+    this.snapshot(t('Kurvenpfad zeichnen'));
+    const o: Obj = { id: newId(), m: IDENT, layer: this.currentLayer, shape: { kind: 'path', subs: [{ nodes, closed: d.closed }] } };
+    this.doc.objs.push(o);
+    this.emit('doc');
+    this.setTool('select');
+    this.setSel([o]);
+  }
+}
+
+/** Catmull-Rom-Glättung für Klick-Anker: füllt nur fehlende Anfasser, manuell gesetzte bleiben. */
+export function smoothAnchors(nodes: Node[], closed: boolean): Node[] {
+  const pts = nodes.map((n) => ({ ...n }));
+  if (pts.length < 3) return pts;
+  const at = (i: number) => pts[closed ? (i + pts.length) % pts.length : Math.min(Math.max(i, 0), pts.length - 1)];
+  pts.forEach((p, i) => {
+    if (p.cin && p.cout) return;
+    const prev = at(i - 1), next = at(i + 1);
+    const tx = (next.x - prev.x) / 6, ty = (next.y - prev.y) / 6;
+    if (!tx && !ty) return;
+    if (!p.cout) p.cout = { x: p.x + tx, y: p.y + ty };
+    if (!p.cin) p.cin = { x: p.x - tx, y: p.y - ty };
+    p.smooth = true;
+  });
+  return pts;
 }

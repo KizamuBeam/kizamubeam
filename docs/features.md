@@ -42,6 +42,10 @@ Offline regressions: `npm run test:camera`. No hardware is acquired by the tests
 - **Tools → Freehand / Pencil** fits a dragged stroke to editable cubic paths.
   Tool options set tolerance and explicit closure. Release commits one Undo step;
   Escape, taps and excessive strokes do not create partial paths.
+- **Tools → Curvature** places curve anchors with a click and auto-smooths them
+  (Catmull-Rom); dragging shapes manually. Clicking the start anchor closes,
+  double-click/Enter commits, Backspace deletes the last anchor, Escape discards.
+  Committing is one Undo step. Test: `npm run test:curvature`.
 
 These are whole-path refitting tools, not a Gaussian smooth brush or partial-run
 simplification. No Lasso, multi-handle selection, redraw/continuation or pressure

@@ -1067,6 +1067,7 @@ function buildBars(ed: Editor) {
     { id: 'vectorfit', cat: W, icon: 'vectorfit', label: t('Ausgewählte Pfade vereinfachen / glätten…'), run: () => openVectorFitDialog(ed), enabled: () => ed.vectorFitTargets().length > 0 },
     { id: 'shape-builder', cat: W, icon: 'shapeBuilder', label: t('Formerstellung …'), run: () => beginShapeBuilder(ed), enabled: sel1, on: () => ed.tool === 'builder' },
     tool('pencil', 'pencil', t('Freihand / Bleistift: Ziehen zeichnet einen angepassten Bézierpfad')),
+    tool('curvature', 'curve', t('Kurven zeichnen: Klicken setzt geglättete Punkte (C)')),
     tool('rect', 'rect', t('Rechteck (Ctrl+R)')),
     tool('ellipse', 'ellipse', t('Ellipse (Ctrl+E)')),
     tool('polygon', 'polygon', t('Polygon')),
@@ -1176,7 +1177,7 @@ function buildBars(ed: Editor) {
         'group', 'ungroup', 'grp:transform', 'tolines', SEP, 'grp:align', SEP, 'theme',
       ],
       tools: [
-        'tool:select', 'tool:node', 'vectorfit', 'shape-builder', 'isolate', SEP, 'tool:line', 'tool:pencil', 'tool:rect', 'tool:ellipse', 'tool:polygon', 'tool:text', 'qr', 'apps', SEP,
+        'tool:select', 'tool:node', 'vectorfit', 'shape-builder', 'isolate', SEP, 'tool:line', 'tool:pencil', 'tool:curvature', 'tool:rect', 'tool:ellipse', 'tool:polygon', 'tool:text', 'qr', 'apps', SEP,
         'grp:bool', 'outline' ,'offset', 'warp', 'grp:path', 'grp:array', 'nest', SEP, 'grp:relate', 'tool:measure', 'laserpos',
       ],
     },

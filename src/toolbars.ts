@@ -55,7 +55,7 @@ let cfg: Config;
 /** Ersatz alter Einzelknopf-Folgen durch Knopfgruppen in gespeicherten Leisten (Version 1 → 2) */
 let migrations: [string[], string][] = [];
 
-const CONFIG_V = 10;
+const CONFIG_V = 11;
 /** Neue Standardknöpfe: ab Version v der Belegung, hinter after (sonst ans Ende) */
 const ADDED: { v: number; bar: BarId; id: string; after: string }[] = [
   { v: 3, bar: 'tools', id: 'apps', after: 'grp:gen' },
@@ -63,6 +63,7 @@ const ADDED: { v: number; bar: BarId; id: string; after: string }[] = [
   { v: 5, bar: 'tools', id: 'tool:measure', after: 'grp:relate' },
   { v: 7, bar: 'main', id: 'camera-overlays', after: 'view3d' },
   { v: 6, bar: 'tools', id: 'tool:pencil', after: 'tool:line' },
+  { v: 11, bar: 'tools', id: 'tool:curvature', after: 'tool:pencil' },
   { v: 6, bar: 'tools', id: 'vectorfit', after: 'tool:node' },
   { v: 6, bar: 'tools', id: 'shape-builder', after: 'vectorfit' },
   { v: 6, bar: 'tools', id: 'isolate', after: 'shape-builder' },

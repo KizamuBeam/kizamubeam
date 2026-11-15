@@ -11,6 +11,7 @@ import { CON_GLYPHS } from './sketch';
 import { dec, t } from '../i18n';
 import type { Editor } from '../editor';
 import { RULER, HANDLE_OFF, cachedWorldPath, SNAP_COLOR } from './shared';
+import { smoothAnchors } from './vector';
 import { GRID_MIN_PX, gridLevels, gridLines, LEVEL_ALPHA } from '../grid';
 
 function rectPath(w: number, h: number): Path2D {
@@ -259,9 +260,10 @@ export class EditorRender {
     }
     ctx.setLineDash([]);
 
-    // Linie im Entstehen
+    // Linie im Entstehen (Krümmungswerkzeug: geglättete Vorschau)
     if (this.draft && this.draft.nodes.length) {
-      const sp: SubPath = { nodes: [...this.draft.nodes], closed: false };
+      const nodes = this.tool === 'curvature' ? smoothAnchors(this.draft.nodes, false) : [...this.draft.nodes];
+      const sp: SubPath = { nodes, closed: false };
       if (!this.drag) sp.nodes.push({ x: this.cursor.x, y: this.cursor.y });
       const tmp: Obj = { id: 0, m: IDENT, layer: this.currentLayer, shape: { kind: 'path', subs: [sp] } };
       ctx.strokeStyle = this.layerDrawColor(this.currentLayer);

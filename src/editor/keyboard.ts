@@ -64,6 +64,7 @@ export class EditorKeyboard {
       if (k === 'r') return run(() => this.setTool('rect'));
       if (k === 'e') return run(() => this.setTool('ellipse'));
       if (k === 'l') return run(() => this.setTool('line'));
+      if (k === 'c' && !nodeMode) return run(() => this.setTool('curvature'));
       if (k === 't') return run(() => this.setTool('text'));
       if (commandMatches('tool:node', e) || (e.code === 'Backquote' && !e.altKey && !e.shiftKey)) return run(() => this.setTool('node'));
       if (k === 'k') return run(() => this.setTool('trim'));
@@ -91,11 +92,11 @@ export class EditorKeyboard {
         if (this.tool === 'relate' && this.relPicks.length) return this.clearRelPicks();
         if (this.tool === 'measure' && this.measure) return ((this.measure = null), this.redraw());
         if (nodeMode && (this.selectedNodes().length || this.nodeTargets().some((o) => this.segmentSelection(o).size))) return this.clearNodeSel();
-        if (this.draft) this.finishLine();
+        if (this.draft) { if (this.tool === 'curvature') { this.draft = null; this.redraw(); } else this.finishLine(); }
         else if (this.tool !== 'select') this.setTool('select');
         else this.setSel([]);
       });
-    if (k === 'enter' && this.draft) return run(() => this.finishLine());
+    if (k === 'enter' && this.draft) return run(() => { if (this.tool === 'curvature') this.finishCurvature(); else this.finishLine(); });
     if (k === 'enter' && this.tool === 'joint' && this.jointPicks.length) return run(() => this.onJointDialog?.());
     if (nodeMode && !ctrl && !e.altKey) {
       if (k === 'd' || k === 'delete' || k === 'backspace') return run(() => this.deleteNodes());
@@ -110,6 +111,8 @@ export class EditorKeyboard {
       const arrows: Record<string, [number, number]> = { arrowleft: [-st, 0], arrowright: [st, 0], arrowup: [0, -st], arrowdown: [0, st] };
       if (arrows[k] && (this.selectedNodes().length || this.nodeTargets().some((o) => this.segmentSelection(o).size))) return run(() => this.nudgeNodes(...arrows[k]));
     }
+    if (k === 'backspace' && this.tool === 'curvature' && this.draft && !this.drag)
+      return run(() => { const d = this.draft; if (d) { d.nodes.pop(); if (!d.nodes.length) this.draft = null; this.redraw(); } });
     if (k === 'delete' || k === 'backspace') return run(() => this.deleteSel());
     const step = e.shiftKey ? 10 : e.altKey ? 0.1 : 1;
     if (k === 'arrowleft') return run(() => this.nudge(-step, 0));

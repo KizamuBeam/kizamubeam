@@ -83,7 +83,7 @@ export class EditorPointer {
     const ctrl = e.ctrlKey || e.metaKey;
     // Aus dem Lineal ziehen: Hilfslinie (oben waagrecht, links senkrecht)
     if ((sy < RULER) !== (sx < RULER) && !this.drag) {
-      if (this.draft) this.finishLine();
+      if (this.draft) { if (this.tool === 'curvature') this.finishCurvature(); else this.finishLine(); }
       this.drag = { type: 'guide', axis: sy < RULER ? 'y' : 'x', idx: null, orig: null, moved: false, snapSet: this.hoverSnapSet() };
       return;
     }
@@ -160,7 +160,8 @@ export class EditorPointer {
       case 'polygon':
         this.drag = { type: 'create', start: this.snapPt(wp, e, { toggle: false }), obj: null, snapSet: this.hoverSnapSet() };
         return;
-      case 'line': {
+      case 'line':
+      case 'curvature': {
         const p = this.snapPt(wp, e, { extra: this.draft?.nodes });
         if (!this.draft) this.draft = { nodes: [], closed: false };
         const ns = this.draft.nodes;
@@ -168,7 +169,7 @@ export class EditorPointer {
           const f = this.toScreen(ns[0]);
           if (Math.hypot(f.x - sx, f.y - sy) < 8) {
             this.draft.closed = true;
-            this.finishLine();
+            if (this.tool === 'curvature') this.finishCurvature(); else this.finishLine();
             return;
           }
         }
@@ -312,7 +313,7 @@ export class EditorPointer {
     if (this.outlinePreview) { this.suppressContextMenu = true; return; }
     this.suppressContextMenu = !!this.draft || this.tool === 'sketch' || this.tool === 'builder' || !!this.pickHandler || !!this.drag;
     if (this.tool === 'builder') this.setTool('select');
-    if (this.draft) this.finishLine();
+    if (this.draft) { if (this.tool === 'curvature') this.finishCurvature(); else this.finishLine(); }
     if (this.sketchEdit && this.sketchEdit.draft.length) {
       this.sketchEdit.draft = [];
       this.sketchEdit.draftIds = [];
@@ -798,7 +799,7 @@ export class EditorPointer {
       this.sketchDouble(sx, sy);
       return;
     }
-    if (this.tool === 'line' && this.draft) {
+    if ((this.tool === 'line' || this.tool === 'curvature') && this.draft) {
       // Doppelklick erzeugt zwei Knoten an derselben Stelle; den zweiten verwerfen
       const ns = this.draft.nodes;
       if (ns.length >= 2) {
@@ -806,7 +807,7 @@ export class EditorPointer {
           b = ns[ns.length - 2];
         if (Math.hypot(a.x - b.x, a.y - b.y) * this.view.zoom < 4) ns.pop();
       }
-      this.finishLine();
+      if (this.tool === 'curvature') this.finishCurvature(); else this.finishLine();
       return;
     }
     if (this.tool === 'select') {

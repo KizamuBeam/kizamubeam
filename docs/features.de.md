@@ -47,6 +47,10 @@ Offline-Regressionen: `npm run test:camera`. Tests öffnen keine Hardware.
   Bézierpfade an. Toleranz und explizites Schließen stehen in den Werkzeugoptionen.
   Loslassen erzeugt einen Undo-Schritt; Esc, Klicks ohne Strich und überlange
   Striche erzeugen keine Teilpfade.
+- **Werkzeuge → Kurven** setzt Kurvenpunkte per Klick und glättet sie automatisch
+  (Catmull-Rom); Ziehen formt manuell. Startpunkt anklicken schließt,
+  Doppelklick/Enter übernimmt, Rücktaste löscht den letzten Punkt, Esc verwirft.
+  Übernehmen ist ein Undo-Schritt. Tests: `npm run test:curvature`.
 
 Keine partielle Vereinfachung, Gauß-Glättung, Lasso, Mehrfach-Anfasserauswahl,
 Nachzeichnen/Fortsetzen oder Druckdarstellung. Text/Generatoren ausdrücklich
