@@ -83,7 +83,7 @@ export class EditorPointer {
     const ctrl = e.ctrlKey || e.metaKey;
     // Aus dem Lineal ziehen: Hilfslinie (oben waagrecht, links senkrecht)
     if ((sy < RULER) !== (sx < RULER) && !this.drag) {
-      if (this.draft) { if (this.tool === 'curvature') this.finishCurvature(); else this.finishLine(); }
+      if (this.draft) this.finishDraft();
       this.drag = { type: 'guide', axis: sy < RULER ? 'y' : 'x', idx: null, orig: null, moved: false, snapSet: this.hoverSnapSet() };
       return;
     }
@@ -163,17 +163,21 @@ export class EditorPointer {
       case 'line':
       case 'curvature': {
         const p = this.snapPt(wp, e, { extra: this.draft?.nodes });
-        if (!this.draft) this.draft = { nodes: [], closed: false };
+        if (!this.draft) {
+          const hit = this.continueHit(sx, sy);
+          if (hit && this.continuePath(hit.o, hit.end)) return;
+          this.draft = { nodes: [], closed: false };
+        }
         const ns = this.draft.nodes;
         if (ns.length >= 2) {
           const f = this.toScreen(ns[0]);
           if (Math.hypot(f.x - sx, f.y - sy) < 8) {
             this.draft.closed = true;
-            if (this.tool === 'curvature') this.finishCurvature(); else this.finishLine();
+            this.finishDraft();
             return;
           }
         }
-        const n: Node = { x: p.x, y: p.y };
+        const n: Node = this.tool === 'curvature' ? { x: p.x, y: p.y, smooth: false } : { x: p.x, y: p.y };
         ns.push(n);
         this.drag = { type: 'linenode', node: n };
         this.redraw();
@@ -313,7 +317,7 @@ export class EditorPointer {
     if (this.outlinePreview) { this.suppressContextMenu = true; return; }
     this.suppressContextMenu = !!this.draft || this.tool === 'sketch' || this.tool === 'builder' || !!this.pickHandler || !!this.drag;
     if (this.tool === 'builder') this.setTool('select');
-    if (this.draft) { if (this.tool === 'curvature') this.finishCurvature(); else this.finishLine(); }
+    if (this.draft) this.finishDraft();
     if (this.sketchEdit && this.sketchEdit.draft.length) {
       this.sketchEdit.draft = [];
       this.sketchEdit.draftIds = [];
@@ -364,7 +368,7 @@ export class EditorPointer {
       }
       if (this.drawTool) {
         // Fangpunkt schon vor dem Klicken zeigen; die Linie im Entstehen folgt ihm
-        this.cursor = this.snapPt(wp, e, { extra: this.draft?.nodes, toggle: this.tool === 'line' || this.tool === 'text' || this.tool === 'measure' });
+        this.cursor = this.snapPt(wp, e, { extra: this.draft?.nodes, toggle: this.tool === 'line' || this.tool === 'curvature' || this.tool === 'text' || this.tool === 'measure' });
         if (this.tool === 'measure') this.updateMeasureHover(sx, sy);
         this.canvas.style.cursor = this.space ? 'grab' : this.tool === 'text' ? 'text' : 'crosshair';
         return;
@@ -572,7 +576,7 @@ export class EditorPointer {
         if (Math.hypot(p.x - n.x, p.y - n.y) * this.view.zoom < 3) {
           delete n.cin;
           delete n.cout;
-          delete n.smooth;
+          n.smooth = false;
         } else {
           n.cout = { x: p.x, y: p.y };
           n.cin = { x: 2 * n.x - p.x, y: 2 * n.y - p.y };
@@ -807,7 +811,7 @@ export class EditorPointer {
           b = ns[ns.length - 2];
         if (Math.hypot(a.x - b.x, a.y - b.y) * this.view.zoom < 4) ns.pop();
       }
-      if (this.tool === 'curvature') this.finishCurvature(); else this.finishLine();
+      this.finishDraft();
       return;
     }
     if (this.tool === 'select') {
@@ -853,12 +857,18 @@ export class EditorPointer {
 
   finishLine(this: Editor) {
     const d = this.draft;
+    const cont = this.continuedFrom;
     this.draft = null;
+    this.continuedFrom = null;
     if (!d || d.nodes.length < 2) {
       this.redraw();
       return;
     }
     this.snapshot(t('Linie zeichnen'));
+    if (cont) {
+      const i = this.doc.objs.indexOf(cont);
+      if (i >= 0) this.doc.objs.splice(i, 1);
+    }
     const o: Obj = { id: newId(), m: IDENT, layer: this.currentLayer, shape: { kind: 'path', subs: [d] } };
     this.doc.objs.push(o);
     this.emit('doc');
@@ -894,6 +904,12 @@ export class EditorPointer {
       if (d.moved) {
         for (const s of d.shapes) { s.obj.shape = s.shape; this.touch(s.shape); }
         this.dropSnapshot(); this.history.restoreRedo(d.redo);
+      }
+    } else if (d.type === 'linenode') {
+      if (this.draft) {
+        const i = this.draft.nodes.lastIndexOf(d.node);
+        if (i >= 0) this.draft.nodes.splice(i, 1);
+        if (!this.draft.nodes.length) { this.draft = null; this.continuedFrom = null; }
       }
     } else if (d.type === 'right') {
       // Cancelled (e.g. Esc): no context menu when the button comes up

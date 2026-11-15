@@ -107,7 +107,7 @@ export const TOOL_HINTS: Record<Tool, string> = {
   select: t('Drehen: knapp außerhalb einer Ecke ziehen oder Auswahl nochmals anklicken. Rahmen nach rechts: umschließend, nach links: kreuzend.'),
   node: t('Klick/Rahmen wählt Knoten, Shift ergänzt. Entf löschen, L Gerade, C Kurve, E Ecke, S glatt, I einfügen (oder Doppelklick auf Kante), B aufbrechen, T trimmen.'),
   line: t('Klicken für Ecken, Ziehen für Kurven. Startpunkt anklicken schließt, Doppelklick/Enter/Rechtsklick beendet.'),
-  curvature: t('Klicken setzt Kurvenpunkte (automatisch geglättet), Ziehen formt manuell. Startpunkt anklicken schließt, Doppelklick/Enter beendet, Rücktaste löscht den letzten Punkt.'),
+  curvature: t('Klicken setzt Ecken, Ziehen formt Kurven. Nahe einem offenen Endpunkt klicken setzt den Pfad fort. Startpunkt anklicken schließt, Doppelklick/Enter beendet, Rücktaste löscht den letzten Punkt.'),
   rect: t('Ziehen zum Zeichnen. Shift: Quadrat, Ctrl: von der Mitte.'),
   ellipse: t('Ziehen zum Zeichnen. Shift: Kreis, Ctrl: von der Mitte.'),
   polygon: t('Von der Mitte aus ziehen. Shift: nicht drehen.'),

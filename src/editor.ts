@@ -122,6 +122,8 @@ export class Editor {
   cursor: Pt = { x: 0, y: 0 };
   /** Linienwerkzeug: Pfad im Entstehen (Weltkoordinaten) */
   draft: SubPath | null = null;
+  /** Fortgesetztes Original zu `draft` (bleibt bis zum Commit im Dokument, Esc-sicher) */
+  continuedFrom: Obj | null = null;
   nodeHover: NodeHover | null = null;
   segHover: SegHover | null = null;
   /** Ausgewählte Knoten des Knotenziels als "Unterpfad:Index" */
@@ -175,6 +177,11 @@ export class Editor {
   /** Ist der Werkzeug-Modus einer, bei dem der Mauszeiger schon ohne Ziehen fängt? */
   get drawTool() {
     return this.tool === 'pencil' || this.tool === 'line' || this.tool === 'curvature' || this.tool === 'rect' || this.tool === 'ellipse' || this.tool === 'polygon' || this.tool === 'text' || this.tool === 'measure';
+  }
+
+  finishDraft() {
+    if (this.tool === 'curvature') this.finishCurvature();
+    else this.finishLine();
   }
 
   // Pfad-Werkzeuge: Schließen, Verbinden, Zerlegen, Startpunkt, Trimmen
@@ -531,7 +538,7 @@ export class Editor {
   setTool(t: Tool) {
     if (t !== 'builder') this.builderSession = null;
     if (this.drag) this.cancelDrag();
-    if (this.draft) { if (this.tool === 'curvature') this.finishCurvature(); else this.finishLine(); }
+    if (this.draft) this.finishDraft();
     this.tool = t;
     this.nodeHover = this.segHover = null;
     this.jointPicks = [];
