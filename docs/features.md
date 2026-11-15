@@ -43,7 +43,8 @@ Offline regressions: `npm run test:camera`. No hardware is acquired by the tests
   Tool options set tolerance and explicit closure. Release commits one Undo step;
   Escape, taps and excessive strokes do not create partial paths.
 - **Tools → Curvature** places curve anchors with a click and auto-smooths them
-  (Catmull-Rom); dragging shapes manually. Clicking the start anchor closes,
+  (Catmull-Rom); dragging shapes manually. Anchors and drag handles stay visible
+  while drawing. Clicking the start anchor closes,
   double-click/Enter commits, Backspace deletes the last anchor, Escape discards.
   Committing is one Undo step. Test: `npm run test:curvature`.
 

@@ -1,5 +1,5 @@
 // Editor: Zeichnen der Arbeitsfläche.
-import { apply, IDENT, ImageShape, inv, leaves, Mat, mul, noLaserLeaves, Obj, PALETTE, Pt, SubPath, TextShape, visibleLeaves } from '../model';
+import { apply, IDENT, ImageShape, inv, leaves, Mat, mul, noLaserLeaves, Node, Obj, PALETTE, Pt, SubPath, TextShape, visibleLeaves } from '../model';
 import { displayCanvas } from '../images';
 import { EdgePick } from '../joints';
 import { bezierPt, Box, boundsOf, drawText, localPath, segments, shapeSubs, subsToPath2D, textOutline, worldPath } from '../geom';
@@ -44,6 +44,11 @@ function brightenForDark(hex: string): string {
 }
 
 const fmt = (v: number) => (Math.abs(v) < 1e-9 ? '0' : String(Math.round(v * 100) / 100));
+
+/** Anker- und Anfasser-Markierungen für den Zeichen-Draft (Geisterknoten ausgenommen). */
+export function draftHandleMarks(nodes: Node[], count: number): { anchor: Node; arms: Pt[] }[] {
+  return nodes.slice(0, count).map((n) => ({ anchor: n, arms: [n.cin, n.cout].filter((p): p is Pt => !!p) }));
+}
 
 export class EditorRender {
   setDark(this: Editor, dark: boolean) {
@@ -260,7 +265,7 @@ export class EditorRender {
     }
     ctx.setLineDash([]);
 
-    // Linie im Entstehen (Krümmungswerkzeug: geglättete Vorschau)
+    // Linie im Entstehen (Krümmungswerkzeug: geglättete Vorschau mit Anker- und Anfasser-Markierungen)
     if (this.draft && this.draft.nodes.length) {
       const nodes = this.tool === 'curvature' ? smoothAnchors(this.draft.nodes, false) : [...this.draft.nodes];
       const sp: SubPath = { nodes, closed: false };
@@ -269,6 +274,32 @@ export class EditorRender {
       ctx.strokeStyle = this.layerDrawColor(this.currentLayer);
       ctx.lineWidth = 1.2 * px;
       ctx.stroke(worldPath(tmp.shape, IDENT));
+      if (this.tool === 'curvature') {
+        const active = this.drag?.type === 'linenode' ? this.draft.nodes.indexOf(this.drag.node) : -1;
+        for (const [i, mk] of draftHandleMarks(nodes, this.draft.nodes.length).entries()) {
+          const q = this.toScreen(mk.anchor);
+          for (const arm of mk.arms) {
+            const hq = this.toScreen(arm);
+            ctx.strokeStyle = this.colors.nodeLine;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(q.x, q.y);
+            ctx.lineTo(hq.x, hq.y);
+            ctx.stroke();
+            ctx.fillStyle = this.colors.handleFill;
+            ctx.beginPath();
+            ctx.arc(hq.x, hq.y, 3.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+          }
+          ctx.lineWidth = i === active ? 2 : 1.5;
+          ctx.strokeStyle = i === 0 ? '#20a040' : this.colors.sel;
+          ctx.fillStyle = this.colors.handleFill;
+          const r = 3.5;
+          ctx.fillRect(q.x - r, q.y - r, 2 * r, 2 * r);
+          ctx.strokeRect(q.x - r, q.y - r, 2 * r, 2 * r);
+        }
+      }
     }
 
     if (this.builderSession) {

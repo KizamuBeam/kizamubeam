@@ -4,6 +4,7 @@ import { Editor } from '../src/editor';
 import { History } from '../src/history';
 import { defaultLayer, newDoc } from '../src/model';
 import { smoothAnchors } from '../src/editor/vector';
+import { draftHandleMarks } from '../src/editor/render';
 let count=0;const test=(name:string,f:()=>void)=>{f();count++;console.log('PASS '+name)};
 function editor(){
   const ed=Object.create(Editor.prototype) as Editor;
@@ -65,5 +66,13 @@ test('right-click commits smoothed path',()=>{
   assert.equal(ed.doc.objs.length,1);assert.equal(ed.history.position,1);
   const shape=ed.doc.objs[0].shape;if(shape.kind!=='path')throw Error();
   assert.ok(shape.subs[0].nodes[1].cout);
+});
+test('draftHandleMarks maps anchors and arms 1:1',()=>{
+  const marks=draftHandleMarks([{x:0,y:0},{x:10,y:0,cin:{x:6,y:0},cout:{x:14,y:0}},{x:20,y:10}],3);
+  assert.equal(marks.length,3);assert.deepEqual(marks[1].arms,[{x:6,y:0},{x:14,y:0}]);assert.deepEqual(marks[0].arms,[]);
+});
+test('draftHandleMarks excludes ghost node',()=>{
+  const marks=draftHandleMarks([{x:0,y:0},{x:10,y:0},{x:20,y:10},{x:99,y:99}],3);
+  assert.equal(marks.length,3);
 });
 console.log(`${count} curvature groups passed`);
