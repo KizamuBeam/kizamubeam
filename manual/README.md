@@ -1,7 +1,7 @@
 # KizamuBeam manual
 
 The user manual for KizamuBeam, built with [Docusaurus 3](https://docusaurus.io/) and published at
-<https://negurvulkan.github.io/kizamubeam/docs/>. How to write pages, screenshots, diagrams, videos and
+<https://kizamubeam.github.io/kizamubeam/docs/>. How to write pages, screenshots, diagrams, videos and
 translations is explained in the manual itself: [Contributing to the manual](docs/contributing.md).
 
 ## Layout
@@ -46,6 +46,10 @@ DOCS_URL=https://docs.kizamubeam.com DOCS_BASE_URL=/ npm run build
 ```
 
 `WEBSITE_URL` changes the link back to the product website.
+
+The workflow builds the manual a second time for the webspace mirror (`DOCS_BASE_URL=/docs/` on
+`WEBSPACE_URL`, output in `build-webspace/`) and commits it to the branch `webspace` (see
+`website/README.md`).
 
 ## Search
 

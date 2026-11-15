@@ -1,7 +1,7 @@
 # KizamuBeam website
 
 Static product page for KizamuBeam, served by GitHub Pages at
-<https://negurvulkan.github.io/kizamubeam/>. Plain HTML, one stylesheet, one small
+<https://kizamubeam.github.io/kizamubeam/>. Plain HTML, one stylesheet, one small
 script. No framework, no build tools, no third-party requests (no CDNs, fonts or
 analytics). The only external call is an optional GitHub API request in `main.js`
 that points the download buttons at the newest release's files (KizamuBeam itself and,
@@ -56,3 +56,22 @@ builds the user manual from `manual/` (Docusaurus) and publishes it under `docs/
 `website/` must not contain a `docs/` folder of its own.
 
 One-time setup: *Settings → Pages → Build and deployment → Source: GitHub Actions*.
+
+### Own webspace (kizamubeam.com)
+
+The same workflow also commits a ready-to-serve copy to the branch `webspace`:
+`website/` with the manual built for `/docs/` and the extension catalogue in
+`catalog/`, and all absolute links (canonical, sitemap, 404 page) rewritten to the
+webspace domain. A host that deploys with `git pull` checks out that branch once
+and uses its `website/` folder as document root:
+
+```sh
+git clone --branch webspace --single-branch https://github.com/KizamuBeam/kizamubeam.git
+# later updates
+git pull
+```
+
+The branch only ever gets new commits (no force push), so `git pull` always
+fast-forwards. The domain comes from the repository variable `WEBSPACE_URL`
+(default `https://kizamubeam.com`); `off` disables the mirror. Never edit the
+branch by hand.

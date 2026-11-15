@@ -17,7 +17,7 @@ const rel = (tag: string, prerelease: boolean, manifest = true, draft = false) =
   tag_name: tag,
   prerelease,
   draft,
-  assets: manifest ? [{ name: 'KizamuBeam.dmg', browser_download_url: 'x' }, { name: 'latest.json', browser_download_url: `https://github.com/negurvulkan/kizamubeam/releases/download/${tag}/latest.json` }] : [],
+  assets: manifest ? [{ name: 'KizamuBeam.dmg', browser_download_url: 'x' }, { name: 'latest.json', browser_download_url: `https://github.com/KizamuBeam/kizamubeam/releases/download/${tag}/latest.json` }] : [],
 });
 
 test('Versionen mit Vorabversion richtig sortiert', () => {
@@ -34,6 +34,16 @@ test('Nightly-Versionen: nach dem Stand davor, vor RC und stabiler Version, nach
   for (let i = 0; i < order.length - 1; i++) assert.ok(compareVersions(order[i], order[i + 1]) < 0, `${order[i]} < ${order[i + 1]}`);
   assert.ok(isNightly('2.9.0-nightly.20261114.3'));
   assert.ok(!isNightly('2.9.0-rc.1') && !isNightly('2.9.0') && !isNightly('1.2.0-beta'));
+});
+
+test('Nightly-Versionen in der RC-Phase: nach dem RC, vor dem nächsten RC und der stabilen Version (#318)', () => {
+  const order = ['2.9.0-nightly.20261115.13', '2.9.0-rc.1', '2.9.0-rc.1.nightly.20261116.5', '2.9.0-rc.1.nightly.20261117.6', '2.9.0-rc.2', '2.9.0'];
+  for (let i = 0; i < order.length - 1; i++) assert.ok(compareVersions(order[i], order[i + 1]) < 0, `${order[i]} < ${order[i + 1]}`);
+  assert.ok(isNightly('2.9.0-rc.1.nightly.20261116.5'));
+  assert.equal(defaultChannel('2.9.0-rc.1.nightly.20261116.5'), 'nightly');
+  const rels = [rel('v2.9.0-rc.1', true), rel('v2.9.0-rc.1.nightly.20261116.5', true)];
+  assert.equal(pickRelease(rels, 'nightly', '2.9.0-rc.1')?.version, '2.9.0-rc.1.nightly.20261116.5');
+  assert.equal(pickRelease(rels, 'stable', '2.9.0-rc.1'), null);
 });
 
 test('Vorgabe-Kanal: nur Nightly-Builds bleiben auf Nightly', () => {
@@ -69,7 +79,7 @@ test('Nichts Neueres: kein Update', () => {
 });
 
 test('Adresse zeigt auf die latest.json des Releases', () => {
-  assert.equal(pickRelease(list, 'nightly', '1.2.0-beta')?.manifest, 'https://github.com/negurvulkan/kizamubeam/releases/download/v1.3.0-beta/latest.json');
+  assert.equal(pickRelease(list, 'nightly', '1.2.0-beta')?.manifest, 'https://github.com/KizamuBeam/kizamubeam/releases/download/v1.3.0-beta/latest.json');
 });
 
 test('Releases der Virtual Machine (vm-v…) sind keine App-Updates', () => {
