@@ -108,8 +108,17 @@ export function smoothAnchors(nodes: Node[], closed: boolean): Node[] {
   pts.forEach((p, i) => {
     if (p.cin && p.cout) return;
     const prev = at(i - 1), next = at(i + 1);
-    const tx = (next.x - prev.x) / 6, ty = (next.y - prev.y) / 6;
+    let tx = (next.x - prev.x) / 6, ty = (next.y - prev.y) / 6;
     if (!tx && !ty) return;
+    // Auto-Anfasser auf halbe Laenge der kuerzeren Nachbarstrecke begrenzen:
+    // uniforme CR-Tangenten skalieren mit der vollen Nachbarspanne und erzeugen
+    // bei ungleichen Abstaenden meterlange Arme plus Schleifen am Anker.
+    const dPrev = Math.hypot(p.x - prev.x, p.y - prev.y);
+    const dNext = Math.hypot(next.x - p.x, next.y - p.y);
+    const max = 0.5 * Math.min(dPrev, dNext);
+    if (!(max > 0)) return;
+    const len = Math.hypot(tx, ty);
+    if (len > max) { const s = max / len; tx *= s; ty *= s; }
     if (!p.cout) p.cout = { x: p.x + tx, y: p.y + ty };
     if (!p.cin) p.cin = { x: p.x - tx, y: p.y - ty };
     p.smooth = true;

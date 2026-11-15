@@ -75,4 +75,14 @@ test('draftHandleMarks excludes ghost node',()=>{
   const marks=draftHandleMarks([{x:0,y:0},{x:10,y:0},{x:20,y:10},{x:99,y:99}],3);
   assert.equal(marks.length,3);
 });
+test('auto handles stay near anchor with uneven spacing',()=>{
+  const arm=(o:{cin?:{x:number;y:number};cout?:{x:number;y:number}})=>{
+    assert.ok(o.cin && o.cout);
+    return [Math.hypot(o.cin.x-10,o.cin.y),Math.hypot(o.cout.x-10,o.cout.y)];
+  };
+  const [a,b]=arm(smoothAnchors([{x:0,y:0},{x:10,y:0},{x:500,y:0}],false)[1]);
+  assert.ok(a<=5+1e-9 && b<=5+1e-9);
+  const [c,d]=arm(smoothAnchors([{x:0,y:0},{x:10,y:0},{x:12,y:200}],false)[1]);
+  assert.ok(c<=5+1e-9 && d<=5+1e-9);
+});
 console.log(`${count} curvature groups passed`);
