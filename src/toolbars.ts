@@ -55,7 +55,7 @@ let cfg: Config;
 /** Ersatz alter Einzelknopf-Folgen durch Knopfgruppen in gespeicherten Leisten (Version 1 → 2) */
 let migrations: [string[], string][] = [];
 
-const CONFIG_V = 11;
+const CONFIG_V = 12;
 /** Neue Standardknöpfe: ab Version v der Belegung, hinter after (sonst ans Ende).
  *  Buttons that later left the default again (v6 vectorfit/shape-builder/isolate, v9 laserpos) are no longer
  *  listed, so older bars do not pick them up on their way to v11. */
@@ -67,6 +67,7 @@ const ADDED: { v: number; bar: BarId; id: string; after: string }[] = [
   { v: 6, bar: 'tools', id: 'tool:pencil', after: 'tool:line' },
   { v: 11, bar: 'tools', id: 'tool:curvature', after: 'tool:pencil' },
   { v: 11, bar: 'main', id: 'isolate', after: 'ungroup' },
+  { v: 12, bar: 'tools', id: 'tool:lasso', after: 'tool:select' },
 ];
 /** Aus der Standardbelegung entfernte Knöpfe (seit v4 im Werkzeugkasten bzw. Laser-Fenster): eine gespeicherte
  *  Leiste verliert sie nur, wenn die Folge seq noch genau so dasteht; sie wird durch keep ersetzt.

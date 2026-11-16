@@ -1028,7 +1028,7 @@ function buildBars(ed: Editor) {
     { id: 'join', cat: M, short: t('Verbinden|Pfade'), label: t('Ausgewählte Formen verbinden (Alt+J)'), run: () => ed.joinSel(), enabled: sel2 },
     { id: 'breakapart', cat: M, short: t('Zerlegen'), label: t('Zerlegen (Alt+B)'), run: () => ed.breakApartSel(), enabled: sel1 },
     { id: 'freehand-edit', cat: W, icon:'line', label:t('Freihandpfad bearbeiten …'), run:()=>openFreehandEditDialog(ed), enabled:sel1, on:()=>ed.tool==='freehand-edit' },
-    tool('lasso','select',t('Lasso-Auswahl')),
+    tool('lasso', 'lasso', t('Lasso-Auswahl')),
     { id: 'path-islands', cat: M, label: t('Pfadinseln trennen …'), run: () => openPathIslandsDialog(ed), enabled: sel1 },
     { id: 'reverse', cat: M, short: t('Umkehren'), label: t('Richtung umkehren'), run: () => ed.reverseSel(), enabled: sel1 },
     { id: 'corners', cat: M, short: t('Ecken'), label: t('Ecken runden oder fasen …'), run: () => openCornerDialog(ed), enabled: sel1 },
@@ -1178,7 +1178,7 @@ function buildBars(ed: Editor) {
         'group', 'ungroup', 'isolate', 'grp:transform', 'tolines', SEP, 'grp:align', SEP, 'theme',
       ],
       tools: [
-        'tool:select', 'tool:node', SEP, 'tool:line', 'tool:pencil', 'tool:curvature', 'tool:rect', 'tool:ellipse', 'tool:polygon', 'tool:text', SEP,
+        'tool:select', 'tool:lasso', 'tool:node', SEP, 'tool:line', 'tool:pencil', 'tool:curvature', 'tool:rect', 'tool:ellipse', 'tool:polygon', 'tool:text', SEP,
         'grp:bool', 'grp:contour', 'grp:path', 'grp:array', SEP, 'grp:relate', 'tool:measure', SEP, 'apps',
       ],
     },
