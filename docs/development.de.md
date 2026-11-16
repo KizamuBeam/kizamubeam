@@ -126,6 +126,17 @@ Texte stehen im Code auf Deutsch in `t('…')` (Platzhalter in geschweiften Klam
 
 Intern rechnet der Editor in mm mit y nach unten; angezeigt wird in Maschinenkoordinaten (Ursprung unten links).
 
+## Generatoren
+
+Ein Generator gibt alles, was die App über ihn wissen muss, an seinem `Generator`-Objekt an (`src/generators/types.ts`); der Kern verzweigt nie nach Generator-Kennungen (Issue #341, geprüft mit `npm run test:gen-decoupling`):
+
+- `tile`: Gruppe im Werkzeugkasten, Position (`before`), Texte für Kachel und Aktion. Werkzeugkasten, Aktionen in `ui.ts` und die alte Generatoren-Gruppe der Leiste entstehen aus dem Verzeichnis.
+- `fit`: Art der Steckpassung und der Parameter mit dem Spiel (Konstruktion prüfen, Material-Kalibrierung).
+- `assemblyCheck`: Die Teile bilden eine Baugruppe für die Baugruppen-Prüfung.
+- `inputs`: Was der Generator vor dem Dialog braucht (3D-Modell, Auswahl).
+
+Einen Generator mit `register()` in `src/generators/index.ts` anmelden. Seine `id` steht in Projekten und darf sich nie ändern.
+
 ## Logo
 
 Die Logo-Dateien liegen in [`docs/brand/`](brand/): Logo mit Symbol, Wortmarke, Symbol farbig und einfarbig, Symbol über der Wortmarke, jeweils auch als `-dark` für dunkle Hintergründe, dazu das App-Icon (`kizamubeam-app-icon.png`, Vorlage für `npx tauri icon`).
