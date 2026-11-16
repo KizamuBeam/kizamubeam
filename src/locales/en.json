@@ -4797,5 +4797,20 @@
   "Maße an einer Maschine gemessen": "Dimensions measured on a machine",
   "Maße laut Hersteller oder Testbericht": "Dimensions from the manufacturer or a review",
   "geprüft am {date}": "checked on {date}",
-  "Quelle: {source}": "Source: {source}"
+  "Quelle: {source}": "Source: {source}",
+  "Shaper": "Shaper",
+  "Freihand-Geste: Grundform erkennen, Formen umfahren zum Vereinen, kreuzende Linie zum Abziehen.": "Freehand gesture: recognize basic shapes, encircle shapes to unite, crossing line to subtract.",
+  "Shaper Geste Grundform erkennen Vereinen Abziehen Freihand|Suchwörter": "shaper gesture recognize basic shape unite subtract freehand",
+  "abgerundetes Rechteck": "rounded rectangle",
+  "Polygon mit {n} Seiten": "polygon with {n} sides",
+  "Shaper: Vereinen": "Shaper: Unite",
+  "Shaper: Aus der Geste lässt sich kein Abzug formen.": "Shaper: cannot form a subtraction from the gesture.",
+  "Shaper: Abziehen": "Shaper: Subtract",
+  "Shaper: Form erkennen": "Shaper: Recognize shape",
+  "Shaper: {name} erkannt.": "Shaper: {name} recognized.",
+  "Shaper: Formen umfahren zum Vereinen, kreuzende Linie zum Abziehen, geschlossene Geste formt eine Grundform, sonst Freihand. Esc bricht ab.": "Shaper: encircle shapes to unite, crossing line to subtract, closed gesture forms a basic shape, otherwise freehand. Esc cancels.",
+  "Shaper-Abzugsbreite in Millimetern": "Shaper subtraction width in millimeters",
+  "Form erkennen": "Recognize shape",
+  "Abzugsbreite (mm)": "Subtraction width (mm)",
+  "Shaper: Geste formt Grundform, umfährt zum Vereinen, kreuzt zum Abziehen": "Shaper: gesture forms basic shape, encircles to unite, crosses to subtract"
 }

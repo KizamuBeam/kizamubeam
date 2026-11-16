@@ -71,6 +71,12 @@ Offline-Regressionen: `npm run test:camera`. Tests öffnen keine Hardware.
   Pfad aus kubischen Segmenten von höchstens 90°; die Abweichung zum exakten
   Kreis bleibt ≤ 2,7e-4·r.
   Übernehmen ist ein Undo-Schritt. Test: `npm run test:arc-tool`.
+- **Werkzeuge → Shaper** liest eine Freihand-Geste: Umfahren vereint Formen,
+  eine kreuzende Linie zieht eine Kapsel entlang des Strichs ab (Breite in den
+  Werkzeugoptionen), eine geschlossene Geste legt bei eingeschalteter Erkennung
+  eine erkannte Grundform an (Rechteck, abgerundetes Rechteck, Ellipse, Polygon),
+  sonst wird der Strich wie beim Bleistift angepasst. Jede Geste ist ein
+  Undo-Schritt; Klicks ohne Strich legen nichts an. Test: `npm run test:shaper`.
 
 Keine partielle Vereinfachung, Gauß-Glättung, Lasso, Mehrfach-Anfasserauswahl,
 Nachzeichnen oder Druckdarstellung. Text/Generatoren ausdrücklich

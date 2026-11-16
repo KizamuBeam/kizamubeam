@@ -4797,5 +4797,20 @@
   "Maße an einer Maschine gemessen": "Misure rilevate su una macchina",
   "Maße laut Hersteller oder Testbericht": "Misure del produttore o di una recensione",
   "geprüft am {date}": "verificato il {date}",
-  "Quelle: {source}": "Fonte: {source}"
+  "Quelle: {source}": "Fonte: {source}",
+  "Shaper": "Shaper",
+  "Freihand-Geste: Grundform erkennen, Formen umfahren zum Vereinen, kreuzende Linie zum Abziehen.": "Gesto a mano libera: riconosce forme base, circonda le forme per unire, linea che attraversa per sottrarre.",
+  "Shaper Geste Grundform erkennen Vereinen Abziehen Freihand|Suchwörter": "shaper gesto riconoscere forma base unire sottrarre mano libera",
+  "abgerundetes Rechteck": "rettangolo arrotondato",
+  "Polygon mit {n} Seiten": "poligono con {n} lati",
+  "Shaper: Vereinen": "Shaper: Unisci",
+  "Shaper: Aus der Geste lässt sich kein Abzug formen.": "Shaper: impossibile ricavare una sottrazione dal gesto.",
+  "Shaper: Abziehen": "Shaper: Sottrai",
+  "Shaper: Form erkennen": "Shaper: Riconosci forma",
+  "Shaper: {name} erkannt.": "Shaper: {name} riconosciuto.",
+  "Shaper: Formen umfahren zum Vereinen, kreuzende Linie zum Abziehen, geschlossene Geste formt eine Grundform, sonst Freihand. Esc bricht ab.": "Shaper: circonda le forme per unire, linea che attraversa per sottrarre, gesto chiuso crea una forma base, altrimenti mano libera. Esc annulla.",
+  "Shaper-Abzugsbreite in Millimetern": "Larghezza di sottrazione Shaper in millimetri",
+  "Form erkennen": "Riconosci forma",
+  "Abzugsbreite (mm)": "Larghezza sottrazione (mm)",
+  "Shaper: Geste formt Grundform, umfährt zum Vereinen, kreuzt zum Abziehen": "Shaper: il gesto crea una forma base, circonda per unire, attraversa per sottrarre"
 }

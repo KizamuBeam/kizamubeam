@@ -86,3 +86,118 @@ test('Tap und offener Bogen werden keine Ellipse', () => {
 });
 
 console.log(`Shaper-Erkennung: ${count} Tests, Schwelle ${SHAPER_MIN_CONFIDENCE}.`);
+
+// --- Slice C: Gesten-Entscheidung am Editor (Fixture wie freehand-edit-test) ---
+import { Editor } from '../src/editor';
+import { History } from '../src/history';
+import { defaultLayer, newDoc, type Obj } from '../src/model';
+
+let failed = 0;
+async function etest(name: string, f: () => void | Promise<void>) {
+  try { await f(); count++; console.log(`PASS ${name}`); }
+  catch (e) { failed++; console.log(`FAIL ${name}\n${(e as Error).stack}`); }
+}
+
+function sEditor() {
+  const ed = Object.create(Editor.prototype) as Editor;
+  Object.assign(ed, {
+    doc: newDoc(), sel: [], nodeSets: new Map(), segmentSets: new Map(), handleSets: new Map(), nodeSel: new Set(),
+    history: new History(), batching: false, view: { zoom: 1, ox: 0, oy: 0 }, drag: null,
+    canvas: { style: {} }, snapHit: null, alignGuides: [], tool: 'shaper', currentLayer: 0,
+    boolKeep: false, shaperRecognize: true, shaperTolerance: 0.2,
+    pencilTolerance: 0.2, pencilClosed: false,
+  });
+  ed.doc.layers[0] = defaultLayer(0);
+  ed.emit = () => {};
+  ed.redraw = () => {};
+  return ed;
+}
+
+let nextId = 1000;
+function rectObj(x: number, y: number, w: number, h: number): Obj {
+  return { id: nextId++, m: [1, 0, 0, 1, x, y], layer: 0, shape: { kind: 'rect', w, h, r: 0 } };
+}
+
+/** Gerade Geste von a nach b in 1-mm-Schritten (Welt) */
+function linePts(a: Pt, b: Pt): Pt[] {
+  const n = Math.max(2, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y)));
+  const out: Pt[] = [];
+  for (let i = 0; i <= n; i++) out.push({ x: a.x + ((b.x - a.x) * i) / n, y: a.y + ((b.y - a.y) * i) / n });
+  return out;
+}
+
+await etest('Union: offene Geste über zwei Rechtecke verschmilzt (ein Undo)', async () => {
+  const ed = sEditor();
+  ed.doc.objs = [rectObj(0, 0, 20, 10), rectObj(30, 0, 20, 10)];
+  await ed.finishShaper(linePts({ x: -5, y: 5 }, { x: 55, y: 5 }));
+  assert.equal(ed.doc.objs.length, 1, 'ein Ergebnisobjekt');
+  assert.equal(ed.doc.objs[0].shape.kind, 'path');
+  assert.equal(ed.sel.length, 1);
+  assert.equal(ed.history.position, 1, 'genau ein Undo-Schritt');
+  ed.doUndo();
+  assert.equal(ed.doc.objs.length, 2, 'Undo stellt beide Rechtecke wieder her');
+});
+
+await etest('Subtract: kreuzende Linie zieht Kapsel ab (zwei Teile)', async () => {
+  const ed = sEditor();
+  ed.doc.objs = [rectObj(0, 0, 40, 20)];
+  await ed.finishShaper(linePts({ x: 20, y: -10 }, { x: 20, y: 30 }));
+  assert.equal(ed.doc.objs.length, 1, 'Objektzahl gleich');
+  const shape = ed.doc.objs[0].shape;
+  assert.ok(shape.kind === 'path' && shape.subs.length === 2, `Kapsel teilt das Rechteck, Subs: ${shape.kind === 'path' ? shape.subs.length : '?'}`);
+  assert.equal(ed.history.position, 1, 'genau ein Undo-Schritt');
+});
+
+await etest('Erkennung: Kreisgeste legt Ellipse an', async () => {
+  const ed = sEditor();
+  await ed.finishShaper(stroke(100, (t) => ({ x: 50 + Math.cos(t * Math.PI * 2) * 50, y: 50 + Math.sin(t * Math.PI * 2) * 50 })));
+  assert.equal(ed.doc.objs.length, 1);
+  assert.equal(ed.doc.objs[0].shape.kind, 'ellipse', `erwartet ellipse, bekommen ${ed.doc.objs[0].shape.kind}`);
+  assert.ok(ed.hint.includes('Ellipse'), `Hinweis nennt die Form: ${ed.hint}`);
+  assert.equal(ed.history.position, 1);
+});
+
+await etest('Fallback: Kritzel ohne Form wird Freihandpfad', async () => {
+  const ed = sEditor();
+  const pts: Pt[] = [];
+  let x = 0, y = 0;
+  for (let i = 0; i < 120; i++) {
+    x += Math.sin(i * 7.3) * 9 + Math.sin(i * 1.7) * 4;
+    y += Math.cos(i * 5.1) * 9 + Math.cos(i * 2.3) * 4;
+    pts.push({ x, y });
+  }
+  await ed.finishShaper(pts);
+  assert.equal(ed.doc.objs.length, 1);
+  assert.equal(ed.doc.objs[0].shape.kind, 'path', 'Fallback ist ein Pfad');
+  assert.equal(ed.history.position, 1);
+});
+
+await etest('Erkennung aus: Kreisgeste wird Freihandpfad', async () => {
+  const ed = sEditor();
+  ed.shaperRecognize = false;
+  await ed.finishShaper(stroke(100, (t) => ({ x: 50 + Math.cos(t * Math.PI * 2) * 50, y: 50 + Math.sin(t * Math.PI * 2) * 50 })));
+  assert.equal(ed.doc.objs.length, 1);
+  assert.equal(ed.doc.objs[0].shape.kind, 'path', 'ohne Erkennung kein Grundform-Objekt');
+});
+
+await etest('BoolKeep: Originale bleiben bei Union erhalten', async () => {
+  const ed = sEditor();
+  ed.boolKeep = true;
+  ed.doc.objs = [rectObj(0, 0, 20, 10), rectObj(30, 0, 20, 10)];
+  await ed.finishShaper(linePts({ x: -5, y: 5 }, { x: 55, y: 5 }));
+  assert.equal(ed.doc.objs.length, 3, 'beide Originale plus Ergebnis');
+  assert.equal(ed.sel.length, 1);
+});
+
+await etest('Tap legt nichts an und verbraucht kein Undo', async () => {
+  const ed = sEditor();
+  await ed.finishShaper([{ x: 10, y: 10 }, { x: 10, y: 10 }]);
+  assert.equal(ed.doc.objs.length, 0);
+  assert.equal(ed.history.position, 0);
+});
+
+if (failed) {
+  console.log(`${failed} Shaper-Editor-Test(s) fehlgeschlagen`);
+  process.exit(1);
+}
+console.log(`Shaper-Editor: alle Tests bestanden (insgesamt ${count}).`);

@@ -54,6 +54,7 @@ import { EditorVector, VectorPlan } from './editor/vector';
 import type { ArcDraft, ArcMode } from './editor/arc';
 
 import { EditorOutline, type OutlinePreview } from './editor/outline';
+import { EditorShaper } from './editor/shaper';
 import { EditorInteraction, BuilderSession } from './editor/interaction';
 import { EditorContourOffset } from './editor/contourOffset';
 
@@ -142,6 +143,9 @@ export class Editor {
   arcCw = false;
   /** Laufender Bogen über mehrere Klicks hinweg */
   arcDraft: ArcDraft | null = null;
+  /** Shaper: Grundform-Erkennung an/aus und Abzugsbreite (mm, mindestens 0.5) */
+  shaperRecognize = true;
+  shaperTolerance = 0.2;
   builderSession: BuilderSession | null = null;
   suppressContextMenu = false;
   /** Drag with the right mouse button pans the view (opt-in, Edit → Settings → Mouse and keyboard) */
@@ -182,7 +186,7 @@ export class Editor {
   // Fangen an Raster, Objekten und Hilfslinien
   /** Ist der Werkzeug-Modus einer, bei dem der Mauszeiger schon ohne Ziehen fängt? */
   get drawTool() {
-    return this.tool === 'pencil' || this.tool === 'line' || this.tool === 'curvature' || this.tool === 'arc' || this.tool === 'rect' || this.tool === 'ellipse' || this.tool === 'polygon' || this.tool === 'text' || this.tool === 'measure';
+    return this.tool === 'pencil' || this.tool === 'shaper' || this.tool === 'line' || this.tool === 'curvature' || this.tool === 'arc' || this.tool === 'rect' || this.tool === 'ellipse' || this.tool === 'polygon' || this.tool === 'text' || this.tool === 'measure';
   }
 
   finishDraft() {
@@ -598,6 +602,7 @@ export interface Editor
     EditorSketch,
     EditorIsolation,
     EditorVector,
+    EditorShaper,
     EditorOutline,
     EditorInteraction,
     EditorContourOffset,
@@ -634,6 +639,7 @@ const PARTS = [
   EditorSketch,
   EditorIsolation,
   EditorVector,
+  EditorShaper,
   EditorOutline,
   EditorInteraction,
   EditorContourOffset,

@@ -217,6 +217,12 @@ export class EditorPointer {
         this.redraw();
         return;
       }
+      case 'shaper':
+        e.preventDefault();
+        this.clearSnap();
+        this.drag = { type: 'shaper', points: [wp], pointerId: e.pointerId, overflow: false };
+        this.redraw();
+        return;
       case 'pencil':
         e.preventDefault();
         this.clearSnap();
@@ -451,6 +457,18 @@ export class EditorPointer {
       case 'builder':
         if (d.pointerId !== e.pointerId) return;
         this.builderStroke(d.last, wp); d.last = wp; return;
+      case 'shaper': {
+        if (e.pointerId !== d.pointerId || d.overflow) return;
+        const samples = e.getCoalescedEvents?.() ?? [];
+        for (const sample of [...samples, e]) {
+          const p = this.evPt(sample), world = this.toWorld(p.sx, p.sy), last = d.points[d.points.length - 1];
+          if (!Number.isFinite(world.x) || !Number.isFinite(world.y)) continue;
+          if (Math.hypot(world.x - last.x, world.y - last.y) * this.view.zoom < 1) continue;
+          if (d.points.length >= MAX_VECTOR_SAMPLES) { d.overflow = true; this.hint = t('Strich zu lang. Loslassen und einen kürzeren Strich zeichnen.'); this.emit('tool'); break; }
+          d.points.push(world);
+        }
+        this.redraw(); return;
+      }
       case 'pencil': {
         if (e.pointerId !== d.pointerId || d.overflow) return;
         const samples = e.getCoalescedEvents?.() ?? [];
@@ -728,6 +746,13 @@ export class EditorPointer {
         if (d.pointerId !== e.pointerId) return;
         const p = this.evPt(e), end = this.toWorld(p.sx, p.sy);
         this.builderStroke(d.last, end); this.commitShapeBuilder(); return;
+      }
+      case 'shaper': {
+        if (e.pointerId !== d.pointerId || d.overflow) return;
+        const p = this.evPt(e), end = this.toWorld(p.sx, p.sy);
+        if (Number.isFinite(end.x) && Number.isFinite(end.y) && d.points.length < MAX_VECTOR_SAMPLES) d.points.push(end);
+        void this.finishShaper(d.points);
+        return;
       }
       case 'pencil': {
         if (e.pointerId !== d.pointerId || d.overflow) return;

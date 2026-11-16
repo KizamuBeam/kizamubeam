@@ -304,7 +304,7 @@ export class EditorRender {
       });
       ctx.restore();
     }
-    if (this.drag?.type === 'pencil') {
+    if (this.drag?.type === 'pencil' || this.drag?.type === 'shaper') {
       ctx.strokeStyle = this.layerDrawColor(this.currentLayer);
       ctx.lineWidth = 1.2 * px;
       ctx.stroke(subsToPath2D([{ nodes: this.drag.points, closed: false }]));

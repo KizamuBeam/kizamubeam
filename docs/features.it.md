@@ -54,6 +54,12 @@ Test offline: `npm run test:camera`. I test non usano alcun hardware.
   Bézier modificabili. Le opzioni dello strumento regolano tolleranza e chiusura
   esplicita. Il rilascio è un solo passo di annullamento; Esc, clic senza tratto e
   tratti troppo lunghi non creano percorsi parziali.
+- **Strumenti → Shaper** legge un gesto a mano libera: circondare le forme le
+  unisce, una linea che ne attraversa una sottrae una capsula lungo il tratto
+  (larghezza nelle opzioni), un gesto chiuso crea la forma base riconosciuta
+  (rettangolo, rettangolo arrotondato, ellisse, poligono) se il riconoscimento è
+  attivo, altrimenti il tratto è adattato come la Matita. Ogni gesto è un solo
+  passo di annullamento; i tocchi non creano nulla. Test: `npm run test:shaper`.
 - **Strumenti → Percorso → Modifica percorso a mano libera …** prolunga un percorso
   aperto da uno dei suoi nodi finali o ridisegna a mano libera il tratto tra due
   nodi esistenti dello stesso sottopercorso. Un punto di inizio taglio fissato resta

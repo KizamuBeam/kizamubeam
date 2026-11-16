@@ -304,6 +304,7 @@ function buildMenu(ed: Editor) {
       'sep',
       [t('Linien zeichnen'), 'Ctrl+L', () => ed.setTool('line')],
       [t('Freihand / Bleistift'), '', () => ed.setTool('pencil')],
+      [t('Shaper'), '', () => ed.setTool('shaper')],
       [t('Kurvenpfad zeichnen'), '', () => ed.setTool('curvature')],
       [t('Bogen zeichnen'), '', () => ed.setTool('arc')],
       [t('Auswahl isolieren'), '', () => ed.isolateSelection(), undefined, () => canEnterIsolation(ed)],
@@ -871,6 +872,18 @@ function buildNumbar(ed: Editor) {
   const arcProps = h('span', { class: 'field', id: 'arcbar' },
     h('label', {}, t('Bogen'), arcModeSel),
     h('label', {}, t('Richtung'), arcDirSel));
+  const shaperRecognize = h('input', { type: 'checkbox' });
+  shaperRecognize.checked = ed.shaperRecognize;
+  shaperRecognize.addEventListener('change', () => { ed.shaperRecognize = shaperRecognize.checked; });
+  const shaperTolerance = h('input', { type: 'number', min: 0.1, max: 10, step: 0.1, value: String(ed.shaperTolerance),
+    'aria-label': t('Shaper-Abzugsbreite in Millimetern'), style: 'width: 7ch' });
+  shaperTolerance.addEventListener('change', () => {
+    const v = shaperTolerance.valueAsNumber;
+    if (Number.isFinite(v) && v >= 0.1 && v <= 10) ed.shaperTolerance = v;
+    else shaperTolerance.value = String(ed.shaperTolerance);
+  });
+  const shaperProps = h('span', { class: 'field' }, h('label', { class: 'check' }, shaperRecognize, t('Form erkennen')),
+    h('label', {}, t('Abzugsbreite (mm)'), shaperTolerance));
 
   // Bilder
   const imgInfo = h('span', { class: 'muted' });
@@ -909,7 +922,7 @@ function buildNumbar(ed: Editor) {
   const sepGen = sep();
 
   const sepShape = sep();
-  bar.append(geo, pencilProps, arcProps, sepNode, nodeProps, sepImg, imgProps, sepQr, qrProps, sepGen, genProps, sepShape, rectProps, polyProps);
+  bar.append(geo, pencilProps, arcProps, shaperProps, sepNode, nodeProps, sepImg, imgProps, sepQr, qrProps, sepGen, genProps, sepShape, rectProps, polyProps);
   // Text options get their own bar below the properties bar (can be hidden in the Window menu)
   $('#textbar').append(textProps);
 
@@ -931,6 +944,7 @@ function buildNumbar(ed: Editor) {
     arcProps.hidden = ed.tool !== 'arc';
     arcModeSel.value = ed.arcMode;
     arcDirSel.value = ed.arcCw ? 'cw' : 'ccw';
+    shaperProps.hidden = ed.tool !== 'shaper';
     nodeLassoButton.setAttribute('aria-pressed',String(ed.nodeLasso));nodeLassoButton.classList.toggle('active',ed.nodeLasso);
     const imgs = ed.selImages();
     imgProps.hidden = sepImg.hidden = !imgs.length;
@@ -1086,6 +1100,7 @@ function buildBars(ed: Editor) {
     { id: 'vectorfit', cat: W, icon: 'vectorfit', label: t('Ausgewählte Pfade vereinfachen / glätten…'), run: () => openVectorFitDialog(ed), enabled: () => ed.vectorFitTargets().length > 0 },
     { id: 'shape-builder', cat: W, icon: 'shapeBuilder', label: t('Formerstellung …'), run: () => beginShapeBuilder(ed), enabled: sel1, on: () => ed.tool === 'builder' },
     tool('pencil', 'pencil', t('Freihand / Bleistift: Ziehen zeichnet einen angepassten Bézierpfad')),
+  tool('shaper', 'shaper', t('Shaper: Geste formt Grundform, umfährt zum Vereinen, kreuzt zum Abziehen')),
     tool('curvature', 'curve', t('Kurven zeichnen: Klicken setzt Ecken, Ziehen formt Kurven')),
     tool('arc', 'arc', t('Bogen zeichnen: Mitte, Radius und Winkel oder drei Punkte')),
     tool('rect', 'rect', t('Rechteck (Ctrl+R)')),
@@ -1188,7 +1203,7 @@ function buildBars(ed: Editor) {
         'group', 'ungroup', 'isolate', 'grp:transform', 'tolines', SEP, 'grp:align', SEP, 'theme',
       ],
       tools: [
-        'grp:select', 'tool:node', SEP, 'grp:draw', 'tool:rect', 'tool:ellipse', 'tool:polygon', 'tool:text', SEP,
+        'grp:select', 'tool:node', SEP, 'grp:draw', 'tool:shaper', 'tool:rect', 'tool:ellipse', 'tool:polygon', 'tool:text', SEP,
         'grp:bool', 'grp:contour', 'grp:path', 'grp:array', SEP, 'grp:relate', 'tool:measure', SEP, 'apps',
       ],
     },

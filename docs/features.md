@@ -64,6 +64,12 @@ Offline regressions: `npm run test:camera`. No hardware is acquired by the tests
   open path of cubic segments of at most 90° each; its distance from the
   exact circle stays ≤ 2.7e-4·r. Committing
   is one Undo step. Test: `npm run test:arc-tool`.
+- **Tools → Shaper** reads a freehand gesture: encircling shapes unites them,
+  a line crossing one shape subtracts a capsule along the stroke (width in the
+  tool options), a closed gesture creates a recognized basic shape (rectangle,
+  rounded rectangle, ellipse, polygon) when recognition is on, otherwise the
+  stroke is fitted like the Pencil. Each gesture is one Undo step; taps create
+  nothing. Test: `npm run test:shaper`.
 
 These are whole-path refitting tools, not a Gaussian smooth brush or partial-run
 simplification. No Lasso, multi-handle selection, redraw or pressure
