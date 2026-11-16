@@ -113,9 +113,11 @@ test('Vektorwerkzeuge: Bleistift kommt dazu, ohne Verlust der Benutzerreihenfolg
   assert.deepEqual(before, ['tool:select', 'tool:node', '|', 'tool:line', 'custom-action', 'apps']);
   assert.deepEqual(after, ['grp:select', 'tool:node', '|', 'grp:draw', 'custom-action', 'apps']);
   assert.deepEqual(after.filter((id) => before.includes(id) || id === 'grp:select' || id === 'grp:draw'), ['grp:select', 'tool:node', '|', 'grp:draw', 'custom-action', 'apps']);
-  assert.deepEqual(upgradeBar('tools', after, 12), after, 'einmal gehoben, bleibt stabil');
+  assert.deepEqual(upgradeBar('tools', after, 13), after, 'einmal gehoben, bleibt stabil');
+  // v12 bars saved after #332 still carry single draw tools: v13 folds them into grp:draw
+  assert.deepEqual(upgradeBar('tools', ['grp:select', 'tool:node', '|', 'tool:line', 'tool:pencil', 'tool:curvature', 'tool:rect'], 12), ['grp:select', 'tool:node', '|', 'grp:draw', 'tool:rect']);
   const removed = after.filter((id) => id !== 'grp:draw');
-  assert.deepEqual(upgradeBar('tools', removed, 12), removed, 'bewusst entfernte Gruppe bleibt entfernt');
+  assert.deepEqual(upgradeBar('tools', removed, 13), removed, 'bewusst entfernte Gruppe bleibt entfernt');
   assert.deepEqual(upgradeBar('main', ['save', 'undo'], 5), ['save', 'undo', 'camera-overlays', 'isolate', 'devsettings']);
 });
 

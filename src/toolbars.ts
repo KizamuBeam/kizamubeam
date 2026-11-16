@@ -55,7 +55,7 @@ let cfg: Config;
 /** Ersatz alter Einzelknopf-Folgen durch Knopfgruppen in gespeicherten Leisten (Version 1 → 2) */
 let migrations: [string[], string][] = [];
 
-const CONFIG_V = 12;
+const CONFIG_V = 13;
 /** Neue Standardknöpfe: ab Version v der Belegung, hinter after (sonst ans Ende).
  *  Buttons that later left the default again (v6 vectorfit/shape-builder/isolate, v9 laserpos) are no longer
  *  listed, so older bars do not pick them up on their way to v11. */
@@ -84,8 +84,8 @@ const REMOVED: { v: number; bar: BarId; seq: string[]; keep: string[]; tail?: st
   { v: 11, bar: 'tools', seq: ['tool:measure', 'laserpos'], keep: ['tool:measure'] },
   // v12: select + lasso share one slot (grp:select) so the tools bar does not grow.
   { v: 12, bar: 'tools', seq: ['tool:select'], keep: ['grp:select'] },
-  // v12: line, pencil and curvature share one slot (grp:draw, arc included) so the tools bar does not grow.
-  { v: 12, bar: 'tools', seq: ['tool:line', 'tool:pencil', 'tool:curvature'], keep: ['grp:draw'] },
+  // v13: line, pencil and curvature share one slot (grp:draw, arc included) so the tools bar does not grow.
+  { v: 13, bar: 'tools', seq: ['tool:line', 'tool:pencil', 'tool:curvature'], keep: ['grp:draw'] },
 ];
 
 /** Gespeicherte Leiste auf die aktuelle Standardbelegung heben (raw: Version der gespeicherten Belegung) */
