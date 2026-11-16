@@ -67,7 +67,6 @@ const ADDED: { v: number; bar: BarId; id: string; after: string }[] = [
   { v: 6, bar: 'tools', id: 'tool:pencil', after: 'tool:line' },
   { v: 11, bar: 'tools', id: 'tool:curvature', after: 'tool:pencil' },
   { v: 11, bar: 'main', id: 'isolate', after: 'ungroup' },
-  { v: 12, bar: 'tools', id: 'tool:lasso', after: 'tool:select' },
 ];
 /** Aus der Standardbelegung entfernte Knöpfe (seit v4 im Werkzeugkasten bzw. Laser-Fenster): eine gespeicherte
  *  Leiste verliert sie nur, wenn die Folge seq noch genau so dasteht; sie wird durch keep ersetzt.
@@ -83,6 +82,8 @@ const REMOVED: { v: number; bar: BarId; seq: string[]; keep: string[]; tail?: st
   { v: 11, bar: 'tools', seq: ['tool:text', 'qr', 'apps'], keep: ['tool:text'], tail: [SEP, 'apps'] },
   { v: 11, bar: 'tools', seq: ['grp:bool', 'outline', 'offset', 'warp', 'grp:path', 'grp:array', 'nest'], keep: ['grp:bool', 'grp:contour', 'grp:path', 'grp:array'] },
   { v: 11, bar: 'tools', seq: ['tool:measure', 'laserpos'], keep: ['tool:measure'] },
+  // v12: select + lasso share one slot (grp:select) so the tools bar does not grow.
+  { v: 12, bar: 'tools', seq: ['tool:select'], keep: ['grp:select'] },
 ];
 
 /** Gespeicherte Leiste auf die aktuelle Standardbelegung heben (raw: Version der gespeicherten Belegung) */
@@ -175,6 +176,12 @@ export function refreshBars() {
 
 /** Die Aktion, die eine Knopfgruppe gerade zeigt */
 function groupCurrent(g: Action): Action {
+  // Aktives Werkzeug bevorzugen: über Menü/Shortcut gewählt, kennt cfg.groups nur Knopf-Klicks.
+  // Ohne das zeigte die Gruppe die gespeicherte Wahl als ungedrückt, obwohl ihr Tool aktiv ist.
+  for (const id of g.items!) {
+    const a = actions.get(id);
+    if (!a?.small && a?.on?.()) return a;
+  }
   const id = cfg.groups[g.id];
   return actions.get(id && g.items!.includes(id) ? id : g.items!.find((x) => !actions.get(x)?.small)!)!;
 }

@@ -91,27 +91,27 @@ test('Gespeicherte Leisten: Generatoren und Verbindungen wandern in den Werkzeug
   // v11 keeps only tool:pencil from the v6 vector tools; QR code and laser positioning leave the bar,
   // and the Toolbox button moves to its own section at the end
   const v3 = ['tool:select', 'tool:text', 'qr', 'grp:gen', 'apps', '|', 'grp:bool', 'nest', 'tool:joint', 'lidhinge', 'hinge'];
-  assert.deepEqual(upgradeBar('tools', v3, 3), ['tool:select', 'tool:lasso', 'tool:text', '|', 'grp:bool', 'nest', 'grp:relate', 'tool:measure', 'tool:pencil', 'tool:curvature', '|', 'apps']);
+  assert.deepEqual(upgradeBar('tools', v3, 3), ['grp:select', 'tool:text', '|', 'grp:bool', 'nest', 'grp:relate', 'tool:measure', 'tool:pencil', 'tool:curvature', '|', 'apps']);
   // v2 (ohne Werkzeugkasten-Knopf): erst einfügen, dann die Generatoren-Gruppe entfernen
-  assert.deepEqual(upgradeBar('tools', ['qr', 'grp:gen', '|', 'tool:joint', 'lidhinge', 'hinge'], 2), ['qr', 'apps', '|', 'grp:relate', 'tool:measure', 'tool:pencil', 'tool:curvature', 'tool:lasso']);
+  assert.deepEqual(upgradeBar('tools', ['qr', 'grp:gen', '|', 'tool:joint', 'lidhinge', 'hinge'], 2), ['qr', 'apps', '|', 'grp:relate', 'tool:measure', 'tool:pencil', 'tool:curvature']);
   // v4 nahm die Geräteeinstellungen heraus, v10 setzt sie vor „Prüfen“ wieder ein (#235)
   assert.deepEqual(upgradeBar('main', ['check', 'preview', 'devsettings', '|', 'group'], 3), ['devsettings', 'check', 'preview', '|', 'group', 'camera-overlays', 'isolate']);
   // selbst umgestellt: bleibt
   const own = ['grp:gen', 'tool:select', 'apps', 'hinge', 'tool:joint'];
-  assert.deepEqual(upgradeBar('tools', own, 3), ['grp:gen', 'tool:select', 'tool:lasso', 'apps', 'hinge', 'tool:joint', 'grp:relate', 'tool:measure', 'tool:pencil', 'tool:curvature']);
+  assert.deepEqual(upgradeBar('tools', own, 3), ['grp:gen', 'grp:select', 'apps', 'hinge', 'tool:joint', 'grp:relate', 'tool:measure', 'tool:pencil', 'tool:curvature']);
   assert.deepEqual(upgradeBar('main', ['devsettings', 'check'], 3), ['devsettings', 'check', 'camera-overlays', 'isolate']);
-  // schon aktuell: nur der neue v12-Knopf kommt dazu (Anker fehlt → ans Ende, wie bisher)
-  assert.deepEqual(upgradeBar('tools', ['grp:gen', 'apps'], 11), ['grp:gen', 'apps', 'tool:lasso']);
+  // schon aktuell (v11): v12 ersetzt nur tool:select durch grp:select, sonst kommt nichts dazu
+  assert.deepEqual(upgradeBar('tools', ['grp:gen', 'apps'], 11), ['grp:gen', 'apps']);
   // v4 → v5: Beziehungen und Messen kommen hinter Verschachteln dazu
-  assert.deepEqual(upgradeBar('tools', ['tool:select', 'nest', 'apps'], 4), ['tool:select', 'tool:lasso', 'nest', 'grp:relate', 'tool:measure', 'apps', 'tool:pencil', 'tool:curvature']);
+  assert.deepEqual(upgradeBar('tools', ['tool:select', 'nest', 'apps'], 4), ['grp:select', 'nest', 'grp:relate', 'tool:measure', 'apps', 'tool:pencil', 'tool:curvature']);
 });
 
 test('Vektorwerkzeuge: Bleistift kommt dazu, ohne Verlust der Benutzerreihenfolge', () => {
   const before = ['tool:select', 'tool:node', '|', 'tool:line', 'custom-action', 'apps'];
   const after = upgradeBar('tools', before, 5);
   assert.deepEqual(before, ['tool:select', 'tool:node', '|', 'tool:line', 'custom-action', 'apps']);
-  assert.deepEqual(after, ['tool:select', 'tool:lasso', 'tool:node', '|', 'tool:line', 'tool:pencil', 'tool:curvature', 'custom-action', 'apps']);
-  assert.deepEqual(after.filter(id => before.includes(id)), before);
+  assert.deepEqual(after, ['grp:select', 'tool:node', '|', 'tool:line', 'tool:pencil', 'tool:curvature', 'custom-action', 'apps']);
+  assert.deepEqual(after.filter((id) => before.includes(id) || id === 'grp:select'), ['grp:select', 'tool:node', '|', 'tool:line', 'custom-action', 'apps']);
   assert.deepEqual(upgradeBar('tools', after, 5), after, 'keine doppelten Knöpfe');
   const removed = after.filter(id => id !== 'tool:pencil');
   assert.deepEqual(upgradeBar('tools', removed, 6), removed, 'bewusst entfernte v6-Aktion bleibt entfernt');
@@ -127,14 +127,14 @@ test('v11: schlanke Werkzeugleiste aus der v10-Standardbelegung', () => {
   ];
   assert.deepEqual(upgradeBar('tools', v10, 10), bar('tools'));
   for (const id of ['qr', 'nest', 'warp', 'laserpos', 'vectorfit', 'shape-builder', 'outline', 'offset', 'isolate']) assert.ok(!bar('tools').includes(id), id);
-  assert.equal(bar('tools').filter((x) => x !== '|').length, 17);
+  assert.equal(bar('tools').filter((x) => x !== '|').length, 16);
   // isolate joins group/ungroup in the main bar
   const mainV10 = ['undo', '|', 'group', 'ungroup', 'grp:transform', 'tolines'];
   assert.deepEqual(upgradeBar('main', mainV10, 10), ['undo', '|', 'group', 'ungroup', 'isolate', 'grp:transform', 'tolines']);
   assert.ok(bar('main').includes('isolate'));
   // customized sequences stay as they are
   const own = ['tool:select', 'qr', 'tool:text', 'nest', 'laserpos', 'tool:curvature'];
-  assert.deepEqual(upgradeBar('tools', own, 10), ['tool:select', 'tool:lasso', 'qr', 'tool:text', 'nest', 'laserpos', 'tool:curvature']);
+  assert.deepEqual(upgradeBar('tools', own, 10), ['grp:select', 'qr', 'tool:text', 'nest', 'laserpos', 'tool:curvature']);
   // the removed buttons are still reachable: Toolbox tiles, button groups or the Laser window
   const tiles = new Set(apps.map((a) => a.id));
   for (const id of ['qr', 'nest', 'warp']) assert.ok(tiles.has(id), id);
