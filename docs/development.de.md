@@ -136,6 +136,13 @@ Ein Generator gibt alles, was die App über ihn wissen muss, an seinem `Generato
 - `inputs`: Was der Generator vor dem Dialog braucht (3D-Modell, Auswahl).
 
 Einen Generator mit `register()` in `src/generators/index.ts` anmelden. Seine `id` steht in Projekten und darf sich nie ändern.
+## Sicherheit: CSP und Markup
+
+Die WebView läuft mit einer strengen Content Security Policy (`app.security.csp` in `src-tauri/tauri.conf.json`): Skripte nur aus der App selbst (plus WebAssembly), kein `eval`, keine Inline-Skripte, keine Frames oder Objekte. Netzzugriff aus der WebView gibt es nur für die Update-Prüfung (api.github.com), den Erweiterungskatalog und die Google-Fonts-Vorschau; alles andere (Maschinen, Netzwerk-Kameras, Einstellungen-Sync, Schrift-Downloads) läuft über Rust. `devCsp` erlaubt zusätzlich den Vite-Entwicklungsserver. `style-src` behält `'unsafe-inline'`, weil die Oberfläche Inline-Styles setzt; Tauri fügt dort keine Nonces ein (`dangerousDisableAssetCspModification`), da eine Nonce `'unsafe-inline'` abschalten würde.
+
+Markup wird nur über `src/dom.ts` eingefügt: `h(tag, { icon: 'name' })` und `setIcon()` für Einträge aus `ICONS`, `h(tag, { svg })` und `setTrustedSvg()` für SVG, das die App selbst baut (Text mit `escapeXml()` maskieren). Text aus Dateien, Plugins, dem Katalog oder dem Netz wird immer als Text eingefügt. `npm run check:html` (Teil der CI) schlägt bei jedem anderen `innerHTML`, `insertAdjacentHTML`, `document.write`, `eval` oder `new Function` in `src/` fehl.
+
+Plugins bekommen nie eigene Tauri-Capabilities; `src-tauri/capabilities/default.json` bleibt minimal.
 
 ## Logo
 
