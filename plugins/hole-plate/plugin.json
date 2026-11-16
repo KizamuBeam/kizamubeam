@@ -3,7 +3,6 @@
   "formatVersion": 2,
   "id": "org.kizamubeam.hole-plate",
   "version": "1.0.0",
-  "minApp": "2.9.0-rc.2",
   "name": { "en": "Hole plate (example plugin)", "de": "Lochplatte (Beispiel-Plugin)", "it": "Piastra forata (plugin di esempio)" },
   "description": {
     "en": "Example of a generator plugin in Rust/WebAssembly: a plate with a square or hexagonal pattern of holes.",
