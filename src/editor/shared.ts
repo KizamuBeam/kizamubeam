@@ -122,7 +122,7 @@ export const TOOL_HINTS: Record<Tool, string> = {
   start: t('Startpunkt: Knoten oder Kante anklicken, dort beginnt der Schnitt (auf einer Kante geschlossener Konturen entsteht ein neuer Knoten). Shift+Klick: Richtung umkehren, Ctrl+Klick: zurücksetzen (Optimierung wählt).'),
   relate: t('Beziehung: zuerst das Element anklicken, das stehen bleibt, dann das Element des Objekts, das sich anpasst.'),
   pencil: t('Ziehen zeichnet einen angepassten Bézierpfad. Loslassen: übernehmen; Esc: abbrechen. Toleranz und Schließen in den Werkzeugoptionen einstellen.'),
-  shaper: t('Shaper: Formen umfahren zum Vereinen, kreuzende Linie zum Abziehen, geschlossene Geste formt eine Grundform, sonst Freihand. Esc bricht ab.'),
+  shaper: t('Shaper: Formen umfahren zum Vereinen, kreuzende Linie zum Abziehen, geschlossene Geste formt eine Grundform, sonst Freihand. Ring am Startpunkt zeigt, ob die Kontur beim Loslassen schließt. Esc bricht ab.'),
   builder: t('Formerstellung: Flächen verbinden; Alt entfernt Flächen. Esc beendet.'),
   sketch: '',
   measure: t('Messen: Anfang und Ende anklicken (mit Fang). Über einem Kreis erscheinen Radius und Durchmesser. Esc löscht die Messung.'),

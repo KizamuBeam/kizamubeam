@@ -54,7 +54,8 @@ import { EditorVector, VectorPlan } from './editor/vector';
 import type { ArcDraft, ArcMode } from './editor/arc';
 
 import { EditorOutline, type OutlinePreview } from './editor/outline';
-import { EditorShaper } from './editor/shaper';
+import { EditorShaper, type ShaperSession } from './editor/shaper';
+import { SHAPER_CLOSE_GAP } from './shaper';
 import { EditorInteraction, BuilderSession } from './editor/interaction';
 import { EditorContourOffset } from './editor/contourOffset';
 
@@ -143,9 +144,18 @@ export class Editor {
   arcCw = false;
   /** Laufender Bogen über mehrere Klicks hinweg */
   arcDraft: ArcDraft | null = null;
-  /** Shaper: Grundform-Erkennung an/aus und Abzugsbreite (mm, mindestens 0.5) */
+  /** Shaper: Grundform-Erkennung an/aus; Schließabstand, Glättung und Schnittbreite liegen in eigenen Feldern. */
   shaperRecognize = true;
-  shaperTolerance = 0.2;
+  /** Schnittbreite in mm (gesamt, nicht Radius). */
+  shaperTolerance = 1;
+  /** Endpunktabstand in mm, ab dem eine Geste als geschlossen gilt. */
+  shaperCloseGap = SHAPER_CLOSE_GAP;
+  /** Glättung der Geste in mm (0 = aus). */
+  shaperSmoothing = 0.8;
+  /** Nachjustierbare letzte Shaper-Operation. */
+  shaperEdit: ShaperSession | null = null;
+  /** Zuletzt angezeigter Schließzustand während des Ziehens (für den Hinweis). */
+  shaperCloseHint: boolean | null = null;
   builderSession: BuilderSession | null = null;
   suppressContextMenu = false;
   /** Drag with the right mouse button pans the view (opt-in, Edit → Settings → Mouse and keyboard) */
@@ -547,6 +557,9 @@ export class Editor {
 
   setTool(t: Tool) {
     if (t !== 'builder') this.builderSession = null;
+    // Eine neue Werkzeugwahl beendet die Nachbearbeitung der letzten Shaper-Operation
+    this.shaperEdit = null;
+    this.shaperCloseHint = null;
     if (this.drag) this.cancelDrag();
     if (this.draft) this.finishDraft();
     // Werkzeugwechsel verwirft einen laufenden Bogen (Esc bleibt die bewusste Abbruchtaste).

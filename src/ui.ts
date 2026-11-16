@@ -72,6 +72,8 @@ import { buildAppsPanel, openAppsPanel } from './appsPanel';
 import { installSketchPanel } from './sketchPanel';
 import { isSketchObj } from './editor/sketch';
 import { loadRightPan } from './editor/pointer';
+import { shaperName } from './editor/shaper';
+import type { ShaperKind } from './shaper';
 import { dockWindow, initDock, isHidden, resetLayout, toggleWindow, showWindow, windowList } from './dock';
 
 import { REL_HINTS, REL_LABELS, REL_MODES, RelMode } from './relations';
@@ -874,16 +876,32 @@ function buildNumbar(ed: Editor) {
     h('label', {}, t('Richtung'), arcDirSel));
   const shaperRecognize = h('input', { type: 'checkbox' });
   shaperRecognize.checked = ed.shaperRecognize;
-  shaperRecognize.addEventListener('change', () => { ed.shaperRecognize = shaperRecognize.checked; });
-  const shaperTolerance = h('input', { type: 'number', min: 0.1, max: 10, step: 0.1, value: String(ed.shaperTolerance),
-    'aria-label': t('Shaper-Abzugsbreite in Millimetern'), style: 'width: 7ch' });
-  shaperTolerance.addEventListener('change', () => {
-    const v = shaperTolerance.valueAsNumber;
-    if (Number.isFinite(v) && v >= 0.1 && v <= 10) ed.shaperTolerance = v;
-    else shaperTolerance.value = String(ed.shaperTolerance);
+  shaperRecognize.addEventListener('change', () => { ed.shaperRecognize = shaperRecognize.checked; ed.shaperRebuild(); });
+  // Zahlenfeld, das die letzte Operation sofort neu berechnet
+  const shaperNum = (get: () => number, min: number, max: number, aria: string, set: (v: number) => void) => {
+    const input = h('input', { type: 'number', min, max, step: 0.1, value: String(get()), 'aria-label': aria, style: 'width: 7ch' });
+    input.addEventListener('change', () => {
+      const v = input.valueAsNumber;
+      if (Number.isFinite(v) && v >= min && v <= max) { set(v); ed.shaperRebuild(); }
+      else input.value = String(get());
+    });
+    return input;
+  };
+  const shaperClose = shaperNum(() => ed.shaperCloseGap, 0.2, 20, t('Schließabstand in Millimetern'), (v) => (ed.shaperCloseGap = v));
+  const shaperSmooth = shaperNum(() => ed.shaperSmoothing, 0, 20, t('Glättung in Millimetern'), (v) => (ed.shaperSmoothing = v));
+  const shaperTolerance = shaperNum(() => ed.shaperTolerance, 0.2, 20, t('Schnittbreite in Millimetern'), (v) => (ed.shaperTolerance = v));
+  const shaperPick = h('select', { 'aria-label': t('Formvorschlag der letzten Geste') });
+  shaperPick.addEventListener('change', () => {
+    const s = ed.shaperEdit;
+    if (!s) return;
+    s.pick = shaperPick.value as ShaperKind | 'freehand';
+    ed.shaperRebuild();
   });
   const shaperProps = h('span', { class: 'field' }, h('label', { class: 'check' }, shaperRecognize, t('Form erkennen')),
-    h('label', {}, t('Abzugsbreite (mm)'), shaperTolerance));
+    h('label', {}, t('Schließen (mm)'), shaperClose),
+    h('label', {}, t('Glättung (mm)'), shaperSmooth),
+    h('label', {}, t('Schnittbreite (mm)'), shaperTolerance),
+    shaperPick);
 
   // Bilder
   const imgInfo = h('span', { class: 'muted' });
@@ -945,6 +963,22 @@ function buildNumbar(ed: Editor) {
     arcModeSel.value = ed.arcMode;
     arcDirSel.value = ed.arcCw ? 'cw' : 'ccw';
     shaperProps.hidden = ed.tool !== 'shaper';
+    shaperClose.value = String(ed.shaperCloseGap);
+    shaperSmooth.value = String(ed.shaperSmoothing);
+    shaperTolerance.value = String(ed.shaperTolerance);
+    const sk = ed.shaperEditValid() ? ed.shaperEdit : null;
+    shaperPick.hidden = !sk || sk.op === 'union' || sk.op === 'subtract';
+    if (sk && !shaperPick.hidden) {
+      const key = [...sk.cands.map((c) => `${c.kind}:${shaperName(c)}`), 'freehand'].join('|');
+      if (shaperPick.dataset.key !== key) {
+        shaperPick.replaceChildren(
+          ...sk.cands.map((c) => h('option', { value: c.kind }, shaperName(c))),
+          h('option', { value: 'freehand' }, t('Freihand')),
+        );
+        shaperPick.dataset.key = key;
+      }
+      if (shaperPick.value !== sk.pick) shaperPick.value = sk.pick;
+    }
     nodeLassoButton.setAttribute('aria-pressed',String(ed.nodeLasso));nodeLassoButton.classList.toggle('active',ed.nodeLasso);
     const imgs = ed.selImages();
     imgProps.hidden = sepImg.hidden = !imgs.length;

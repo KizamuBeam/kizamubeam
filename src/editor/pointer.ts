@@ -8,6 +8,7 @@ import { t, dec } from '../i18n';
 import type { Editor } from '../editor';
 import { lassoTouchMode } from '../lasso';
 import { MAX_VECTOR_SAMPLES } from '../vectorFit';
+import { closureOf } from '../shaper';
 import { genLeaves, isMarkGroup } from './generators';
 import { HINGE_HINT_FIRST, HINGE_HINT_SECOND, LASSO_TOUCH_HINT, RULER, SNAP_PX, TOOL_HINTS } from './shared';
 import { ARC_MIN_RADIUS, arcPoint, arcSpec, arcSubPath, newArcDraft, snapAngle, type ArcDraft, type ArcMode } from './arc';
@@ -58,7 +59,7 @@ export class EditorPointer {
 
   onDown(this: Editor, e: PointerEvent) {
     // A second pointer must not replace an in-progress freehand stroke.
-    if (this.drag?.type === 'pencil' || this.drag?.type === 'freehand-edit') return;
+    if (this.drag?.type === 'pencil' || this.drag?.type === 'shaper' || this.drag?.type === 'freehand-edit') return;
     if(this.drag?.type==='lasso')return;
     const { sx, sy } = this.evPt(e);
     const wp = this.toWorld(sx, sy);
@@ -220,6 +221,7 @@ export class EditorPointer {
       case 'shaper':
         e.preventDefault();
         this.clearSnap();
+        this.shaperCloseHint = null;
         this.drag = { type: 'shaper', points: [wp], pointerId: e.pointerId, overflow: false };
         this.redraw();
         return;
@@ -466,6 +468,15 @@ export class EditorPointer {
           if (Math.hypot(world.x - last.x, world.y - last.y) * this.view.zoom < 1) continue;
           if (d.points.length >= MAX_VECTOR_SAMPLES) { d.overflow = true; this.hint = t('Strich zu lang. Loslassen und einen kürzeren Strich zeichnen.'); this.emit('tool'); break; }
           d.points.push(world);
+        }
+        // Schließzustand live ansagen: derselbe Endpunktabstand wie bei der Auswertung
+        const closed = closureOf(d.points, this.shaperCloseGap).closed;
+        if (d.points.length > 1 && closed !== this.shaperCloseHint) {
+          this.shaperCloseHint = closed;
+          this.hint = closed
+            ? t('Loslassen schließt die Kontur.')
+            : t('Kontur offen: Ende zurück in den Ring am Startpunkt ziehen.');
+          this.emit('tool');
         }
         this.redraw(); return;
       }

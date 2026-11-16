@@ -2,15 +2,37 @@
 // als Form-Erkennung oder fällt auf den Bleistift-Pfad zurück.
 // Reihenfolge: mehrere getroffene Formen → vereinen; eine getroffene Form mit
 // Grenzübertritt → abziehen (Kapsel entlang der Geste); sonst Erkennung (wenn an),
-// sonst Bleistift-Fallback über fitPoints. Je Geste genau ein Undo-Schritt.
+// sonst Bleistift-Fallback über fitPoints.
+// Die letzte Operation bleibt bis zur nächsten Geste bzw. zum Werkzeugwechsel
+// einstellbar: Glättung, Schließabstand, Schnittbreite und Formvorschlag rechnen
+// immer aus der Rohgeste und den ursprünglichen Objekten neu. Eine Geste ist
+// genau ein Undo-Schritt, auch mit allen Nachjustierungen.
 import type { Editor } from '../editor';
 import { homeLayer, IDENT, leaves, Mat, mul, newId, Obj, Pt, rotate, Shape, translate } from '../model';
 import { booleanOp, closedCount, offsetOp, region } from '../ops';
 import { SCALE } from '../clip';
 import { pointInPoly } from '../polyTopology';
-import { recognize, type ShaperMatch } from '../shaper';
+import { closureOf, recognizeCandidates, smoothStroke, SHAPER_MIN_CONFIDENCE, type ShaperKind, type ShaperMatch } from '../shaper';
+import { freehandShape } from './vector';
 import { t } from '../i18n';
 import { vectorError } from '../vectorMessages';
+
+/** Nachjustierbare letzte Shaper-Operation (nicht Teil von Dokument/History). */
+export interface ShaperSession {
+  /** Rohgeste in Welt-mm — Grundlage jeder Neuberechnung. */
+  points: Pt[];
+  op: 'union' | 'subtract' | 'recognize' | 'freehand';
+  /** Ursprüngliche Objekte (Klon), bei Bool-Operationen die Operanden. */
+  inputs: Obj[];
+  keep: boolean;
+  resultId: number;
+  /** history.position beim Anlegen: jede spätere Änderung beendet die Sitzung. */
+  position: number;
+  cands: ShaperMatch[];
+  /** Gewählter Vorschlag; 'freehand' behält den Freihandpfad. */
+  pick: ShaperKind | 'freehand';
+  closed: boolean;
+}
 
 /** Welt-Polygone der geschlossenen Fläche eines Objekts (µm-Pfade → mm-Punkte). */
 function worldPolys(o: Obj): Pt[][] {
@@ -81,7 +103,7 @@ function shaperShape(m: ShaperMatch): { shape: Shape; mat: Mat } {
   }
 }
 
-function shaperName(m: ShaperMatch): string {
+export function shaperName(m: ShaperMatch): string {
   switch (m.kind) {
     case 'line': return t('Linie');
     case 'rect': return t('Rechteck');
@@ -107,11 +129,34 @@ export class EditorShaper {
     return out;
   }
 
+  /** Geglättete Geste für Erkennung, Schnitt und Freihand-Fallback. */
+  shaperPoints(this: Editor, raw: Pt[]): Pt[] { return smoothStroke(raw, this.shaperSmoothing); }
+
+  /** Kapsel entlang der Geste von der Zielfläche abziehen (Breite = Nutzerwert gesamt). */
+  shaperCut(this: Editor, target: Obj, points: Pt[]): Shape | null {
+    const width = Math.max(0.2, this.shaperTolerance);
+    const cutterSubs = offsetOp([{
+      id: newId(), m: [...IDENT], layer: target.layer,
+      shape: { kind: 'path', subs: [{ nodes: points.map((p) => ({ ...p })), closed: false }] },
+    }], { distance: width / 2, direction: 'outward', join: 'round' });
+    if (!cutterSubs.length) return null;
+    const cutter: Obj = { id: newId(), m: [...IDENT], layer: target.layer, shape: { kind: 'path', subs: cutterSubs } };
+    const subs = booleanOp('subtract', [target, cutter], []);
+    return subs.length ? { kind: 'path', subs } : null;
+  }
+
+  /** Freihand-Pfad aus der Geste (Fallback und „Freihand" in der Vorschlagsliste). */
+  shaperFreehandShape(this: Editor, points: Pt[], closed: boolean): Shape | null {
+    return freehandShape(points, closed, this.pencilTolerance);
+  }
+
   /** Mehrere getroffene Formen zu einer Kontur verschmelzen. */
-  async shaperUnion(this: Editor, inputs: Obj[]) {
+  async shaperUnion(this: Editor, inputs: Obj[], raw: Pt[]) {
     const keep = this.boolKeep;
+    const operands = inputs.map((o) => structuredClone(o));
     if (!keep && !(await this.guardGen(inputs, t('Shaper: Vereinen')))) return;
-    const subs = booleanOp('union', inputs, []);
+    if (!inputs.every((o) => this.doc.objs.includes(o))) return;
+    const subs = booleanOp('union', operands.map((o) => structuredClone(o)), []);
     if (!subs.length) {
       this.hint = t('Ergebnis ist leer (keine gemeinsame Fläche).');
       this.emit('tool');
@@ -126,26 +171,28 @@ export class EditorShaper {
     this.doc.objs.splice(idx, 0, res);
     this.setSel([res]);
     this.hint = keep ? t('Originale behalten, Ergebnis liegt davor.') : '';
+    this.shaperEdit = {
+      points: raw.map((p) => ({ ...p })), op: 'union', inputs: operands, keep,
+      resultId: res.id, position: this.history.position, cands: [], pick: 'freehand', closed: false,
+    };
     this.emit('doc');
     this.emit('tool');
   }
 
   /** Kapsel entlang der Geste von der Zielfläche abziehen. */
-  async shaperSubtract(this: Editor, target: Obj, points: Pt[]) {
-    const radius = Math.max(this.shaperTolerance, 0.5);
-    const cutterSubs = offsetOp([{
-      id: newId(), m: [...IDENT], layer: target.layer,
-      shape: { kind: 'path', subs: [{ nodes: points.map((p) => ({ ...p })), closed: false }] },
-    }], { distance: radius, direction: 'outward', join: 'round' });
-    if (!cutterSubs.length) {
+  async shaperSubtract(this: Editor, target: Obj, raw: Pt[]) {
+    const points = this.shaperPoints(raw);
+    const operands = [structuredClone(target)];
+    const probe = this.shaperCut(structuredClone(target), points);
+    if (!probe) {
       this.hint = t('Shaper: Aus der Geste lässt sich kein Abzug formen.');
       this.emit('tool');
       return;
     }
-    const cutter: Obj = { id: newId(), m: [...IDENT], layer: target.layer, shape: { kind: 'path', subs: cutterSubs } };
     const keep = this.boolKeep;
     if (!keep && !(await this.guardGen([target], t('Shaper: Abziehen')))) return;
-    const subs = booleanOp('subtract', [target, cutter], []);
+    if (!this.doc.objs.includes(target)) return;
+    const subs = probe.kind === 'path' ? probe.subs : [];
     if (!subs.length) {
       this.hint = t('Ergebnis ist leer (keine gemeinsame Fläche).');
       this.emit('tool');
@@ -159,12 +206,16 @@ export class EditorShaper {
     this.doc.objs.splice(Math.min(idx, this.doc.objs.length), 0, res);
     this.setSel([res]);
     this.hint = keep ? t('Originale behalten, Ergebnis liegt davor.') : '';
+    this.shaperEdit = {
+      points: raw.map((p) => ({ ...p })), op: 'subtract', inputs: operands, keep,
+      resultId: res.id, position: this.history.position, cands: [], pick: 'freehand', closed: false,
+    };
     this.emit('doc');
     this.emit('tool');
   }
 
   /** Erkannte Grundform als neues Objekt auf dem aktuellen Layer anlegen. */
-  shaperCreate(this: Editor, m: ShaperMatch) {
+  shaperCreate(this: Editor, m: ShaperMatch, raw: Pt[], cands: ShaperMatch[], closed: boolean) {
     if (this.layer(this.currentLayer).locked || !this.layer(this.currentLayer).show)
       throw new Error(t('Eine sichtbare, entsperrte Ebene wählen.'));
     const { shape, mat } = shaperShape(m);
@@ -172,36 +223,117 @@ export class EditorShaper {
     const obj: Obj = { id: newId(), m: [...mat], layer: this.currentLayer, shape };
     this.doc.objs.push(obj);
     this.setSel([obj]);
-    this.hint = t('Shaper: {name} erkannt.', { name: shaperName(m) });
+    this.hint = t('Vorschlag: {name}. Andere Form in den Werkzeugoptionen wählen.', { name: shaperName(m) });
+    this.shaperEdit = {
+      points: raw.map((p) => ({ ...p })), op: 'recognize', inputs: [], keep: this.boolKeep,
+      resultId: obj.id, position: this.history.position, cands, pick: m.kind, closed,
+    };
     this.emit('doc');
     this.emit('tool');
+  }
+
+  /** Kein Vorschlag über der Schwelle: Freihandpfad anlegen (bleibt auswählbar). */
+  private shaperFreehand(this: Editor, raw: Pt[], cands: ShaperMatch[], closed: boolean) {
+    const obj = this.finishPencil(this.shaperPoints(raw), closed);
+    if (!obj) {
+      this.hint = t('Kein Freihandpfad erstellt: für einen geschlossenen Pfad eine Fläche zeichnen.');
+      this.emit('tool');
+      return;
+    }
+    this.shaperEdit = {
+      points: raw.map((p) => ({ ...p })), op: 'freehand', inputs: [], keep: this.boolKeep,
+      resultId: obj.id, position: this.history.position, cands, pick: 'freehand', closed,
+    };
+    this.emit('tool');
+  }
+
+  /** Ist die letzte Operation noch nachjustierbar? */
+  shaperEditValid(this: Editor): boolean {
+    const s = this.shaperEdit;
+    return !!s && this.tool === 'shaper' && this.history.position === s.position
+      && this.doc.objs.some((o) => o.id === s.resultId);
+  }
+
+  /**
+   * Letzte Operation mit den aktuellen Werten neu berechnen (Glättung,
+   * Schließabstand, Schnittbreite, Vorschlag). Ersetzt nur das eigene Ergebnis:
+   * kein neuer Undo-Schritt, Originale und Rohgeste bleiben unverändert.
+   */
+  shaperRebuild(this: Editor): boolean {
+    const s = this.shaperEdit;
+    if (!this.shaperEditValid() || !s) return false;
+    const res = this.doc.objs.find((o) => o.id === s.resultId)!;
+    const pts = this.shaperPoints(s.points);
+    s.closed = closureOf(s.points, this.shaperCloseGap).closed;
+    let shape: Shape | null = null;
+    let mat: Mat | null = null;
+    if (s.op === 'union') {
+      const subs = booleanOp('union', s.inputs.map((o) => structuredClone(o)), []);
+      if (subs.length) shape = { kind: 'path', subs };
+    } else if (s.op === 'subtract') {
+      shape = this.shaperCut(structuredClone(s.inputs[0]), pts);
+    } else {
+      s.cands = this.shaperRecognize ? recognizeCandidates(pts, { closeGap: this.shaperCloseGap }) : [];
+      if (!s.cands.some((c) => c.kind === s.pick)) s.pick = 'freehand';
+      const pick = s.cands.find((c) => c.kind === s.pick);
+      if (pick) {
+        const built = shaperShape(pick);
+        shape = built.shape;
+        mat = built.mat;
+      } else {
+        // Freihand liegt im Weltraum: erkannte Form-Matrix darf nicht hängen bleiben
+        shape = this.shaperFreehandShape(pts, s.closed);
+        mat = [...IDENT];
+      }
+    }
+    if (!shape) {
+      this.hint = t('Diese Einstellung ergibt kein Ergebnis; der vorherige Stand bleibt.');
+      this.emit('tool');
+      return false;
+    }
+    res.shape = shape;
+    if (mat) res.m = [...mat];
+    this.touch(res.shape);
+    const pick = s.cands.find((c) => c.kind === s.pick);
+    this.hint = pick
+      ? t('Vorschlag: {name}. Andere Form in den Werkzeugoptionen wählen.', { name: shaperName(pick) })
+      : t('Freihand: Glättung und Schließabstand wirken auf den Pfad.');
+    this.emit('doc');
+    this.emit('tool');
+    return true;
   }
 
   /** Geste auswerten: Vereinen, Abziehen, Erkennen oder Bleistift-Fallback. */
   async finishShaper(this: Editor, points: Pt[]) {
     try {
+      // Jede neue Aktion beendet die Nachbearbeitung der vorigen Operation
+      this.shaperEdit = null;
       if (points.length < 2 || points.every((p) => Math.hypot(p.x - points[0].x, p.y - points[0].y) < 0.01)) {
         this.hint = t('Kein Freihandpfad erstellt: zum Zeichnen ziehen, nicht nur klicken.');
         this.emit('tool');
         return;
       }
-      const hits = this.shaperHits(points);
+      const raw = points.map((p) => ({ ...p }));
+      const pts = this.shaperPoints(raw);
+      const closure = closureOf(raw, this.shaperCloseGap);
+      const hits = this.shaperHits(pts);
       if (hits.length >= 2) {
-        await this.shaperUnion(hits.map((h) => h.obj));
+        await this.shaperUnion(hits.map((h) => h.obj), raw);
         return;
       }
-      if (hits.length === 1 && crossings(hits[0].polys, points) >= 1) {
-        await this.shaperSubtract(hits[0].obj, points);
+      if (hits.length === 1 && crossings(hits[0].polys, pts) >= 1) {
+        await this.shaperSubtract(hits[0].obj, raw);
         return;
       }
-      if (this.shaperRecognize) {
-        const m = recognize(points);
-        if (m && m.kind !== 'line') {
-          this.shaperCreate(m);
-          return;
-        }
+      const cands = this.shaperRecognize ? recognizeCandidates(pts, { closeGap: this.shaperCloseGap }) : [];
+      const best = cands[0];
+      // Eine erkannte Linie wird nicht automatisch übernommen: der Freihandpfad
+      // ist dort gleichwertig, die Linie bleibt als Vorschlag wählbar.
+      if (best && best.kind !== 'line' && best.confidence >= SHAPER_MIN_CONFIDENCE) {
+        this.shaperCreate(best, raw, cands, closure.closed);
+        return;
       }
-      this.finishPencil(points, false);
+      this.shaperFreehand(raw, cands, closure.closed);
     } catch (error) {
       this.hint = vectorError(error);
       this.emit('tool');

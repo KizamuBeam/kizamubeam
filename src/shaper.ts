@@ -22,7 +22,67 @@ const RESAMPLE_N = 64;
 const CORNER_WIN = 4;
 const CORNER_ANGLE = 0.6; // ~34° Richtungswechsel gilt als Ecke
 
+/** Standard-Schließabstand in mm: liegt das Ende näher am Anfang, gilt die Geste als geschlossen. */
+export const SHAPER_CLOSE_GAP = 2;
+
+export interface ShaperClosure {
+  closed: boolean;
+  /** Abstand Ende→Anfang in Welt-mm. */
+  gap: number;
+  /** Erlaubter Abstand in Welt-mm (dieselbe Zahl für Vorschau und Auswertung). */
+  limit: number;
+}
+
 const dist = (a: Pt, b: Pt) => Math.hypot(a.x - b.x, a.y - b.y);
+
+/**
+ * Offen/geschlossen nach reinem Endpunktabstand in mm. EINE Regel für Vorschau
+ * und Auswertung: was die Vorschau als geschlossen zeigt, wird auch geschlossen
+ * verarbeitet.
+ */
+export function closureOf(points: Pt[], limit = SHAPER_CLOSE_GAP): ShaperClosure {
+  const lim = Math.max(0.05, limit);
+  if (points.length < 2) return { closed: false, gap: 0, limit: lim };
+  const gap = dist(points[0], points[points.length - 1]);
+  return { closed: gap <= lim, gap, limit: lim };
+}
+
+/**
+ * Vorschaugeometrie der Schließung in WELT-mm (nicht Bildschirm): der Renderer
+ * zeichnet sie im Welt-Transform, damit Zoom und Verschiebung keine Rolle spielen.
+ */
+export function closurePreview(points: Pt[], limit = SHAPER_CLOSE_GAP): (ShaperClosure & { start: Pt; end: Pt }) | null {
+  if (points.length < 2) return null;
+  return { ...closureOf(points, limit), start: { ...points[0] }, end: { ...points[points.length - 1] } };
+}
+
+/**
+ * Glättet eine Freihand-Geste (Stärke in Welt-mm, 0 = aus): gewichtetes Mittel
+ * über die Nachbarn im Abstand der Stärke. Anfang und Ende bleiben stehen, damit
+ * Anfasserpunkte nicht wandern.
+ */
+export function smoothStroke(points: Pt[], strength: number): Pt[] {
+  const clean = points.map((p) => ({ x: p.x, y: p.y }));
+  const s = Number.isFinite(strength) ? strength : 0;
+  if (s <= 0 || clean.length < 3) return clean;
+  const n = clean.length;
+  let step = 0;
+  for (let i = 1; i < n; i++) step += dist(clean[i - 1], clean[i]);
+  step /= n - 1;
+  const radius = Math.max(1, Math.min(16, Math.round(s / Math.max(step, 1e-6))));
+  const out = clean.map((p) => ({ ...p }));
+  for (let i = 1; i < n - 1; i++) {
+    let sx = 0, sy = 0, w = 0;
+    for (let k = -radius; k <= radius; k++) {
+      const j = i + k;
+      if (j < 0 || j >= n) continue;
+      const c = radius + 1 - Math.abs(k);
+      sx += clean[j].x * c; sy += clean[j].y * c; w += c;
+    }
+    out[i] = { x: sx / w, y: sy / w };
+  }
+  return out;
+}
 
 function pathLength(pts: Pt[]): number {
   let L = 0;
@@ -141,8 +201,11 @@ function fitLine(pts: Pt[], L: number): ShaperLine | null {
   if (len <= 1e-9) return null;
   let worst = 0;
   for (const p of pts) worst = Math.max(worst, lineDist(p, a, b));
-  const confidence = clamp01(1 - worst / (0.04 * L + 1e-9));
-  return { kind: 'line', a: { ...a }, b: { ...b }, confidence };
+  // Abweichung relativ zur Sehne und Geradlinigkeit der Geste: ein Kritzel hat
+  // eine lange Strichlänge bei kurzer Sehne und ist damit keine Linie.
+  const deviation = clamp01(1 - worst / (0.04 * len + 1e-9));
+  const directness = clamp01((len / L - 0.75) / 0.2);
+  return { kind: 'line', a: { ...a }, b: { ...b }, confidence: deviation * directness };
 }
 
 function fitEllipse(pts: Pt[], pc: Pca): ShaperEllipse | null {
@@ -198,90 +261,148 @@ function cornerRegularity(pts: Pt[], corners: number[]): number {
 }
 
 /**
- * Klassifiziert eine Freihand-Geste. Gibt null zurück, wenn keine Grundform
- * die Schwelle erreicht — der Aufrufer behält dann die Freihand-Polyline.
+ * Wie gerade verlaufen die Kanten zwischen den Ecken? 1 = geradlinig,
+ * 0 = stark gekrümmt. Das trennt ein echtes Vieleck von einem Kreis, dessen
+ * Rundung nur zufällig drei "Ecken" erzeugt.
  */
-export function recognize(points: Pt[]): ShaperMatch | null {
-  if (points.length < 2) return null;
+function edgeStraightness(pts: Pt[], corners: number[]): number {
+  const c = corners.length;
+  if (c < 3) return 0;
+  let acc = 0;
+  for (let i = 0; i < c; i++) {
+    const i0 = corners[i], i1 = corners[(i + 1) % c];
+    const a = pts[i0], b = pts[i1];
+    const chord = dist(a, b);
+    if (chord <= 1e-9) return 0;
+    let worst = 0;
+    for (let j = i0; j !== i1; j = (j + 1) % pts.length) worst = Math.max(worst, lineDist(pts[j], a, b));
+    acc += clamp01(1 - worst / (0.08 * chord + 1e-9));
+  }
+  return acc / c;
+}
+
+/** Vieleck aus den erkannten Ecken: Mittelpunkt, mittlerer Radius, Lage der ersten Ecke. */
+function polygonFromCorners(pts: Pt[], corners: number[]): ShaperPolygon | null {
+  const n = corners.length;
+  if (n < 3) return null;
+  let cx = 0, cy = 0;
+  for (const i of corners) { cx += pts[i].x; cy += pts[i].y; }
+  cx /= n; cy /= n;
+  let r = 0;
+  for (const i of corners) r += dist(pts[i], { x: cx, y: cy });
+  r /= n;
+  if (r <= 1e-9) return null;
+  // shapeSubs setzt die erste Ecke auf -90° + rotation
+  const rotation = Math.atan2(pts[corners[0]].y - cy, pts[corners[0]].x - cx) + Math.PI / 2;
+  return { kind: 'polygon', cx, cy, r, sides: n, rotation, confidence: 0 };
+}
+
+/**
+ * Alle plausiblen Grundformen, bester Vorschlag zuerst. Die Formfamilien
+ * konkurrieren offen miteinander (keine harte Eckenzahl-Weiche): ein Kreis mit
+ * drei zufälligen Ecken bleibt eine Ellipse, weil das Vieleck an seinen
+ * gekrümmten Kanten scheitert.
+ */
+export function recognizeCandidates(points: Pt[], opts: { closeGap?: number } = {}): ShaperMatch[] {
+  if (points.length < 2) return [];
   const pts = resampleShape(points);
-  if (pts.length < 2) return null;
+  if (pts.length < 2) return [];
   const L = pathLength(pts);
   const box = bbox(pts);
   const diag = Math.hypot(box.w, box.h);
-  if (L <= 1e-9 || diag <= 1e-9) return null;
+  if (L <= 1e-9 || diag <= 1e-9) return [];
   // Kleinstgesten (<2 mm Pfadlänge) sind Taps, keine Formen
-  if (L < 2) return null;
+  if (L < 2) return [];
 
-  const closure = dist(pts[0], pts[pts.length - 1]);
-  const closed = closure / L < 0.08;
+  const closed = closureOf(points, opts.closeGap ?? SHAPER_CLOSE_GAP).closed;
   const corners = findCorners(pts, closed);
   const pc = pca(pts);
-
   const cands: ShaperMatch[] = [];
+
   if (!closed) {
     const line = fitLine(pts, L);
-    if (line) cands.push(line);
-  } else {
-    const frame = rectFrame(pts, pc, diag);
-    if (corners.length === 4) {
-      // Ecken sollten nahe den Rahmenecken liegen
-      const q = pts.map((p) => rot(p, frame.cx, frame.cy, frame.angle));
-      const hx = frame.w / 2, hy = frame.h / 2;
-      let near = 0;
-      for (const i of corners) {
-        const p = q[i];
-        const dc = Math.min(...[[hx, hy], [hx, -hy], [-hx, hy], [-hx, -hy]]
-          .map(([ex, ey]) => Math.hypot(p.x - ex, p.y - ey)));
-        if (dc < 0.2 * diag) near++;
+    if (line && line.confidence > 0.25) cands.push(line);
+    return rank(cands);
+  }
+
+  const frame = rectFrame(pts, pc, diag);
+  const q = pts.map((p) => rot(p, frame.cx, frame.cy, frame.angle));
+  const hx = frame.w / 2, hy = frame.h / 2;
+  let near = 0;
+  for (const i of corners) {
+    const p = q[i];
+    const dc = Math.min(...[[hx, hy], [hx, -hy], [-hx, hy], [-hx, -hy]]
+      .map(([ex, ey]) => Math.hypot(p.x - ex, p.y - ey)));
+    if (dc < 0.2 * diag) near++;
+  }
+  const cornerScore = corners.length ? near / Math.max(4, corners.length) : 0;
+  const base = clamp01(0.45 * frame.sharp + 0.35 * cornerScore + 0.2 * cornerRegularity(pts, corners));
+  // Vier Ecken sind der Beweis für ein Rechteck; ohne sie bleibt es Kandidat,
+  // aber deutlich schwächer (sonst gewinnt es gegen einen echten Kreis).
+  const rectConf = corners.length === 4 ? base : base * 0.6;
+  if (rectConf > 0.25)
+    cands.push({ kind: 'rect', cx: frame.cx, cy: frame.cy, w: frame.w, h: frame.h, angle: frame.angle, confidence: rectConf });
+
+  if (corners.length === 4) {
+    // Abgerundet? Punkte weichen an den Ecken vom scharfen Rahmen ab,
+    // folgen aber Kanten + Viertelkreisen mit Radius r.
+    const r = 0.2 * Math.min(frame.w, frame.h);
+    let se = 0;
+    for (const p of q) {
+      const ax = Math.abs(p.x), ay = Math.abs(p.y);
+      const ex = hx - r, ey = hy - r;
+      let d: number;
+      if (ax <= ex || ay <= ey) {
+        d = Math.min(hx - ax, hy - ay);
+      } else {
+        d = Math.abs(Math.hypot(ax - ex, ay - ey) - r);
       }
-      const cornerScore = near / 4;
-      const confidence = clamp01(0.45 * frame.sharp + 0.35 * cornerScore + 0.2 * cornerRegularity(pts, corners));
-      cands.push({ kind: 'rect', cx: frame.cx, cy: frame.cy, w: frame.w, h: frame.h, angle: frame.angle, confidence });
-      // Abgerundet? Punkte weichen an den Ecken vom scharfen Rahmen ab,
-      // folgen aber Kanten + Viertelkreisen mit Radius r.
-      const r = 0.2 * Math.min(frame.w, frame.h);
-      let se = 0;
-      for (const p of q) {
-        const ax = Math.abs(p.x), ay = Math.abs(p.y);
-        const ex = hx - r, ey = hy - r;
-        let d: number;
-        if (ax <= ex || ay <= ey) {
-          d = Math.min(hx - ax, hy - ay);
-        } else {
-          d = Math.abs(Math.hypot(ax - ex, ay - ey) - r);
-        }
-        se += d * d;
-      }
-      const rmsRound = Math.sqrt(se / q.length);
-      let seSharp = 0;
-      for (const p of q) seSharp += Math.pow(Math.min(hx - Math.abs(p.x), hy - Math.abs(p.y)), 2);
-      const rmsSharp = Math.sqrt(seSharp / q.length);
-      if (rmsRound < rmsSharp * 0.75 && rmsRound < 0.08 * diag) {
-        const confidence = clamp01(0.5 * frame.sharp + 0.5 * clamp01(1 - rmsRound / (0.08 * diag)));
-        cands.push({ kind: 'roundrect', cx: frame.cx, cy: frame.cy, w: frame.w, h: frame.h, angle: frame.angle, r, confidence: Math.min(confidence, 0.85) });
-      }
-    } else if (corners.length >= 3 && corners.length <= 8) {
-      const confidence = clamp01(0.4 * frame.sharp + 0.6 * cornerRegularity(pts, corners));
-      if (confidence >= SHAPER_MIN_CONFIDENCE - 0.15) {
-        const sides = corners.length;
-        cands.push({ kind: 'polygon', cx: pc.cx, cy: pc.cy, r: Math.max(frame.w, frame.h) / 2, sides, rotation: 0, confidence });
-      }
-    } else {
-      const ell = fitEllipse(pts, pc);
-      if (ell) {
-        // Ellipse gegen rundes Rechteck abwägen: wer liegt näher an den Punkten?
-        cands.push(ell);
-        const frameC = rectFrame(pts, pc, diag);
-        if (frameC.sharp > 0.85 && corners.length === 0) {
-          // Sehr randnah + eckenlos spricht eher für Rechteck-Familie
-          ell.confidence *= 0.8;
-        }
-      }
+      se += d * d;
+    }
+    const rmsRound = Math.sqrt(se / q.length);
+    let seSharp = 0;
+    for (const p of q) seSharp += Math.pow(Math.min(hx - Math.abs(p.x), hy - Math.abs(p.y)), 2);
+    const rmsSharp = Math.sqrt(seSharp / q.length);
+    if (rmsRound < rmsSharp * 0.75 && rmsRound < 0.08 * diag) {
+      const confidence = clamp01(0.5 * frame.sharp + 0.5 * clamp01(1 - rmsRound / (0.08 * diag)));
+      cands.push({ kind: 'roundrect', cx: frame.cx, cy: frame.cy, w: frame.w, h: frame.h, angle: frame.angle, r, confidence: Math.min(confidence, 0.85) });
     }
   }
 
-  let best: ShaperMatch | null = null;
-  for (const c of cands) if (!best || c.confidence > best.confidence) best = c;
-  if (!best || best.confidence < SHAPER_MIN_CONFIDENCE) return null;
-  return best;
+  const ell = fitEllipse(pts, pc);
+  if (ell) {
+    // Randnah + eckenlos spricht eher für die Rechteck-Familie
+    if (frame.sharp > 0.85 && corners.length === 0) ell.confidence *= 0.8;
+    cands.push(ell);
+  }
+
+  if (corners.length >= 3 && corners.length <= 8) {
+    const poly = polygonFromCorners(pts, corners);
+    if (poly) {
+      const straight = edgeStraightness(pts, corners);
+      poly.confidence = clamp01(0.35 * frame.sharp + 0.25 * cornerRegularity(pts, corners) + 0.4 * straight);
+      if (poly.confidence > 0.25) cands.push(poly);
+    }
+  }
+
+  return rank(cands);
+}
+
+/** Beste Form je Familie behalten, nach Konfidenz sortieren. */
+function rank(cands: ShaperMatch[]): ShaperMatch[] {
+  const best = new Map<ShaperKind, ShaperMatch>();
+  for (const c of cands) {
+    const prev = best.get(c.kind);
+    if (!prev || c.confidence > prev.confidence) best.set(c.kind, c);
+  }
+  return [...best.values()].sort((a, b) => b.confidence - a.confidence);
+}
+
+/**
+ * Bester Vorschlag über der Übernahmeschwelle, sonst null. Dünne Hülle um
+ * recognizeCandidates(), damit Aufrufer ohne Auswahl weiter funktionieren.
+ */
+export function recognize(points: Pt[], opts: { closeGap?: number } = {}): ShaperMatch | null {
+  const best = recognizeCandidates(points, opts)[0];
+  return best && best.confidence >= SHAPER_MIN_CONFIDENCE ? best : null;
 }
