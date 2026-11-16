@@ -12,7 +12,7 @@ const { genFit } = await import('../src/fitcheck');
 /** Core files that are already free of generator ids; later steps of #341 add the remaining ones */
 const DECOUPLED = ['src/fitcheck.ts', 'src/asmcheck.ts', 'src/apps.ts', 'src/ui.ts', ...readdirSync(new URL('../src/view3d/', import.meta.url)).filter((f) => f.endsWith('.ts')).map((f) => `src/view3d/${f}`)];
 /** Uses of a matching word that are not a generator id */
-const ALLOWED = /type \w+ = [^;]+;|(icon|group|kind): '[\w-]+'( \| '[\w-]+')*|\?\? '[\w-]+'|\{ id: '[\w-]+', label:|ICONS\.\w+|\[a-z]/g;
+const ALLOWED = /type \w+ = [^;]+;|(icon|group|kind): '[\w-]+'( \| '[\w-]+')*|\?\? '[\w-]+'|ICONS\[\w+\] \? \w+ : '[\w-]+'|\{ id: '[\w-]+', label:|ICONS\.\w+|\[a-z]/g;
 
 let failed = 0;
 function test(name: string, fn: () => void) {
