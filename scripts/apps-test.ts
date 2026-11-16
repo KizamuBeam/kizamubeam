@@ -103,7 +103,7 @@ test('Gespeicherte Leisten: Generatoren und Verbindungen wandern in den Werkzeug
   assert.deepEqual(upgradeBar('main', ['check', 'preview', 'devsettings', '|', 'group'], 3), ['devsettings', 'check', 'preview', '|', 'group', 'camera-overlays', 'isolate']);
   // selbst umgestellt: bleibt
   const own = ['grp:gen', 'tool:select', 'apps', 'hinge', 'tool:joint'];
-  assert.deepEqual(upgradeBar('tools', own, 3), ['grp:gen', 'grp:select', 'apps', 'hinge', 'tool:joint', 'grp:relate', 'tool:measure', 'tool:pencil', 'tool:shaper', 'tool:curvature']);
+  assert.deepEqual(upgradeBar('tools', own, 3), ['grp:gen', 'grp:select', 'apps', 'hinge', 'tool:joint', 'grp:relate', 'tool:measure', 'tool:pencil', 'tool:curvature', 'tool:shaper']);
   assert.deepEqual(upgradeBar('main', ['devsettings', 'check'], 3), ['devsettings', 'check', 'camera-overlays', 'isolate']);
   // schon aktuell (v11): v12 ersetzt nur tool:select durch grp:select, v13 faltet die Zeichenfolge zu grp:draw, v14 hängt tool:shaper an (kein Krümmungs-Anker)
   assert.deepEqual(upgradeBar('tools', ['grp:gen', 'apps'], 11), ['grp:gen', 'apps', 'tool:shaper']);
