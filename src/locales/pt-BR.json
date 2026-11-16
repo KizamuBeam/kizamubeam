@@ -4759,6 +4759,7 @@
   "{n} ausgeblendetes Objekt nimmt am Job teil (Ausgabe eingeschaltet).": "{n} objeto oculto participa do trabalho (saída ativada).",
   "{n} ausgeblendete Objekte nehmen am Job teil (Ausgabe eingeschaltet).": "{n} objetos ocultos participam do trabalho (saída ativada).",
   "Kontur (Gruppe)": "Contorno (grupo)",
+  "Zeichnen (Gruppe)": "Desenhar (grupo)",
   "Bogen: Mitte anklicken. Esc bricht ab.": "Arco: clique no centro. Esc cancela.",
   "Bogen: Radius und Startwinkel anklicken oder ziehen. Shift: 15°-Schritte, Esc verwirft den Bogen.": "Arco: clique ou arraste o raio e o ângulo inicial. Shift: passos de 15°, Esc descarta o arco.",
   "Bogen: Endwinkel anklicken. Shift: 15°-Schritte, Enter übernimmt, Esc verwirft den Bogen.": "Arco: clique no ângulo final. Shift: passos de 15°, Enter confirma, Esc descarta o arco.",

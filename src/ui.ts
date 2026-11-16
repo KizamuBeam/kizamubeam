@@ -1178,6 +1178,7 @@ function buildBars(ed: Editor) {
     { id: 'apps', cat: W, icon: 'apps', label: t('Werkzeugkasten: alle Generatoren und Werkzeuge mit Suche'), run: () => toggleWindow('apps'), on: () => !isHidden('apps') },
     // Knopfgruppen: ein Knopf für die zuletzt benutzte Aktion, der Pfeil daneben zeigt die übrigen
     { id: 'grp:select', cat: W, label: t('Auswählen (Gruppe)'), items: ['tool:select', 'tool:lasso'], run: () => {} },
+    { id: 'grp:draw', cat: W, label: t('Zeichnen (Gruppe)'), items: ['tool:line', 'tool:pencil', 'tool:curvature', 'tool:arc'], run: () => {} },
     { id: 'grp:transform', cat: A, label: t('Spiegeln und drehen (Gruppe)'), items: ['mirrorh', 'mirrorv', 'rotccw', 'rotcw'], run: () => {} },
     { id: 'grp:align', cat: A, label: t('Ausrichten und verteilen (Gruppe)'), items: ['alignl', 'alignhc', 'alignr', 'alignt', 'alignvc', 'alignb', 'disth', 'distv'], run: () => {} },
     { id: 'grp:zoom', cat: V, label: t('Zoom (Gruppe)'), items: ['zoompage', 'zoomsel', 'zoomin', 'zoomout'], run: () => {} },
@@ -1197,7 +1198,7 @@ function buildBars(ed: Editor) {
         'group', 'ungroup', 'isolate', 'grp:transform', 'tolines', SEP, 'grp:align', SEP, 'theme',
       ],
       tools: [
-        'grp:select', 'tool:node', SEP, 'tool:line', 'tool:pencil', 'tool:curvature', 'tool:arc', 'tool:rect', 'tool:ellipse', 'tool:polygon', 'tool:text', SEP,
+        'grp:select', 'tool:node', SEP, 'grp:draw', 'tool:rect', 'tool:ellipse', 'tool:polygon', 'tool:text', SEP,
         'grp:bool', 'grp:contour', 'grp:path', 'grp:array', SEP, 'grp:relate', 'tool:measure', SEP, 'apps',
       ],
     },

@@ -4759,6 +4759,7 @@
   "Die Werte dieses Bereichs auf die Vorgaben setzen; wirksam erst mit OK": "Riporta i valori di questa sezione ai predefiniti; hanno effetto solo con OK",
   "Nicht übernommen: {names}": "Non applicato: {names}",
   "Kontur (Gruppe)": "Contorno (gruppo)",
+  "Zeichnen (Gruppe)": "Disegna (gruppo)",
   "Bogen: Mitte anklicken. Esc bricht ab.": "Arco: fai clic sul centro. Esc annulla.",
   "Bogen: Radius und Startwinkel anklicken oder ziehen. Shift: 15°-Schritte, Esc verwirft den Bogen.": "Arco: fai clic o trascina raggio e angolo iniziale. Maiusc: passi di 15°, Esc scarta l'arco.",
   "Bogen: Endwinkel anklicken. Shift: 15°-Schritte, Enter übernimmt, Esc verwirft den Bogen.": "Arco: fai clic sull'angolo finale. Maiusc: passi di 15°, Invio conferma, Esc scarta l'arco.",

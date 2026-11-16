@@ -34,7 +34,7 @@ export type BarKey = BarId | 'numbar' | 'textbar' | 'palette' | 'status';
 type IconSize = 's' | 'm' | 'l';
 
 interface Config {
-  /** Version der gespeicherten Belegung (2: Knopfgruppen, 3: Werkzeugkasten, 4: Generatoren/Verbindungen im Werkzeugkasten, 5: Beziehungen/Messen, 6: Vektorwerkzeuge, 7: Kamera-Overlay, 12: Bogenwerkzeug) */
+  /** Version der gespeicherten Belegung (2: Knopfgruppen, 3: Werkzeugkasten, 4: Generatoren/Verbindungen im Werkzeugkasten, 5: Beziehungen/Messen, 6: Vektorwerkzeuge, 7: Kamera-Overlay, 12: Bogenwerkzeug, Zeichengruppe) */
   v: number;
   bars: Record<BarId, string[]>;
   size: Record<BarId, IconSize>;
@@ -58,7 +58,7 @@ let migrations: [string[], string][] = [];
 const CONFIG_V = 12;
 /** Neue Standardknöpfe: ab Version v der Belegung, hinter after (sonst ans Ende).
  *  Buttons that later left the default again (v6 vectorfit/shape-builder/isolate, v9 laserpos) are no longer
- *  listed, so older bars do not pick them up on their way to v12. */
+ *  listed, so older bars do not pick them up on their way to v11. */
 const ADDED: { v: number; bar: BarId; id: string; after: string }[] = [
   { v: 3, bar: 'tools', id: 'apps', after: 'grp:gen' },
   { v: 5, bar: 'tools', id: 'grp:relate', after: 'nest' },
@@ -66,7 +66,6 @@ const ADDED: { v: number; bar: BarId; id: string; after: string }[] = [
   { v: 7, bar: 'main', id: 'camera-overlays', after: 'view3d' },
   { v: 6, bar: 'tools', id: 'tool:pencil', after: 'tool:line' },
   { v: 11, bar: 'tools', id: 'tool:curvature', after: 'tool:pencil' },
-  { v: 12, bar: 'tools', id: 'tool:arc', after: 'tool:curvature' },
   { v: 11, bar: 'main', id: 'isolate', after: 'ungroup' },
 ];
 /** Aus der Standardbelegung entfernte Knöpfe (seit v4 im Werkzeugkasten bzw. Laser-Fenster): eine gespeicherte
@@ -85,6 +84,8 @@ const REMOVED: { v: number; bar: BarId; seq: string[]; keep: string[]; tail?: st
   { v: 11, bar: 'tools', seq: ['tool:measure', 'laserpos'], keep: ['tool:measure'] },
   // v12: select + lasso share one slot (grp:select) so the tools bar does not grow.
   { v: 12, bar: 'tools', seq: ['tool:select'], keep: ['grp:select'] },
+  // v12: line, pencil and curvature share one slot (grp:draw, arc included) so the tools bar does not grow.
+  { v: 12, bar: 'tools', seq: ['tool:line', 'tool:pencil', 'tool:curvature'], keep: ['grp:draw'] },
 ];
 
 /** Gespeicherte Leiste auf die aktuelle Standardbelegung heben (raw: Version der gespeicherten Belegung) */
