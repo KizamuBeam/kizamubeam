@@ -4961,5 +4961,6 @@
   "„{name}“ darf Daten laden von: {hosts}": "“{name}” puede cargar datos de: {hosts}",
   "„{name}“ lädt Daten aus dem Internet. KizamuBeam fragt vor der ersten Anfrage und stellt sie selbst, nur an diese Server:": "“{name}” carga datos de internet. KizamuBeam pregunta antes de la primera solicitud y las hace por sí mismo, solo a estos servidores:",
   "ungültige Angabe „{key}“": "«{key}» no válido",
-  "Das Teil ({w} × {h} mm) passt nicht auf die Arbeitsfläche ({aw} × {ah} mm).": "La pieza ({w} × {h} mm) no cabe en el área de trabajo ({aw} × {ah} mm)."
+  "Das Teil ({w} × {h} mm) passt nicht auf die Arbeitsfläche ({aw} × {ah} mm).": "La pieza ({w} × {h} mm) no cabe en el área de trabajo ({aw} × {ah} mm).",
+  "Der Server für „{name}“ war nicht erreichbar (keine Verbindung, Namensauflösung, TLS oder Zeitüberschreitung).": "No se pudo acceder al servidor de «{name}» (sin conexión, resolución de nombres, TLS o tiempo de espera agotado)."
 }
