@@ -4964,5 +4964,8 @@
   "Der Server für „{name}“ war nicht erreichbar (keine Verbindung, Namensauflösung, TLS oder Zeitüberschreitung).": "Il server per «{name}» non è raggiungibile (nessuna connessione, risoluzione dei nomi, TLS o tempo scaduto).",
   "{name} eingefügt ({n} Teile auf {p} Seiten). Doppelklick auf ein Teil öffnet die Parameter der ganzen Baugruppe.": "{name} inserito ({n} pezzi su {p} pagine). Doppio clic su un pezzo apre i parametri dell'intero assieme.",
   "{n} Teil ist größer als der Arbeitsbereich und liegt allein in der Mitte einer Seite.": "{n} pezzo è più grande dell'area di lavoro e sta da solo al centro di una pagina.",
-  "{n} Teile sind größer als der Arbeitsbereich und liegen je allein in der Mitte einer Seite.": "{n} pezzi sono più grandi dell'area di lavoro e ognuno sta da solo al centro di una pagina."
+  "{n} Teile sind größer als der Arbeitsbereich und liegen je allein in der Mitte einer Seite.": "{n} pezzi sono più grandi dell'area di lavoro e ognuno sta da solo al centro di una pagina.",
+  "{where}: „action“ muss eine Aktion mit der Eingabe „selection“ sein": "{where}: «action» deve essere un'azione con l'input «selection»",
+  "unbekannter Kontext in „context“ (erlaubt: {list})": "contesto sconosciuto in «context» (consentiti: {list})",
+  "„context“ fehlt für die Host-Funktion „context“": "manca «context» per la funzione host «context»"
 }
