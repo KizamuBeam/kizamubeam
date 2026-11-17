@@ -81,13 +81,13 @@ Ruota la vista con il mouse o usa le viste predefinite (3D, dall’alto, frontal
 
 **Collisioni**: dove due pezzi si compenetrano (per esempio con un accoppiamento forzato o un’asola troppo stretta) l’area diventa rossa, e la riga di stato indica i pezzi e il volume.
 
-**Incisioni**: con la casella **Incisioni**, riempimenti, linee incise, testo e immagini elaborate compaiono sulla faccia che era in alto durante la lavorazione, con una leggera profondità.
+**Incisioni**: con la casella **Incisioni**, riempimenti, linee incise, testo e immagini elaborate compaiono sulla faccia che era in alto durante la lavorazione, con una leggera profondità. Le incisioni che non giacciono su nessuna parte non vengono disegnate e durante la lavorazione colpirebbero la superficie di lavoro. La riga di stato le conta (“1 incisione senza parte”); un clic sul numero le seleziona sull’area di lavoro.
 
 ### Aspetto del materiale {#material-look}
 
 Ogni livello di taglio può avere un aspetto proprio nella finestra del livello, in **Aspetto in 3D**: 21 preimpostazioni come compensato di pioppo e di betulla, faggio, rovere, noce, bambù, MDF, cartone, sughero, cuoio, ardesia, granito, acrilico trasparente, colorato e opaco, vetro, alluminio anodizzato e acciaio inox, ognuna con un colore proprio facoltativo. Le incisioni appaiono diverse a seconda del materiale: bruciatura scura sul legno, grigio chiaro sull’ardesia, bianco satinato su acrilico e vetro. I livelli senza aspetto proprio lo prendono dal nome della loro voce nella [libreria dei materiali](materials-tests.md#material-library).
 
-Per mostrare un pezzo piano senza taglio (un sottobicchiere in ardesia, per esempio), disegna il suo contorno su un livello con l’uscita disattivata: diventa la lastra.
+Per mostrare un pezzo piano senza taglio (un sottobicchiere in ardesia, per esempio), disegna il suo contorno su un livello con l’uscita disattivata: diventa la lastra. Lo stesso vale per il materiale grezzo: disegna un rettangolo della misura della lastra su un livello così, e le incisioni e i pezzi tagliati sopra compaiono sulla lastra. I pezzi che stanno dentro la lastra restano pezzi e la lastra ha dei fori al loro posto. La casella «Lastra» nella finestra 3D nasconde le lastre quando vuoi vedere solo i pezzi.
 
 ### Mockup per i clienti
 
@@ -105,6 +105,7 @@ Trova, tra l’altro:
 - ponti tra due tagli più stretti del ponte minimo (predefinito 1 mm, larghezza di taglio inclusa),
 - ritagli troppo piccoli per la larghezza di taglio,
 - oggetti fuori dall’area di lavoro,
+- incisioni che non giacciono su nessuna parte di taglio (mancano nella vista 3D e colpirebbero la superficie di lavoro; se la pagina non ha alcuna parte di taglio non viene segnalato nulla, perché allora tutto giace su un oggetto finito),
 - elementi che un’importazione SVG o DXF ha dovuto saltare,
 - l’**accoppiamento** delle giunzioni a incastro dei generatori e dello strumento Giunzione rispetto a spessore del materiale e kerf (troppo stretto, molto stretto, molto lasco).
 

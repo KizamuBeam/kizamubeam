@@ -2,6 +2,7 @@
 import './core-fixtures-env';
 import { strict as assert } from 'node:assert';
 import type { Params } from '../src/generators';
+import './builtin-generators';
 import type { Solid } from '../src/view3d/solids';
 const { asmSolids, findOverlaps, solidBounds } = await import('../src/view3d/solids');
 const { rotatePose } = await import('../src/view3d/poses');
@@ -848,6 +849,43 @@ test('Steckprüfung sieht die ausgeschnittene Platte: ein ringsum freigeschnitte
   assert.equal(cut[0].level, 'error');
   // Ohne Seiten (andere Aufrufer von checkDesign) wird wie bisher nicht geschnitten
   assert.deepEqual(findings(true, false), [], 'ohne pages wie bisher');
+});
+
+test('Gravuren ohne Platte: nur Gravuren, die auf keinem Teil liegen, und nur gezeigte (Issue #326)', () => {
+  const rect = (id: number, layer: number, x: number, y: number): Obj => ({ id, m: [1, 0, 0, 1, x, y], layer, shape: { kind: 'rect', w: 40, h: 30, r: 0 } });
+  const plate = rect(1, 0, 20, 20), near = rect(2, 1, 30, 30), far = rect(3, 1, 200, 150);
+  const doc = loadDoc({ version: 2, bed: { w: 300, h: 200 }, page: 0, layers: {}, pages: [{ name: 'A', objs: [plate, near, far] }] });
+  // Layer 0 schneidet, Layer 1 füllt
+  const mk = (sel: Obj[]) => ({ doc, sel, layer: (i: number) => ({ mode: i === 1 ? 'fill' : 'line', output: true, show: true, material: undefined }) }) as never;
+  const ids = (sel: Obj[]) => collectScene(mk(sel), 3, false).loose.map((o) => o.id);
+  assert.deepEqual(ids([]), [3], 'ohne Auswahl: die ganze Seite');
+  assert.deepEqual(ids([plate, near, far]), [3], 'mit Auswahl aller Objekte');
+  assert.deepEqual(ids([far]), [3], 'nur die lose Gravur gewählt: sie hat keine Platte');
+  assert.deepEqual(ids([plate, near]), [], 'die lose Gravur ist nicht gewählt und wird nicht gemeldet');
+  assert.deepEqual(ids([plate]), [], 'nur die Platte gewählt');
+  assert.deepEqual(ids([near]), [], 'nur die Gravur gewählt, sie liegt auf einer Platte der Seite, die nicht gezeigt wird');
+});
+
+test('Rohplatte: Teile darauf bleiben Teile, die Platte bekommt Löcher; die Anzeige lässt sich ausschalten (Issue #326)', () => {
+  const rect = (id: number, layer: number, x: number, y: number, w: number, h: number): Obj => ({ id, m: [1, 0, 0, 1, x, y], layer, shape: { kind: 'rect', w, h, r: 0 } });
+  const sheet = rect(1, 7, 0, 0, 100, 100), part = rect(2, 0, 10, 10, 20, 20), engr = rect(3, 1, 60, 60, 20, 20);
+  const doc = loadDoc({ version: 2, bed: { w: 300, h: 200 }, page: 0, layers: {}, pages: [{ name: 'A', objs: [sheet, part, engr] }] });
+  // Layer 0 und 7 schneiden (7 ohne Ausgabe), Layer 1 füllt
+  const ed = { doc, sel: [], layer: (i: number) => ({ mode: i === 1 ? 'fill' : 'line', output: i !== 7, show: true, material: undefined }) } as never;
+  const area = (p: { polys: { x: number; y: number }[][] }) =>
+    p.polys.reduce((a, q, i) => a + (i ? -1 : 1) * Math.abs(q.reduce((s, v, k) => s + v.x * q[(k + 1) % q.length].y - q[(k + 1) % q.length].x * v.y, 0)) / 2, 0);
+  const on = collectScene(ed, 3, false).scene.solids;
+  assert.equal(on.length, 2, 'Platte und Teil');
+  const plate = on.find((x) => x.polys.length === 2)!, piece = on.find((x) => x.polys.length === 1)!;
+  assert.ok(plate && piece, 'die Platte hat ein Loch, das Teil bleibt ein Teil');
+  near(area(plate), 100 * 100 - 20 * 20, 1e-3, 'Fläche der Platte ohne das Teil');
+  near(area(piece), 20 * 20, 1e-3, 'Fläche des Teils');
+  const off = collectScene(ed, 3, false, undefined, false);
+  assert.equal(off.scene.solids.length, 1, 'ohne Rohplatte nur das Teil');
+  assert.equal(off.scene.solids[0].polys.length, 1);
+  assert.deepEqual(collectScene(ed, 3, false).loose, [], 'Gravur auf der Platte ist nicht lose');
+  assert.deepEqual(off.loose, [], 'auch nicht, wenn die Platte ausgeblendet ist');
+  assert.deepEqual(collectScene({ ...ed, sel: [engr] } as never, 3, false, undefined, false).loose, [], 'auch nicht, wenn nur die Gravur gewählt ist');
 });
 
 if (failed) {

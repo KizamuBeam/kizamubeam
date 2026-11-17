@@ -81,13 +81,13 @@ Turn the view with the mouse, or use the preset views (3D, top, front). The **Ex
 
 **Collisions**: where two parts intersect (for example with a press fit or a slot that is too narrow), the area turns red, and the status line names the parts and the volume.
 
-**Engravings**: with the checkbox **Engravings**, fills, engraved lines, text and processed images appear on the face that was up during lasering, with a slight depth.
+**Engravings**: with the checkbox **Engravings**, fills, engraved lines, text and processed images appear on the face that was up during lasering, with a slight depth. Engravings that lie on no part are not drawn, and when lasering they would hit the work surface. The status line counts them (“1 engraving without part”); a click on the count selects them on the workspace.
 
 ### Material look
 
 Each cut layer can get its own look in the layer dialog under **Appearance in 3D**: 21 presets such as poplar and birch plywood, beech, oak, walnut, bamboo, MDF, cardboard, cork, leather, slate, granite, clear, coloured and opaque acrylic, glass, anodized aluminium and stainless steel, each with an optional custom colour. Engravings look different per material: dark burn on wood, light grey on slate, frosted white on acrylic and glass. Layers without their own look take it from the name of their [material library](materials-tests.md#material-library) entry.
 
-To show a flat piece without a cut (a slate coaster, for example), draw its outline on a layer with output off: it becomes the plate.
+To show a flat piece without a cut (a slate coaster, for example), draw its outline on a layer with output off: it becomes the plate. The same works for raw stock: draw a rectangle of the sheet size on such a layer, and the engravings and the cut parts lying on it show up on the sheet. Parts that lie inside the sheet stay parts, and the sheet gets holes in their place. The checkbox “Stock” in the 3D window hides the sheets when you only want to look at the parts.
 
 ### Mockups for customers
 
@@ -105,6 +105,7 @@ It finds, among other things:
 - bridges between two cuts narrower than the minimum bridge (default 1 mm, kerf taken into account),
 - cut-outs too small for the kerf,
 - objects outside the work area,
+- engravings that lie on no cut part (they are missing in the 3D view and would hit the work surface; nothing is reported if the page has no cut part at all, because then everything lies on a finished object),
 - elements that an SVG or DXF import had to skip,
 - the **fit** of slot-together joints from the generators and the Joint tool against material thickness and kerf (too tight, very tight, very loose).
 
