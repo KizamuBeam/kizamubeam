@@ -399,7 +399,7 @@ async function checkGenerator(m: PluginManifest, errors: string[], note: (states
     note(none, 'without context');
     // An error the plugin did not write a text for is a crash in its code (e.g. reading the thickness of null)
     for (const i of none[none.length - 1].issues)
-      if (i.code && !/^(plugin|net|host)-/.test(i.code) && pluginText(m.texts, 'en', i.code) === undefined) errors.push(`without context: ${i.code} (report an issue when host.context answers null)`);
+      if (i.code && !/^(plugin|net|host|check)-/.test(i.code) && pluginText(m.texts, 'en', i.code) === undefined) errors.push(`without context: ${i.code} (report an issue when host.context answers null)`);
   }
 }
 
