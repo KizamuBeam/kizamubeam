@@ -4960,5 +4960,8 @@
   "„network“ braucht die Host-Funktion „fetch“": "“network” necesita la función de host “fetch”",
   "„{name}“ darf Daten laden von: {hosts}": "“{name}” puede cargar datos de: {hosts}",
   "„{name}“ lädt Daten aus dem Internet. KizamuBeam fragt vor der ersten Anfrage und stellt sie selbst, nur an diese Server:": "“{name}” carga datos de internet. KizamuBeam pregunta antes de la primera solicitud y las hace por sí mismo, solo a estos servidores:",
-  "ungültige Angabe „{key}“": "«{key}» no válido"
+  "ungültige Angabe „{key}“": "«{key}» no válido",
+  "{where}: „action“ muss eine Aktion mit der Eingabe „selection“ sein": "{where}: «action» debe ser una acción con la entrada «selection»",
+  "unbekannter Kontext in „context“ (erlaubt: {list})": "contexto desconocido en «context» (permitidos: {list})",
+  "„context“ fehlt für die Host-Funktion „context“": "falta «context» para la función de host «context»"
 }
