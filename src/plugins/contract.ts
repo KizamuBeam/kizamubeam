@@ -15,8 +15,12 @@ export type PluginFn = 'validate' | 'generate' | 'view' | 'onChange' | 'onEvent'
 
 /** Limits for one plugin (#205: time, memory, output size) */
 export const LIMITS = {
-  /** Time per call in ms; the Worker is terminated after it. generate runs in a Worker (the editor stays usable), and nesting many parts in QuickJS takes a while (a 400-tooth gear pair: about 20 s) */
-  callMs: { validate: 2000, generate: 30000, view: 2000, onChange: 2000, onEvent: 10000 } as Record<PluginFn, number>,
+  /**
+   * Time per call in ms; the Worker is terminated after it. Everything runs in a Worker (the editor stays usable).
+   * Nesting many parts in QuickJS takes a while (a 400-tooth gear pair: about 20 s); validate may need the whole
+   * layout too (a disc sphere checks that its discs fit, which took over 2 s on a CI runner)
+   */
+  callMs: { validate: 10000, generate: 30000, view: 2000, onChange: 2000, onEvent: 10000 } as Record<PluginFn, number>,
   /** Options of a question (ask) */
   askOptions: 3,
   /** Memory of the JavaScript engine or the WebAssembly instance */

@@ -121,7 +121,7 @@ A failure is reported as a code, for example `holes-touch`. Codes the app itself
 | `plugin-no-function` | The plugin does not provide the called function |
 | `plugin-bad-output` | The answer breaks the contract (wrong types, NaN, too many parts or nodes, coordinates out of range, duplicate keys) |
 
-Limits (`LIMITS` in `contract.ts`): `validate` 2 s, `generate` 30 s, 512 MB memory, 8 MB code, 32 MB answer, 2000 parts, 500 000 nodes, coordinates within ±100 m.
+Limits (`LIMITS` in `contract.ts`): `validate` 10 s, `generate` 30 s, `view` and `onChange` 2 s, `onEvent` 10 s, 512 MB memory, 8 MB code, 32 MB answer, 2000 parts, 500 000 nodes, coordinates within ±100 m.
 
 ## JavaScript
 
