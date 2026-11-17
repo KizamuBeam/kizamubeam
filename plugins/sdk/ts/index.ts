@@ -34,6 +34,11 @@ export interface Part {
   at: Pt;
   /** Engraving on the part, same coordinates as subs */
   marks?: SubPath[];
+  /**
+   * Page group (#387, 0 … 49): parts with the same number go on the same page; 0 is the page the user inserts on,
+   * every further group gets new pages behind it. at is relative to the other parts of the group.
+   */
+  page?: number;
 }
 /**
  * A text for the app: plain (shown as it is, numbers in the user's format), a text key of the manifest with values
@@ -55,6 +60,11 @@ export interface GenResult {
   label?: Text;
   /** Names of the parts of an assembly by part key */
   labels?: Record<string, Text>;
+  /**
+   * Spread the parts over as many pages as the work area needs, with the app's nesting (#387); rotate allows turning
+   * parts by 90°, 180° and 270°. Each page group is spread on its own.
+   */
+  distribute?: { rotate?: boolean };
   /**
    * Where each part sits in space for the 3D view, by part key: a point (x, y) of the outline at height s lies at
    * o + x·u + y·v + s·n (mm; X right, Y back, Z up)
@@ -271,6 +281,22 @@ export interface Host {
    */
   fetch(input: { host: string; path: string; query?: Record<string, string | number>; method?: 'GET' | 'POST'; body?: string }): NetResponse;
   /**
+   * The geometric part of "Check design" on the plugin's cut lines (#388): lines cut twice, open outlines, webs
+   * thinner than minWeb, cut-outs lost to the kerf, parts larger than the work area (turned too). Each part is
+   * checked on its own unless placed is true (then they lie where they will be cut, moved by at). Pass the findings
+   * on as issues of validate with their code and values: the app writes the texts.
+   */
+  check(input: {
+    parts: { key: string; subs: SubPath[]; at?: [number, number] }[];
+    placed?: boolean;
+    minWeb?: number;
+    beam?: number;
+    kerf?: number;
+    tol?: number;
+    closeGap?: number;
+    workArea?: { width: number; height: number };
+  }): CheckFinding[];
+  /**
    * Context the manifest declares under "context" (#386): the material of the layer the part goes on, or the
    * machine's work area. null when the app does not know it (a layer without material): report an issue then.
    * Another material or work area computes the part again.
@@ -301,6 +327,15 @@ export interface NetResponse {
   text?: string;
   data?: string;
   error?: string;
+}
+/** A finding of host.check: code check-double, check-double-whole, check-unjoined, check-open, check-open-fill,
+ * check-hole-lost, check-hole-small, check-web, check-web-cut or check-too-big; the parts it concerns by key */
+export interface CheckFinding {
+  code: string;
+  level: 'error' | 'warn' | 'info';
+  parts: string[];
+  values?: Record<string, number>;
+  at?: [number, number];
 }
 export type V3 = [number, number, number];
 /** An area: closed polygons, each [x0, y0, x1, y1, …] in mm */
