@@ -4965,6 +4965,7 @@
   "{name} eingefügt ({n} Teile auf {p} Seiten). Doppelklick auf ein Teil öffnet die Parameter der ganzen Baugruppe.": "{name} inserted ({n} parts on {p} pages). Double-click a part to open the parameters of the whole assembly.",
   "{n} Teil ist größer als der Arbeitsbereich und liegt allein in der Mitte einer Seite.": "{n} part is larger than the work area and lies alone in the middle of a page.",
   "{n} Teile sind größer als der Arbeitsbereich und liegen je allein in der Mitte einer Seite.": "{n} parts are larger than the work area and each lies alone in the middle of a page.",
+  "Das Teil ({w} × {h} mm) passt nicht auf die Arbeitsfläche ({aw} × {ah} mm).": "The part ({w} × {h} mm) does not fit on the work area ({aw} × {ah} mm).",
   "{where}: „action“ muss eine Aktion mit der Eingabe „selection“ sein": "{where}: “action” must be an action with the input “selection”",
   "unbekannter Kontext in „context“ (erlaubt: {list})": "unknown context in “context” (allowed: {list})",
   "„context“ fehlt für die Host-Funktion „context“": "“context” is missing for the host function “context”"
