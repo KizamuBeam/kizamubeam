@@ -31,6 +31,11 @@ interface SpecBase {
   title?: string;
   /** Abschnitt im Dialog: Hauptfelder oder eingeklappt unter „Erweitert“ */
   advanced?: boolean;
+  /**
+   * Named section of the dialog (its heading, already translated); fields with the same section are shown
+   * together below the main fields, in the order of their first field. advanced wins over section.
+   */
+  section?: string;
   /** New objects always start with def instead of the last-used value (layout choices of saved objects) */
   resetOnNew?: boolean;
   /** Feld nur zeigen (und beachten), wenn diese Bedingung gilt */
@@ -178,6 +183,13 @@ export interface Generator {
   inputs?: GenInput[];
   /** Parameters for a new object from the declared inputs (e.g. workpiece outlines from the selection) */
   fromInputs?(inputs: GenInputs): Params | undefined;
+  /**
+   * Generators that compute elsewhere (plugins in a Worker) compute these parameters here; until it resolves,
+   * validate() reports „being computed“. Built-in generators compute synchronously and leave it out.
+   */
+  prepare?(p: Params): Promise<void>;
+  /** Name of the extension that provides the generator; saved with its parts (GenShape.ext) for when it is missing */
+  ext?: string;
   /** Extra area in the dialog; it reads the app only through the host and writes only parameters */
   panel?(p: Params, set: (patch: Params) => void, host?: GenHost): GenPanel;
 }
