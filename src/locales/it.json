@@ -4960,5 +4960,6 @@
   "„network“ braucht die Host-Funktion „fetch“": "“network” richiede la funzione host “fetch”",
   "„{name}“ darf Daten laden von: {hosts}": "“{name}” può caricare dati da: {hosts}",
   "„{name}“ lädt Daten aus dem Internet. KizamuBeam fragt vor der ersten Anfrage und stellt sie selbst, nur an diese Server:": "“{name}” carica dati da internet. KizamuBeam chiede prima della prima richiesta e le effettua da sé, solo verso questi server:",
-  "ungültige Angabe „{key}“": "«{key}» non valido"
+  "ungültige Angabe „{key}“": "«{key}» non valido",
+  "Das Teil ({w} × {h} mm) passt nicht auf die Arbeitsfläche ({aw} × {ah} mm).": "Il pezzo ({w} × {h} mm) non entra nell'area di lavoro ({aw} × {ah} mm)."
 }

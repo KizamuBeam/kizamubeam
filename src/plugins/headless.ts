@@ -401,7 +401,7 @@ export async function checkPlugin(m: PluginManifest, opts: { net?: readonly NetA
     errors.push(e instanceof Error ? e.message : String(e));
   }
   if (m.network?.length && errors.some((e) => /net-offline/.test(e))) errors.push('the plugin loads data from the internet: give recorded answers for its requests (net-fixtures.json next to plugin.json, see docs/plugins.md)');
-  for (const c of codes) if (c !== 'plugin-text' && !c.startsWith('net-') && pluginText(m.texts, 'en', c) === undefined) warnings.push(`no English text for code "${c}"`);
+  for (const c of codes) if (c !== 'plugin-text' && !c.startsWith('net-') && !c.startsWith('check-') && pluginText(m.texts, 'en', c) === undefined) warnings.push(`no English text for code "${c}"`);
   for (const s of m.schema) if (pluginText(m.texts, 'en', s.key) === undefined) warnings.push(`no English label for parameter "${s.key}"`);
   if (pluginText(m.texts, 'en', 'desc') === undefined) warnings.push('no English text "desc" (toolbox tooltip)');
   return { id: m.id, errors, warnings };
