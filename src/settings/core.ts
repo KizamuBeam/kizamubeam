@@ -24,6 +24,7 @@ import { openFontManager } from '../fontManager';
 import { agentLevels, agentSettings, configureAgent, openAgentDialog } from '../agentui';
 import { configureHost, hostSettings, openRemoteHostDialog } from '../remoteHost';
 import { registerSettingsSection } from './registry';
+import { typographySettingsFields } from './typography';
 
 export type ThemeMode = 'system' | 'light' | 'dark';
 
@@ -86,6 +87,7 @@ export function registerCoreSettings(ed: Editor, hooks: CoreSettingsHooks) {
         get: () => hooks.theme(),
         set: (v) => hooks.setTheme(v as ThemeMode),
       },
+      ...typographySettingsFields(),
       {
         kind: 'action', id: 'appearance.toolbars', group: t('Fenster und Leisten'), label: t('Funktionsleisten'), hint: t('Knöpfe und Reihenfolge der Leisten wählen.'),
         button: t('Anpassen …'), run: () => openToolbarDialog(),
