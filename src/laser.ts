@@ -5,7 +5,7 @@ import { escapeXml, h, numInput, setIcon, setTrustedSvg } from './dom';
 import { saveBinary, saveText } from './files';
 import { native } from './native';
 import {
-  anchorOf, BedCheck, Box, buildJob, burns, checkBed, DEFAULT_ROTARY, Device, estimate, Firmware, FIRMWARES, liveStatus, formatDuration, frameGCode, Job, jogLines, jogToLines, LASER_TYPES, moveLines, LaserModule, LaserType, loadDevices, Moves, newDevice,
+  anchorOf, BedCheck, Box, buildJob, burns, checkBed, DEFAULT_ROTARY, Device, estimate, Firmware, FIRMWARES, fireLines, liveStatus, formatDuration, frameGCode, Job, jogLines, jogToLines, LASER_TYPES, moveLines, LaserModule, LaserType, loadDevices, Moves, newDevice,
   posShift, prepareGCode, Rotary, RotaryAxis, rotaryCirc, rotaryOn, rotaryTestLines, RuidaLaser, RuidaMagic, RuidaOrigin, sameMoves, sanitizeRuidaFilename, saveDevices, StartFrom, startHere, zJogLines,
 } from './gcode';
 import { isTauri, machine, PortInfo } from './machine';
@@ -837,6 +837,67 @@ function moveTab(ed: Editor): HTMLElement {
     ),
   );
   const zNote = h('div', { class: 'note' }, t('Z+/Z− verfahren die Achse in Steuerungsrichtung (unabhängig von „Z+ fährt Richtung Material“). Freiraum prüfen. Hinweis Kopfkamera: Nach einer Z-Fahrt stimmt der Maßstab des Kamera-Overlays nicht mehr.'));
+  // Testfeuer: nur wenn im Gerät aktiviert, mit Leistung ≤ fireMaxPower und Laufzeit ≤ fireMaxSeconds.
+  // SMOOTHIE kann kein M3/M5 im Stand -> kein Testfeuer.
+  const fireSupported = (d: Device) => d.fw !== 'smoothie' && d.fw !== 'ruida';
+  let firing = 0; // Restsekunden; 0 = aus
+  let fireTimer: ReturnType<typeof setInterval> | null = null;
+  const firePowerIn = h('input', { type: 'number', min: '0', max: '100', step: '1', class: 'move-fire-power', value: String(device.fireMaxPower) }) as HTMLInputElement;
+  const fireSecsIn = h('input', { type: 'number', min: '1', step: '1', class: 'move-fire-secs', value: String(Math.min(device.fireMaxSeconds > 0 ? device.fireMaxSeconds : 60, 60)) }) as HTMLInputElement;
+  const fireStatus = h('span', { class: 'move-fire-status' });
+  const fireBtn = h('button', { class: 'btn', title: t('Laser im Stand einschalten; nach der Laufzeit automatisch aus') }, t('Laser an')) as HTMLButtonElement;
+  const stopFire = () => {
+    if (fireTimer) (clearInterval(fireTimer), (fireTimer = null));
+    firing = 0;
+    sendAll(fw().footer.filter((l) => l === 'M5'));
+    fireBtn.textContent = t('Laser an');
+    fireStatus.textContent = '';
+    refresh();
+  };
+  const doFire = () => {
+    const why = (() => {
+      if (!machine.connected) return t('Nicht verbunden.');
+      if (machine.running) return t('Während eines Jobs nicht möglich.');
+      if (machine.remote) return t('Über einen anderen KizamuBeam nicht möglich.');
+      if (machine.status.state.startsWith('Alarm')) return t('Die Maschine ist im Alarmzustand. Erst referenzieren oder entsperren.');
+      if (!fireSupported(device)) return t('Diese Steuerung unterstützt kein Testfeuer.');
+      if (!device.fireEnabled) return t('Testfeuer ist nicht aktiviert (Geräteeinstellungen → Rahmen & Zeiger).');
+      if (!(device.fireMaxPower > 0)) return t('Maximale Leistung ist 0 (Geräteeinstellungen → Rahmen & Zeiger).');
+      return null;
+    })();
+    if (why) return notify(why, true);
+    const p = Math.min(device.fireMaxPower, Math.max(0, Number(firePowerIn.value) || 0));
+    if (!(p > 0)) return notify(t('Leistung muss größer 0 sein.'), true);
+    const maxS = device.fireMaxSeconds > 0 ? device.fireMaxSeconds : 3600;
+    const secs = Math.min(maxS, Math.max(1, Math.floor(Number(fireSecsIn.value) || maxS)));
+    // Geräte-Fire-Befehle: Laser mit gewünschter Leistung im Stand (M3 S… bzw. M4 S0 + G1)
+    sendAll(fireLines(device, p));
+    firing = secs;
+    fireBtn.textContent = t('Laser aus');
+    fireStatus.textContent = t('{s} s', { s: firing });
+    if (fireTimer) clearInterval(fireTimer);
+    fireTimer = setInterval(() => {
+      firing--;
+      fireStatus.textContent = firing > 0 ? t('{s} s', { s: firing }) : '';
+      if (firing <= 0) stopFire();
+    }, 1000);
+    refresh();
+  };
+  fireBtn.addEventListener('click', () => (firing > 0 ? stopFire() : doFire()));
+  const syncFireInputs = () => {
+    firePowerIn.value = String(Math.min(device.fireMaxPower, Math.max(0, device.fireMaxPower)));
+    const maxSecs = device.fireMaxSeconds > 0 ? device.fireMaxSeconds : 3600;
+    fireSecsIn.value = String(Math.min(maxSecs, Math.max(1, device.fireMaxSeconds > 0 ? device.fireMaxSeconds : 60)));
+  };
+  const fireSection = h('div', { class: 'move-row move-fire' },
+    fireBtn, fireStatus,
+    h('div', { class: 'form move-form' },
+      h('label', { title: t('Leistung in % (max. Geräteeinstellung)') }, t('Leistung (%)')), firePowerIn,
+      h('label', { title: t('Laufzeit in Sekunden (max. Geräteeinstellung)') }, t('Dauer (s)')), fireSecsIn,
+    ),
+    h('div', { class: 'note' }, t('Laser bleibt nach der Laufzeit automatisch aus. Leistung und Dauer können die Geräteeinstellungen nicht überschreiten.')),
+  );
+  syncFireInputs();
   root.append(
     pos,
     h('div', { class: 'move-row' }, pad,
@@ -854,6 +915,7 @@ function moveTab(ed: Editor): HTMLElement {
       clickB,
       unlock,
     ),
+    fireSection,
     modeRow,
   );
   const refresh = () => {
@@ -871,6 +933,12 @@ function moveTab(ed: Editor): HTMLElement {
     syncClickB();
     if (!fw().clearOrigin) clearO.disabled = true;
     if (!fw().unlock) unlock.disabled = true;
+    fireSection.hidden = !device.fireEnabled || device.fireMaxPower <= 0 || !fireSupported(device);
+    fireBtn.disabled = !machine.connected || machine.running || firing > 0;
+    firePowerIn.disabled = firing > 0;
+    fireSecsIn.disabled = firing > 0;
+    firePowerIn.max = String(device.fireMaxPower);
+    fireSecsIn.max = String(device.fireMaxSeconds > 0 ? device.fireMaxSeconds : 3600);
   };
   machine.on((e) => e.type !== 'line' && refresh());
   deviceListeners.add(refresh);
@@ -1203,6 +1271,10 @@ export function openDeviceDialog(ed: Editor, target: Device = device, onDone?: (
   num(t('Geschwindigkeit (mm/min)'), () => d.frameSpeed, (v) => (d.frameSpeed = v));
   bool(t('Mit Laser (schwach)'), () => d.frameLaser, (v) => (d.frameLaser = v), t('Rahmen mit niedriger Leistung sichtbar machen'));
   num(t('Leistung (%)'), () => d.framePower, (v) => (d.framePower = Math.min(100, v)));
+  head(t('Testfeuer im Bewegen-Fenster'));
+  bool(t('Testfeuer aktivieren'), () => d.fireEnabled, (v) => (d.fireEnabled = v), t('Zeigt im Bewegen-Fenster Leistung und Laufzeit; ohne Freigabe gibt es keinen Feuerknopf'));
+  num(t('Maximale Leistung (%)'), () => d.fireMaxPower, (v) => (d.fireMaxPower = Math.max(0, Math.min(100, v))), t('Obergrenze im Bewegen-Fenster; 0 schaltet das Testfeuer aus'));
+  num(t('Maximale Laufzeit (s)'), () => d.fireMaxSeconds, (v) => (d.fireMaxSeconds = Math.max(0, Math.min(600, v))), t('0 = keine automatische Abschaltung; im Bewegen-Fenster nur kleinere Werte wählbar'));
   // Rotpunkt-Zeiger (Issue #213): Versatz je Gerät, mit visueller Darstellung statt Vorzeichenrätsel
   head(t('Rotpunkt-Zeiger (Pointer-Offset)'));
   if (!d.pointerOffset) d.pointerOffset = { x: 0, y: 0, enabled: false }; // Altgeräte aus localStorage/Presets ohne Feld

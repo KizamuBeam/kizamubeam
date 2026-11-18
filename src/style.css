@@ -1526,6 +1526,23 @@ label.check {
   gap: 4px;
   margin-top: 8px;
 }
+.move-fire {
+  flex-wrap: wrap;
+  align-items: flex-end;
+  margin-top: 8px;
+}
+.move-fire-status {
+  margin-left: 6px;
+  opacity: 0.75;
+  white-space: nowrap;
+}
+.move-fire input {
+  width: 6ch;
+}
+.move-fire .note {
+  flex: 1 1 100%;
+  margin-top: 4px;
+}
 .console-log {
   height: 170px;
   overflow: auto;
