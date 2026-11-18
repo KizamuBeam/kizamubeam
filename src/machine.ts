@@ -108,14 +108,16 @@ export interface WorkOffset {
 export function parseStatus(line: string, prev: MachineStatus, wco: WorkOffset): MachineStatus {
   const body = line.replace(/^<|>$/g, '').split('|');
   // Pn, A und SD fehlen, wenn nichts aktiv ist; Ov und Bf bleiben bis zur nächsten Meldung
-  const st: MachineStatus = { ...prev, state: body[0].split(':')[0], pins: '', acc: '', sd: null };
+  // xTool reports `<MPos:x,y,z,a>` without a state word: keep the previous state and read every field
+  const stateless = /^[MW]Pos:/.test(body[0]);
+  const st: MachineStatus = { ...prev, state: stateless ? prev.state : body[0].split(':')[0], pins: '', acc: '', sd: null };
   const vec = (s: string) => {
     const v = s.split(',').map(Number);
     return [v[0] || 0, v[1] || 0, v[2] || 0] as [number, number, number];
   };
   let mpos: [number, number, number] | null = null,
     wpos: [number, number, number] | null = null;
-  for (const f of body.slice(1)) {
+  for (const f of stateless ? body : body.slice(1)) {
     const [k, v] = f.split(':');
     if (k === 'MPos') mpos = vec(v);
     else if (k === 'WPos') wpos = vec(v);
@@ -396,8 +398,8 @@ class Machine {
       await this.listen();
       const { invoke } = await import('@tauri-apps/api/core');
       if (d.conn === 'remote') return await this.connectRemote(d);
-      const netPort = d.conn === 'ws' ? d.wsPort : d.tcpPort;
-      const where = d.conn === 'serial' ? d.port : `${d.conn === 'ws' ? 'ws://' : ''}${d.host}:${netPort}`;
+      const netPort = d.fw === 'ruida' ? (d.ruidaPort || 50200) : d.conn === 'ws' ? d.wsPort : d.tcpPort;
+      const where = d.conn === 'serial' ? d.port : `${d.fw === 'ruida' ? 'udp://' : d.conn === 'ws' ? 'ws://' : ''}${d.host}:${netPort}`;
       this.log(t('Verbinde mit {where} …', { where }));
       const fw = FIRMWARES[d.fw];
       this.fw = fw;
@@ -405,6 +407,9 @@ class Machine {
       await invoke('machine_connect', {
         kind: d.conn, port: d.port, baud: d.baud, host: d.host, tcpPort: netPort,
         sync: fw.sync, realtime: fw.realtime, poll: fw.poll, rxBuffer: d.rxBuffer || 127,
+        fw: d.fw, bedW: d.bedW, bedH: d.bedH,
+        ruidaPort: d.ruidaPort || 50200, ruidaJogPort: d.ruidaJogPort || 50207,
+        ruidaMagic: d.ruidaMagic || 'auto', ruidaOrigin: d.ruidaOrigin || 'top-right',
       });
       this.connected = true;
       this.where = where;
@@ -593,6 +598,7 @@ class Machine {
   }
   async runPrepared(g: PreparedGCode) {
     if (g.lines) return this.runJob(g.lines, g.times);
+    if (g.ruida) return this.startJob(g.count, g.times, false, { cmd: 'machine_ruida_job', args: { data: Array.from(g.ruida) } });
     return this.startJob(g.count, g.times, false, { cmd: 'machine_job_prepared', args: { id: g.id } });
   }
   /** true, wenn der Auftrag angenommen wurde */
