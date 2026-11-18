@@ -1,6 +1,6 @@
 import './core-fixtures-env';
 import { strict as assert } from 'node:assert';
-import { electricityTariffText, emptyEnergySettings, energyDraft, estimateEnergy, formatEnergyValue, laserElectricalWatts, parseEnergyNumber, setElectricityTariffText } from '../src/energy';
+import { ELECTRICITY_CURRENCIES, electricityCurrency, electricityTariffText, emptyEnergySettings, energyDraft, estimateEnergy, formatCost, formatEnergyValue, laserElectricalWatts, parseEnergyNumber, setElectricityCurrency, setElectricityTariffText } from '../src/energy';
 import { estimate, loadDevices, Moves, newDevice, saveDevices, writeGCode } from '../src/gcode';
 import { applyChanges, loadValues, SettingsSection } from '../src/settings/registry';
 
@@ -62,6 +62,15 @@ await test('unknown, invalid, empty and valid zero stay distinct; no incomplete 
   assert.equal(estimateEnergy(moves, timing, [], draft).total, null);
   draft.laserWatts = [0, 0, 0]; draft.baseWatts = 0; draft.consumers = [];
   assert.equal(estimateEnergy(moves, timing, [], draft).total, 0);
+});
+await test('currency default, allowlist rejection and cost formatting fallback', () => {
+  assert.deepEqual([...ELECTRICITY_CURRENCIES].slice(0, 3), ['EUR', 'USD', 'GBP']);
+  assert.equal(electricityCurrency(), 'EUR');
+  assert.throws(() => setElectricityCurrency('XXX'));
+  setElectricityCurrency('USD');
+  assert.equal(electricityCurrency(), 'EUR');
+  assert.equal(formatCost(10, 'USD').replace(/[\s ]/g, ''), '10,00$');
+  assert.equal(formatCost(10, 'EUR').replace(/[\s ]/g, ''), '10,00€');
 });
 await test('included incomplete accessory blocks total; excluded data persists without blocking', () => {
   const draft = energyDraft(settings);
