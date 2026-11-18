@@ -1,8 +1,8 @@
 import { clone, createState, DEFAULT_ICON_SIZE, DEFAULT_VIEW, ownEntry, setEntry } from './model';
-import type { Definitions, GroupContent, IconSize, Item, Result, ToolbarState, ViewLayout } from './model';
+import type { Definitions, GroupContent, IconSize, Item, Leaf, Result, ToolbarState, ViewLayout } from './model';
 import { decode, encode } from './migration';
 import type { DecodeOptions } from './migration';
-import { applyLayout, resetContent, setLayoutLocked, validView } from './state';
+import { applyLayout, resetContent, setLayoutLocked, validView, normalizeView } from './state';
 import type { LayoutOperation } from './state';
 
 export const TOOLBAR_STORAGE_KEY = 'kizamubeam.toolbars';
@@ -113,7 +113,7 @@ export function createToolbarRuntime(definitions: Definitions, options: RuntimeO
       setEntry(next.content.bars, input.id, clone(input.items ?? []));
       setEntry(next.content.iconSizes, input.id, input.iconSize ?? DEFAULT_ICON_SIZE);
       setEntry(next.content.labels, input.id, input.label.trim());
-      setEntry(next.layout.bars, input.id, clone(input.layout ?? DEFAULT_VIEW));
+      setEntry(next.layout.bars, input.id, normalizeView(input.layout ?? DEFAULT_VIEW));
       return commit(next);
     },
     removeBar(barId: string): Result<Commit> {
@@ -139,6 +139,56 @@ export function createToolbarRuntime(definitions: Definitions, options: RuntimeO
         return { ok: false, error: 'Invalid bar label' };
       const next = clone(current);
       setEntry(next.content.labels, barId, label.trim());
+      return commit(next);
+    },
+    addGroup(input: { id: string; label: string; items?: Leaf[] }): Result<Commit> {
+      if (typeof input.id !== 'string' || input.id.length < 1 || input.id.length > 64)
+        return { ok: false, error: 'Invalid group id' };
+      if (Object.hasOwn(current.content.groups, input.id) || defaults.groups.some((g) => g.id === input.id))
+        return { ok: false, error: 'Group already exists' };
+      if (typeof input.label !== 'string' || input.label.trim().length < 1 || input.label.trim().length > 40)
+        return { ok: false, error: 'Invalid group label' };
+      const next = clone(current);
+      setEntry(next.content.groups, input.id, { kind: 'flyout', items: clone(input.items ?? []) });
+      setEntry(next.content.labels, input.id, input.label.trim());
+      return commit(next);
+    },
+    removeGroup(groupId: string): Result<Commit> {
+      if (!Object.hasOwn(current.content.groups, groupId)) return { ok: false, error: 'Unknown group' };
+      // Code groups carry no labels; persisted labels mark custom groups even when definitions carry them.
+      if (!Object.hasOwn(current.content.labels ?? {}, groupId)) return { ok: false, error: 'Built-in group' };
+      const next = clone(current);
+      delete next.content.groups[groupId];
+      if (Object.hasOwn(next.content.labels, groupId)) delete next.content.labels[groupId];
+      for (const barId of Object.keys(next.content.bars))
+        setEntry(next.content.bars, barId, (ownEntry(next.content.bars, barId) ?? []).filter((i) => !(i.kind === 'group' && i.id === groupId)));
+      for (const id of Object.keys(next.layout.detached))
+        if (ownEntry(next.layout.detached, id)?.groupId === groupId) delete next.layout.detached[id];
+      if (Object.hasOwn(next.content.choices, groupId)) delete next.content.choices[groupId];
+      return commit(next);
+    },
+    setGroupLabel(groupId: string, label: string): Result<Commit> {
+      if (!Object.hasOwn(current.content.groups, groupId)) return { ok: false, error: 'Unknown group' };
+      // See removeGroup: labels mark custom groups even when definitions carry them.
+      if (!Object.hasOwn(current.content.labels ?? {}, groupId)) return { ok: false, error: 'Built-in group' };
+      if (typeof label !== 'string' || label.trim().length < 1 || label.trim().length > 40)
+        return { ok: false, error: 'Invalid group label' };
+      const next = clone(current);
+      setEntry(next.content.labels, groupId, label.trim());
+      return commit(next);
+    },
+    resetBarContent(barId: string): Result<Commit> {
+      const definition = defaults.bars.find((bar) => bar.id === barId);
+      if (!definition || !Object.hasOwn(current.content.bars, barId)) return { ok: false, error: 'Unknown bar' };
+      const next = clone(current);
+      setEntry(next.content.bars, barId, clone(definition.items));
+      for (const item of definition.items) {
+        if (item.kind !== 'group') continue;
+        const group = defaults.groups.find((candidate) => candidate.id === item.id);
+        if (!group || Object.hasOwn(current.content.labels, group.id)) continue;
+        setEntry(next.content.groups, group.id, { kind: group.kind, items: clone(group.items) });
+        delete next.content.choices[group.id];
+      }
       return commit(next);
     },
     resetContent: (): Result<Commit> => commit(resetContent(current, defaults)),

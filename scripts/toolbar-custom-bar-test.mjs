@@ -288,7 +288,8 @@ test('gespeichertes Layout übersteht Rekonstruktion, Ungültiges fällt auf Sta
   tb.initToolbars(actions, def);
   tb.openToolbarDialog('custom-1');
   let dlg = dialog();
-  assert.equal(dlg.querySelectorAll('select')[2].value, 'vertical');
+  assert.equal(dlg.querySelectorAll('select').length, 2);
+  assert.equal(snap().layout.bars['custom-1'].orientation, 'vertical');
   assert.equal(dlg.querySelectorAll('input').filter((i) => i.getAttribute('type') === 'number')[0].value, '2');
   const bad = JSON.parse(raw());
   bad.state.layout.bars['custom-1'] = { bogus: true };
@@ -296,8 +297,31 @@ test('gespeichertes Layout übersteht Rekonstruktion, Ungültiges fällt auf Sta
   tb.initToolbars(actions, def);
   tb.openToolbarDialog('custom-1');
   dlg = dialog();
-  assert.equal(dlg.querySelectorAll('select')[2].value, 'horizontal');
+  assert.equal(dlg.querySelectorAll('select').length, 2);
   assert.equal(dlg.querySelectorAll('input').filter((i) => i.getAttribute('type') === 'number')[0].value, '1');
+});
+test('Dialog ohne Ausrichtung behält Zeilen, Spalten und Layoutsperre', () => {
+  const dlg = dialog();
+  assert.equal(dlg.querySelectorAll('select').length, 2);
+  const counts = dlg.querySelectorAll('input').filter((i) => i.getAttribute('type') === 'number');
+  counts[0].valueAsNumber = 2;
+  counts[0].fire('change');
+  counts[1].valueAsNumber = 3;
+  counts[1].fire('change');
+  assert.equal(snap().layout.bars['custom-1'].rows, 2);
+  assert.equal(snap().layout.bars['custom-1'].columns, 3);
+  const checkboxes = dlg.querySelectorAll('input').filter((i) => i.getAttribute('type') === 'checkbox');
+  const layoutLock = checkboxes[1];
+  layoutLock.checked = true;
+  layoutLock.fire('change');
+  assert.ok(counts.every((i) => i.disabled));
+  const before = raw();
+  counts[0].valueAsNumber = 4;
+  counts[0].fire('change');
+  assert.equal(raw(), before);
+  layoutLock.checked = false;
+  layoutLock.fire('change');
+  assert.ok(counts.every((i) => !i.disabled));
 });
 
 // ---------- IDs, Löschen, Dialog-Abläufe ----------
@@ -366,6 +390,206 @@ test('blockierter Storage wird nie überschrieben', () => {
   assert.equal(tb.deleteToolbar('custom-1'), true);
   assert.equal(raw(), future);
 });
+
+// ---------- Eigene Knopfgruppen (Einruecken) ----------
+{
+  store.delete(KEY);
+  const gActions = [
+    { id: 'a', cat: 'Test', label: 'Aktion A', run() {} },
+    { id: 'b', cat: 'Test', label: 'Aktion B', run() {} },
+    { id: 'c', cat: 'Test', label: 'Aktion C', run() {} },
+    { id: 'g', cat: 'Test', label: 'Gruppe G', items: ['a', 'b'], run() {} },
+  ];
+  const gDef = { main: ['a', 'b', 'c'], tools: [] };
+  tb.initToolbars(gActions, gDef);
+  const rowsOf = (dlg) => dlg.querySelectorAll('.tb-list')[1].querySelectorAll('.tb-row');
+  const clickBtn = (dlg, text) => dlg.querySelectorAll('button').find((b) => b.textContent === text).click();
+  const groupsOf = () => { const r = raw(); return r ? JSON.parse(r).state.content.groups : {}; };
+  const barsOf = () => JSON.parse(raw()).state.content.bars;
+
+  test('Einruecken legt custom-group-1 mit Kopf-Aktion und Kind an', () => {
+    tb.openToolbarDialog('main');
+    let rows = rowsOf(dialog());
+    assert.equal(rows.length, 3);
+    rows[2].click();
+    clickBtn(dialog(), '⇥');
+    rows = rowsOf(dialog());
+    assert.equal(rows.length, 4);
+    assert.equal(rows[1].dataset.group, 'custom-group-1');
+    assert.equal(rows[1].dataset.child, undefined);
+    assert.equal(rows[2].dataset.child, '0');
+    assert.equal(rows[3].dataset.child, '1');
+    assert.equal(JSON.parse(raw()).state.content.labels['custom-group-1'], 'Gruppe 1');
+    assert.deepEqual(groupsOf()['custom-group-1'], { kind: 'flyout', items: [{ kind: 'action', id: 'b' }, { kind: 'action', id: 'c' }] });
+    assert.deepEqual(barsOf().main, [{ kind: 'legacy', id: 'a' }, { kind: 'group', id: 'custom-group-1' }]);
+  });
+  test('Rekonstruktion nach Re-Init behält Gruppe und Belegung', () => {
+    tb.initToolbars(gActions, gDef);
+    tb.openToolbarDialog('main');
+    const rows = rowsOf(dialog());
+    assert.equal(rows.length, 4);
+    assert.equal(rows[1].dataset.group, 'custom-group-1');
+    assert.equal(rows[2].dataset.child, '0');
+    assert.equal(rows[3].dataset.child, '1');
+    assert.deepEqual(barsOf().main, [{ kind: 'legacy', id: 'a' }, { kind: 'group', id: 'custom-group-1' }]);
+    assert.deepEqual(groupsOf()['custom-group-1'].items, [{ kind: 'action', id: 'b' }, { kind: 'action', id: 'c' }]);
+  });
+  test('Ausruecken entfernt das Kind, letztes Kind löst die Gruppe auf', () => {
+    tb.openToolbarDialog('main');
+    rowsOf(dialog())[3].click();
+    clickBtn(dialog(), '⇤');
+    let rows = rowsOf(dialog());
+    assert.equal(rows.length, 4);
+    assert.deepEqual(groupsOf()['custom-group-1'].items, [{ kind: 'action', id: 'b' }]);
+    assert.deepEqual(barsOf().main,
+      [{ kind: 'legacy', id: 'a' }, { kind: 'group', id: 'custom-group-1' }, { kind: 'action', id: 'c' }]);
+    rowsOf(dialog())[2].click();
+    clickBtn(dialog(), '⇤');
+    rows = rowsOf(dialog());
+    assert.equal(rows.length, 3);
+    assert.ok(!('custom-group-1' in groupsOf()));
+    assert.ok(!('custom-group-1' in (JSON.parse(raw()).state.content.labels ?? {})));
+    assert.deepEqual(barsOf().main, [{ kind: 'legacy', id: 'a' }, { kind: 'action', id: 'b' }, { kind: 'action', id: 'c' }]);
+  });
+  test('Tab rückt ein, IDs sind kleinste freie Nummern', () => {
+    tb.openToolbarDialog('main');
+    rowsOf(dialog())[2].click();
+    rowsOf(dialog())[2].fire('keydown', { key: 'Tab' });
+    const rows = rowsOf(dialog());
+    assert.equal(rows.length, 4);
+    assert.equal(rows[1].dataset.group, 'custom-group-1');
+    assert.deepEqual(groupsOf()['custom-group-1'].items, [{ kind: 'action', id: 'b' }, { kind: 'action', id: 'c' }]);
+  });
+  test('eingebaute Gruppen zeigen Namen und auswählbare Kinder ohne Duplikate', () => {
+    store.delete(KEY);
+    tb.initToolbars(gActions, { main: ['g', 'c'], tools: ['g'] });
+    tb.openToolbarDialog('main');
+    const rows = rowsOf(dialog());
+    assert.equal(rows.length, 4);
+    assert.equal(rows[0].dataset.group, 'g');
+    assert.equal(rows[0].querySelectorAll('span')[0].textContent, '▾');
+    assert.equal(rows[0].querySelectorAll('span')[1].textContent, 'Gruppe G');
+    assert.equal(rows[1].dataset.child, '0');
+    assert.equal(rows[1].dataset.index, '0');
+    assert.equal(rows[2].dataset.child, '1');
+    assert.equal(rows[1].classList.contains('tb-readonly'), false);
+  });
+  test('eingebaute Mitglieder einrücken, hinzufügen und umsortieren wirkt geteilt', () => {
+    rowsOf(dialog())[3].click();
+    clickBtn(dialog(), '⇥');
+    assert.equal(rowsOf(dialog())[3].classList.contains('sel'), true);
+    assert.deepEqual(groupsOf().g.items.map((i) => i.id), ['a', 'b', 'c']);
+    const available = dialog().querySelectorAll('.tb-list')[0].querySelectorAll('.tb-row');
+    available.find((r) => r.dataset.action === 'a').fire('dblclick');
+    assert.deepEqual(groupsOf().g.items.map((i) => i.id), ['a', 'b', 'c', 'a']);
+    clickBtn(dialog(), '↑');
+    assert.deepEqual(groupsOf().g.items.map((i) => i.id), ['a', 'b', 'a', 'c']);
+    assert.deepEqual(barsOf().tools, [{ kind: 'group', id: 'g' }]);
+    tb.initToolbars(gActions, { main: ['g', 'c'], tools: ['g'] });
+    tb.openToolbarDialog('tools');
+    assert.equal(rowsOf(dialog()).length, 5);
+    assert.deepEqual(groupsOf().g.items.map((i) => i.id), ['a', 'b', 'a', 'c']);
+  });
+  test('eingebaute Kinder ausrücken, löschen und bis zur leeren Definition auflösen', () => {
+    rowsOf(dialog())[4].click();
+    clickBtn(dialog(), '⇤');
+    assert.deepEqual(groupsOf().g.items.map((i) => i.id), ['a', 'b', 'a']);
+    assert.deepEqual(barsOf().tools, [{ kind: 'group', id: 'g' }, { kind: 'action', id: 'c' }]);
+    rowsOf(dialog())[3].fire('dblclick');
+    rowsOf(dialog())[2].click();
+    clickBtn(dialog(), '←');
+    rowsOf(dialog())[1].click();
+    clickBtn(dialog(), '⇤');
+    assert.deepEqual(groupsOf().g.items, []);
+    assert.deepEqual(barsOf().tools, [{ kind: 'action', id: 'a' }, { kind: 'action', id: 'c' }]);
+    assert.deepEqual(barsOf().main, [{ kind: 'group', id: 'g' }]);
+    assert.ok(!('custom-group-1' in groupsOf()));
+    assert.equal(tb.deleteToolbar('main'), false);
+  });
+  test('Standard pro Leiste restauriert eingebaute Mitglieder auch nach Re-Init', () => {
+    tb.initToolbars(gActions, { main: ['g', 'c'], tools: ['g'] });
+    tb.openToolbarDialog('tools');
+    clickBtn(dialog(), 'Standard wiederherstellen');
+    assert.deepEqual(groupsOf().g.items.map((i) => i.id), ['a', 'b']);
+    assert.deepEqual(barsOf().tools, [{ kind: 'group', id: 'g' }]);
+    rowsOf(dialog())[0].click();
+    clickBtn(dialog(), '←');
+    assert.deepEqual(barsOf().tools, [{ kind: 'action', id: 'a' }, { kind: 'action', id: 'b' }]);
+    assert.ok(groupsOf().g);
+    rowsOf(dialog())[1].click();
+    clickBtn(dialog(), '⇥');
+    assert.ok(groupsOf()['custom-group-1']);
+    clickBtn(dialog(), 'Standard wiederherstellen');
+    assert.deepEqual(barsOf().tools, [{ kind: 'group', id: 'g' }]);
+    assert.deepEqual(groupsOf().g.items.map((i) => i.id), ['a', 'b']);
+    assert.ok(groupsOf()['custom-group-1']);
+  });
+  test('eingebaute Kinder ziehen: Reihenfolge, Einfügen, Ausrücken und Entfernen', () => {
+    let rows = rowsOf(dialog());
+    rows[2].fire('dragstart');
+    dialog().querySelectorAll('.tb-list')[1].fire('drop', { target: rows[1], clientY: 0 });
+    assert.deepEqual(groupsOf().g.items.map((i) => i.id), ['b', 'a']);
+    const available = dialog().querySelectorAll('.tb-list')[0];
+    available.querySelectorAll('.tb-row').find((r) => r.dataset.action === 'c').fire('dragstart');
+    dialog().querySelectorAll('.tb-list')[1].fire('drop', { target: rowsOf(dialog())[1], clientY: 0 });
+    assert.deepEqual(groupsOf().g.items.map((i) => i.id), ['c', 'b', 'a']);
+    rowsOf(dialog())[1].fire('dragstart');
+    dialog().querySelectorAll('.tb-list')[1].fire('drop', { clientY: 0 });
+    assert.deepEqual(groupsOf().g.items.map((i) => i.id), ['b', 'a']);
+    assert.deepEqual(barsOf().tools, [{ kind: 'group', id: 'g' }, { kind: 'action', id: 'c' }]);
+    rowsOf(dialog())[2].fire('dragstart');
+    available.fire('drop');
+    assert.deepEqual(groupsOf().g.items.map((i) => i.id), ['b']);
+    rowsOf(dialog())[1].fire('dragstart');
+    available.fire('drop');
+    assert.deepEqual(groupsOf().g.items, []);
+    assert.deepEqual(barsOf().tools, [{ kind: 'action', id: 'c' }]);
+  });
+  test('Trennlinien bleiben nicht einrückbar', () => {
+    rowsOf(dialog())[0].click();
+    clickBtn(dialog(), 'Trennlinie');
+    const withSep = rowsOf(dialog());
+    assert.equal(withSep.length, 2);
+    withSep[1].click();
+    clickBtn(dialog(), '⇥');
+    assert.equal(barsOf().tools.length, 2);
+  });
+  test('Kontextentfernung entfernt nur die Referenz; Refresh lässt Mitglieder unverändert', () => {
+    clickBtn(dialog(), 'Standard wiederherstellen');
+    const before = raw();
+    tb.refreshBars();
+    assert.equal(raw(), before);
+    const host = hostSelectors.get('#tools');
+    const entry = host.querySelector('[data-view]').children[0];
+    const previousWindow = globalThis.window;
+    globalThis.window = { innerWidth: 1024, innerHeight: 768 };
+    try {
+      host.fire('contextmenu', { target: entry, clientX: 10, clientY: 10 });
+      document.querySelector('.ctx-menu').querySelectorAll('button')[1].click();
+    } finally { globalThis.window = previousWindow; }
+    assert.deepEqual(barsOf().tools, []);
+    assert.deepEqual(groupsOf().g.items.map((i) => i.id), ['a', 'b']);
+    assert.equal(tb.deleteToolbar('tools'), false);
+  });
+  test('Control-Abschnitte bleiben ohne bearbeitbare Kinder und kein Einrückziel', () => {
+    store.delete(KEY);
+    tb.setToolbarControls({
+      definitions: { bars: [], groups: [{ id: 'section', label: 'Section', kind: 'section', items: [{ kind: 'control', id: 'feature' }] }] },
+      controls: [], dispose() {},
+    });
+    tb.initToolbars(gActions, { main: ['section', 'a'], tools: [] });
+    tb.setAllToolbarIconSizes('s');
+    tb.openToolbarDialog('main');
+    const rows = rowsOf(dialog());
+    assert.equal(rows.length, 2);
+    assert.equal(rows[0].dataset.group, undefined);
+    rows[1].click();
+    assert.equal(dialog().querySelectorAll('button').find((b) => b.textContent === '⇥').disabled, true);
+    clickBtn(dialog(), '⇥');
+    assert.deepEqual(groupsOf().section.items, [{ kind: 'control', id: 'feature' }]);
+    assert.equal(barsOf().main.length, 2);
+  });
+}
 
 tb.disposeToolbars();
 assert.equal(document.querySelector('.toolbar-dialog'), null);

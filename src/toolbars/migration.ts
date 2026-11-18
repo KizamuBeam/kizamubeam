@@ -33,7 +33,7 @@ function normalizeState(state: ToolbarState, definitions: Definitions): ToolbarS
   out.content.iconSizes = { ...defaults.content.iconSizes, ...out.content.iconSizes };
   out.content.labels = { ...defaults.content.labels, ...(out.content.labels ?? {}) };
   for (const id of Object.keys(out.content.labels))
-    if (!Object.hasOwn(out.content.bars, id)) delete out.content.labels[id];
+    if (!Object.hasOwn(out.content.bars, id) && !Object.hasOwn(out.content.groups, id)) delete out.content.labels[id];
   out.layout = normalizeLayout(out.layout, definitions);
   for (const id of Object.keys(out.content.bars))
     if (!Object.hasOwn(out.layout.bars, id)) setEntry(out.layout.bars, id, clone(DEFAULT_VIEW));

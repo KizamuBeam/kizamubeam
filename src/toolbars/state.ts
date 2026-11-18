@@ -1,4 +1,4 @@
-import { clone, createState, DEFAULT_VIEW, detachedId, ownEntry, setEntry } from './model';
+import { clone, createState, DEFAULT_VIEW, detachedId, orientToDock, ownEntry, setEntry } from './model';
 import type { Definitions, LayoutState, LayoutTarget, Result, ToolbarState, ViewLayout } from './model';
 
 const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -15,7 +15,7 @@ export function validView(v: unknown): v is ViewLayout {
 
 /** Missing/invalid geometry falls back, without consulting the DOM or mutating the input. */
 export function normalizeView(value: unknown, fallback: ViewLayout = DEFAULT_VIEW): ViewLayout {
-  return clone(validView(value) ? value : validView(fallback) ? fallback : DEFAULT_VIEW);
+  return orientToDock(validView(value) ? value : validView(fallback) ? fallback : DEFAULT_VIEW);
 }
 
 export interface ReachableBounds { width: number; height: number; viewWidth: number; viewHeight: number; grip: number }
@@ -34,11 +34,23 @@ export function clampReachable(view: ViewLayout, bounds: ReachableBounds): Resul
 }
 
 export type LayoutOperation =
-  | { kind: 'place'; target: LayoutTarget; view: ViewLayout; insert?: boolean; participants?: readonly LayoutTarget[] }
-  | { kind: 'detach'; ownerId: string; groupId: string; view: ViewLayout; insert?: boolean; participants?: readonly LayoutTarget[] }
+  | { kind: 'place'; target: LayoutTarget; view: ViewLayout; insert?: boolean; insertLane?: boolean; participants?: readonly LayoutTarget[] }
+  | { kind: 'detach'; ownerId: string; groupId: string; view: ViewLayout; insert?: boolean; insertLane?: boolean; participants?: readonly LayoutTarget[] }
   | { kind: 'close'; ownerId: string; groupId: string }
   | { kind: 'visibility'; barId: string; visible: boolean }
   | { kind: 'reset' };
+
+/** Insert a whole dock row/column, retaining hidden and unavailable providers' relative lanes. */
+function insertDockLane(layout: LayoutState, target: ViewLayout): boolean {
+  if (target.placement.kind !== 'dock') return true;
+  const placement = target.placement;
+  const peers = [...Object.values(layout.bars), ...Object.values(layout.detached).map((view) => view.layout)]
+    .filter((view) => view !== target && view.placement.kind === 'dock' && view.placement.edge === placement.edge && view.placement.lane >= placement.lane);
+  if (peers.some((view) => view.placement.kind === 'dock' && view.placement.lane === Number.MAX_SAFE_INTEGER)) return false;
+  for (const view of peers) if (view.placement.kind === 'dock') view.placement.lane++;
+  placement.order = 0;
+  return true;
+}
 
 /** Drag/drop uses insertion rank; assign the whole destination lane in one commit. */
 function insertInLane(layout: LayoutState, target: ViewLayout, participants?: readonly LayoutTarget[]): void {
@@ -74,14 +86,16 @@ export function applyLayout(state: ToolbarState, operation: LayoutOperation, def
     if (!validView(op.view)) return { ok: false, error: 'Invalid view' };
     if ('barId' in op.target) {
       if (!Object.hasOwn(out.content.bars, op.target.barId)) return { ok: false, error: 'Unknown bar' };
-      const placed = clone(op.view);
+      const placed = normalizeView(op.view);
       setEntry(out.layout.bars, op.target.barId, placed);
+      if (op.insertLane && !insertDockLane(out.layout, placed)) return { ok: false, error: 'Lane rank overflow' };
       if (op.insert) insertInLane(out.layout, placed, op.participants);
     } else {
       const id = detachedId(op.target.ownerId, op.target.groupId);
       const view = ownEntry(out.layout.detached, id);
       if (!view) return { ok: false, error: 'Unknown detached view' };
-      view.layout = clone(op.view);
+      view.layout = normalizeView(op.view);
+      if (op.insertLane && !insertDockLane(out.layout, view.layout)) return { ok: false, error: 'Lane rank overflow' };
       if (op.insert) insertInLane(out.layout, view.layout, op.participants);
     }
   } else {
@@ -93,8 +107,9 @@ export function applyLayout(state: ToolbarState, operation: LayoutOperation, def
           ownEntry(out.content.groups, op.groupId)?.kind !== 'flyout') return { ok: false, error: 'Not an owner flyout' };
       // Repeated detach focuses the existing view; it must not relocate or duplicate it.
       if (!Object.hasOwn(out.layout.detached, id)) {
-        const placed = clone(op.view);
+        const placed = normalizeView(op.view);
         setEntry(out.layout.detached, id, { ownerId: op.ownerId, groupId: op.groupId, layout: placed });
+        if (op.insertLane && !insertDockLane(out.layout, placed)) return { ok: false, error: 'Lane rank overflow' };
         if (op.insert) insertInLane(out.layout, placed, op.participants);
       }
     }
@@ -109,8 +124,8 @@ export function setLayoutLocked(state: ToolbarState, locked: boolean): ToolbarSt
 }
 
 /** Separate content reset; layout and icon sizes remain untouched.
- * Custom bars (marked by persisted labels, even when definitions carry them for
- * hosts and dialogs) survive with items/iconSizes/labels. */
+ * Custom bars/groups (marked by persisted labels, even when definitions carry them for
+ * hosts and dialogs) survive with items/iconSizes/labels. Choices survive for custom groups. */
 export function resetContent(state: ToolbarState, definitions: Definitions): ToolbarState {
   const out = clone(state);
   const fresh = createState(definitions).content;
@@ -123,6 +138,15 @@ export function resetContent(state: ToolbarState, definitions: Definitions): Too
     if (items !== undefined) setEntry(next.bars, id, clone(items));
     const label = ownEntry(labels, id);
     if (label !== undefined) setEntry(next.labels, id, label);
+  }
+  for (const id of Object.keys(state.content.groups)) {
+    if (!Object.hasOwn(labels, id)) continue;
+    const group = ownEntry(state.content.groups, id);
+    if (group !== undefined) setEntry(next.groups, id, clone(group));
+    const label = ownEntry(labels, id);
+    if (label !== undefined) setEntry(next.labels, id, label);
+    const choice = ownEntry(state.content.choices, id);
+    if (choice !== undefined) setEntry(next.choices, id, choice);
   }
   out.content = next;
   return out;

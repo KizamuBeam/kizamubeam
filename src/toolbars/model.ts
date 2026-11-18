@@ -55,6 +55,13 @@ export const DEFAULT_VIEW: ViewLayout = {
   orientation: 'horizontal', rows: 1, columns: 1,
 };
 export const clone = <T>(value: T): T => structuredClone(value);
+/** Dock edges determine orientation; floating views retain their last orientation. */
+export function orientToDock(view: ViewLayout): ViewLayout {
+  const out = clone(view);
+  if (out.placement.kind === 'dock')
+    out.orientation = out.placement.edge === 'left' || out.placement.edge === 'right' ? 'vertical' : 'horizontal';
+  return out;
+}
 /** Opaque IDs may name Object.prototype members; never read inherited entries or invoke setters. */
 export const ownEntry = <T>(entries: Record<string, T>, id: string): T | undefined => Object.hasOwn(entries, id) ? entries[id] : undefined;
 export function setEntry<T>(entries: Record<string, T>, id: string, value: T): void {
@@ -73,7 +80,7 @@ export function createState(definitions: Definitions): ToolbarState {
     },
     layout: {
       locked: DEFAULT_LAYOUT_LOCKED,
-      bars: Object.fromEntries(definitions.bars.map((b) => [b.id, clone(b.layout)])),
+      bars: Object.fromEntries(definitions.bars.map((b) => [b.id, orientToDock(b.layout)])),
       hidden: definitions.bars.filter((b) => !(b.visible ?? DEFAULT_VISIBLE)).map((b) => b.id),
       detached: {},
     },

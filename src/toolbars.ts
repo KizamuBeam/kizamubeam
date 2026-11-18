@@ -8,7 +8,7 @@ import { SEP, upgradeLegacyConfig } from './toolbars/legacy';
 import { initToolbarFramework } from './toolbars/system';
 import type { ToolbarSystem } from './toolbars/system';
 import { DEFAULT_ICON_SIZE, DEFAULT_VIEW, clone, ownEntry, setEntry } from './toolbars/model';
-import type { BarDefinition, Definitions, IconSize, Item, ViewLayout } from './toolbars/model';
+import type { BarDefinition, Definitions, GroupDefinition, IconSize, Item, Leaf, ToolbarState, ViewLayout } from './toolbars/model';
 import { decode, encode } from './toolbars/migration';
 import { TOOLBAR_STORAGE_KEY } from './toolbars/runtime';
 import { validView } from './toolbars/state';
@@ -59,8 +59,12 @@ let closeDialog: (() => void) | undefined;
 let customHostElements: HTMLElement[] = [];
 /** Eigene Leisten dieser Sitzung, die (noch) nicht im Storage stehen (z. B. bei blockiertem Storage). */
 let sessionCustom: BarDefinition[] = [];
+/** Eigene Gruppen dieser Sitzung (Rückweg wie bei den Leisten); Inhalt kommt aus dem Storage. */
+let sessionCustomGroups: GroupDefinition[] = [];
 /** Eigene Leisten heißen `custom-N`; eingebaute Treffer sind darüber geschützt. */
+/** Eigene Gruppen heißen `custom-group-N`; eingebaute Treffer sind darüber geschützt. */
 const CUSTOM_BAR = /^custom-\d+$/;
+const CUSTOM_GROUP = /^custom-group-\d+$/;
 
 export function setToolbarControls(bundle: ToolbarControlsBundle) {
   if (bundle === controlsBundle) return;
@@ -86,6 +90,7 @@ export function disposeToolbars() {
   controlsBundle?.dispose();
   controlsBundle = undefined;
   sessionCustom = [];
+  sessionCustomGroups = [];
   initialized = undefined;
 }
 
@@ -124,6 +129,7 @@ export function initToolbars(list: Action[], def: Record<BarId, string[]>, migra
   }
   definitions.groups.push(...controlsBundle?.definitions.groups ?? []);
   const baseIds = new Set(definitions.bars.map((bar) => bar.id));
+  const baseGroupIds = new Set(definitions.groups.map((group) => group.id));
   const upgradeLegacy = (raw: unknown) => {
     const result = upgradeLegacyConfig(raw, def, migrate);
     if (!result.ok) throw Error(result.error.message);
@@ -132,13 +138,16 @@ export function initToolbars(list: Action[], def: Record<BarId, string[]>, migra
   // Eigene Leisten stehen nicht in den Basis-Definitionen: aus dem Storage rekonstruieren.
   // Inhalt und Layout kommen über normalize aus dem Storage, nur Kennung und Name ergänzen.
   // Ist der Storage maßgeblich, fallen Sitzungsreste weg, die er nicht bestätigt (z. B. gelöscht).
+  // Eigene Gruppen genauso: nicht in Code-Definitionen und mit Labels-Eintrag.
   let storedIds: Set<string> | undefined;
+  let storedGroupIds: Set<string> | undefined;
   try {
     const raw = localStorage.getItem(TOOLBAR_STORAGE_KEY);
     if (raw != null) {
       const decoded = decode(raw, { bars: definitions.bars, groups: definitions.groups }, { upgradeLegacy });
       if (decoded.ok) {
         storedIds = new Set(Object.keys(decoded.value.state.content.bars));
+        storedGroupIds = new Set(Object.keys(decoded.value.state.content.groups));
         const labels = storedLabels(decoded.value.state.content.labels);
         for (const id of Object.keys(decoded.value.state.content.bars)) {
           if (baseIds.has(id)) continue;
@@ -147,9 +156,17 @@ export function initToolbars(list: Action[], def: Record<BarId, string[]>, migra
           definitions.bars.push({ id, label: labels[id] ?? id, items: [],
             layout: layout && validView(layout) ? clone(layout) : clone(DEFAULT_VIEW) });
         }
+        for (const id of Object.keys(decoded.value.state.content.groups)) {
+          if (baseGroupIds.has(id)) continue;
+          baseGroupIds.add(id);
+          definitions.groups.push({ id, label: labels[id] ?? id, kind: 'flyout', items: [] });
+        }
       }
     }
-    if (raw == null) storedIds = new Set();
+    if (raw == null) {
+      storedIds = new Set();
+      storedGroupIds = new Set();
+    }
   } catch {
     // Fremde oder defekte Daten bleiben unangetastet; die Leisten starten mit den Basis-Definitionen.
   }
@@ -158,6 +175,12 @@ export function initToolbars(list: Action[], def: Record<BarId, string[]>, migra
     if (baseIds.has(bar.id)) continue;
     baseIds.add(bar.id);
     definitions.bars.push({ ...bar, items: [], layout: clone(bar.layout) });
+  }
+  if (storedGroupIds) sessionCustomGroups = sessionCustomGroups.filter((group) => storedGroupIds.has(group.id));
+  for (const group of sessionCustomGroups) {
+    if (baseGroupIds.has(group.id)) continue;
+    baseGroupIds.add(group.id);
+    definitions.groups.push({ ...group, items: [] });
   }
   const hosts = new Map<string, { element: HTMLElement; ownerId: string }>();
   const visibilityHosts = new Map<string, HTMLElement>();
@@ -181,6 +204,8 @@ export function initToolbars(list: Action[], def: Record<BarId, string[]>, migra
     upgradeLegacy,
   });
   for (const action of list) if (action.items) system.registry.registerGroup(action);
+  for (const group of definitions.groups)
+    if (!actions.has(group.id)) system.registry.registerGroup({ id: group.id, label: group.label });
   system.refresh();
   for (const [id, descriptor] of hosts) {
     const host = descriptor.element;
@@ -242,6 +267,13 @@ interface CustomBarMethods {
   setBarLabel?: (barId: string, label: string) => { ok: boolean; error?: string };
 }
 
+/** Laufzeitmethoden für eigene Gruppen; defensiv nutzen (parallele Runtime), sonst greift der Rückweg. */
+interface CustomGroupMethods {
+  addGroup?: (group: { id: string; label: string; items?: Leaf[] }) => { ok: boolean; error?: string };
+  removeGroup?: (groupId: string) => { ok: boolean; error?: string };
+  setGroupLabel?: (groupId: string, label: string) => { ok: boolean; error?: string };
+}
+
 /** Gemeinsame Symbolgröße aller Leisten; 'm' bei gemischten Größen oder ohne Leisten. */
 export function toolbarIconSize(): IconSize {
   const sizes = system ? Object.values(system.runtime.read().content.iconSizes) : [];
@@ -260,6 +292,55 @@ function trackSessionCustom(id: string, label: string) {
   const known = sessionCustom.find((bar) => bar.id === id);
   if (known) known.label = label;
   else sessionCustom.push({ id, label, items: [], layout: clone(DEFAULT_VIEW) });
+}
+
+/** Sitzungsliste eigener Gruppen nachführen (Rückweg wie bei den Leisten). */
+function trackSessionCustomGroup(id: string, label: string) {
+  const known = sessionCustomGroups.find((group) => group.id === id);
+  if (known) known.label = label;
+  else sessionCustomGroups.push({ id, label, kind: 'flyout', items: [] });
+}
+
+/** Gruppen- und Leisteneinträge in einer Storage-Transaktion schreiben (Rückweg ohne Runtime-Gruppenmethoden). */
+function commitGroupEdit(edit: (state: ToolbarState) => void): boolean {
+  const current = system;
+  if (!current || !current.runtime.persistence().writable) return false;
+  try {
+    const state = current.runtime.read();
+    edit(state);
+    const encoded = encode(state);
+    if (!encoded.ok) return false;
+    localStorage.setItem(TOOLBAR_STORAGE_KEY, encoded.value);
+    return true;
+  } catch { return false; }
+}
+
+/** Eigene Gruppe entfernen (räumt Bar-Refs/detached/choices auf, Built-in-Schutz); true bei Erfolg. */
+function dropCustomGroup(id: string): boolean {
+  const current = system;
+  if (!current || !CUSTOM_GROUP.test(id)) return false;
+  sessionCustomGroups = sessionCustomGroups.filter((group) => group.id !== id);
+  const custom = current.runtime as ToolbarSystem['runtime'] & CustomGroupMethods;
+  if (typeof custom.removeGroup === 'function') {
+    const removed = custom.removeGroup(id);
+    if (removed && removed.ok) return true;
+    if (!removed || (removed.error !== 'Built-in group' && removed.error !== 'Unknown group')) return false;
+    if (removed.error === 'Unknown group') return true;
+  }
+  return commitGroupEdit((state) => {
+    for (const key of Object.keys(state.content.bars)) {
+      const items = ownEntry(state.content.bars, key);
+      if (items?.some((item) => item.kind === 'group' && item.id === id))
+        setEntry(state.content.bars, key, items.filter((item) => !(item.kind === 'group' && item.id === id)));
+    }
+    delete state.content.groups[id];
+    if (Object.hasOwn(state.content.choices, id)) delete state.content.choices[id];
+    for (const key of Object.keys(state.layout.detached))
+      if (ownEntry(state.layout.detached, key)?.groupId === id) delete state.layout.detached[key];
+    const labels = storedLabels(state.content.labels);
+    delete labels[id];
+    (state.content as { labels?: Record<string, string> }).labels = labels;
+  });
 }
 
 /** Sitzungs- und Storage-Stand eigener Leisten sichern, solange der Storage beschreibbar ist. */
@@ -388,6 +469,16 @@ const setBar = (id: string, items: Item[]) => system?.runtime.setBarItems(id, it
 const newItem = (id: string): Item => id === SEP ? { kind: 'separator' }
   : { kind: actions.get(id)?.items ? 'group' : 'action', id };
 
+/** Nur flache Aktionsgruppen bearbeiten; Abschnitte mit Feature-Controls bleiben geschützt. */
+const isEditableFlyout = (id: string): boolean => {
+  const group = system && ownEntry(system.runtime.read().content.groups, id);
+  return group?.kind === 'flyout' && group.items.every((leaf) => {
+    if (leaf.kind === 'separator') return true;
+    const resolved = system?.registry.resolveLegacy(leaf.id);
+    return leaf.kind !== 'control' && !actions.get(leaf.id)?.items && resolved !== 'control' && resolved !== 'group';
+  });
+};
+
 // ---------- Kontextmenü einer Leiste ----------
 
 function barMenu(id: string, x: number, y: number, action: string | null, index: number) {
@@ -427,8 +518,10 @@ export function openToolbarDialog(start: string = 'main') {
   let bar = editableBars.some((candidate) => candidate.id === start) ? start : editableBars[0]?.id ?? 'main';
   let selAvail: string | null = null;
   let selIdx = -1;
+  /** Kindzeile einer Aktionsgruppe gewählt: Kind-Index innerhalb der Gruppe (sonst undefined). */
+  let selChild: number | undefined;
   let filter = '';
-  const barSel = h('select', { onchange: () => ((bar = barSel.value), (selIdx = -1), sync(), renderLists()) },
+  const barSel = h('select', { onchange: () => ((bar = barSel.value), (selIdx = -1), (selChild = undefined), sync(), renderLists()) },
     ...editableBars.map((definition) => h('option', { value: definition.id }, definition.label)),
   ) as HTMLSelectElement;
   barSel.value = bar;
@@ -443,10 +536,6 @@ export function openToolbarDialog(start: string = 'main') {
     if (current) system?.runtime.layout({ kind: 'place', target: { barId: bar }, view: { ...current, ...change } });
     sync();
   };
-  const orientation = h('select', { 'aria-label': t('Ausrichtung der Leiste'), onchange: () => changeLayout({ orientation: orientation.value === 'vertical' ? 'vertical' : 'horizontal' }) },
-    h('option', { value: 'horizontal' }, t('Waagerecht')),
-    h('option', { value: 'vertical' }, t('Senkrecht')),
-  );
   const countInput = (key: 'rows' | 'columns', label: string) => h('input', {
     type: 'number', min: 1, step: 1, 'aria-label': label, style: 'width: 6ch',
     onchange(event: Event) {
@@ -459,6 +548,8 @@ export function openToolbarDialog(start: string = 'main') {
   const columns = countInput('columns', t('Spalten der Leiste'));
   const locked = h('input', { type: 'checkbox', onchange: () => { system?.runtime.lock(locked.checked); sync(); } });
   let layoutResetButton: HTMLButtonElement | undefined;
+  let indentBtn: HTMLButtonElement | undefined;
+  let outdentBtn: HTMLButtonElement | undefined;
   const sync = () => {
     sizeSel.value = system && ownEntry(system.runtime.read().content.iconSizes, bar) || 'm';
     shownChk.checked = !isBarHidden(bar);
@@ -467,10 +558,9 @@ export function openToolbarDialog(start: string = 'main') {
     locked.checked = state?.layout.locked ?? false;
     if (layoutResetButton) layoutResetButton.disabled = locked.checked;
     shownChk.disabled = locked.checked;
-    orientation.value = layout?.orientation ?? 'horizontal';
     rows.value = String(layout?.rows ?? 1);
     columns.value = String(layout?.columns ?? 1);
-    orientation.disabled = rows.disabled = columns.disabled = locked.checked;
+    rows.disabled = columns.disabled = locked.checked;
     rebuildCustomRow();
   };
   const search = h('input', { type: 'search', placeholder: t('Suchen …'), oninput: () => ((filter = search.value.toLowerCase()), renderLists()) }) as HTMLInputElement;
@@ -485,6 +575,12 @@ export function openToolbarDialog(start: string = 'main') {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
           (event.currentTarget as HTMLElement).click();
+        } else if (event.key === 'Tab' && !event.ctrlKey && !event.metaKey && !event.altKey) {
+          // Nur in der rechten Liste: Ein-/Ausrücken per Tastatur; links bleibt Tab-Navigation.
+          if ((event.currentTarget as HTMLElement).closest?.('.tb-list') !== current) return;
+          event.preventDefault();
+          if (event.shiftKey) outdent();
+          else indent();
         }
       }, ...extra },
       ic ? h('span', { class: `tb-icon${ic.icon ? '' : ' text'}`, icon: ic.icon ?? '' }, ic.icon ? null : ic.short ?? '') : h('span', { class: 'tb-icon' }),
@@ -493,37 +589,276 @@ export function openToolbarDialog(start: string = 'main') {
   };
 
   const add = (id: string) => {
+    const item = newItem(id);
+    const leaf = leafForGroup(item);
+    if (selChild !== undefined && leaf) {
+      // In die gewählte Gruppe hinter dem Kind einfügen; Knopfgruppen nie verschachteln.
+      const list = barItems(bar);
+      const ref = list[selIdx];
+      if (ref?.kind === 'group' && isEditableFlyout(ref.id) && system) {
+        const gid = ref.id;
+        const group = ownEntry(system.runtime.read().content.groups, gid);
+        if (group) {
+          const items = [...group.items];
+          const at = Math.min(selChild + 1, items.length);
+          items.splice(at, 0, leaf);
+          const added = system.runtime.setGroupItems(gid, { kind: group.kind, items });
+          if (added && added.ok) {
+            selChild = at;
+            renderLists();
+            return;
+          }
+          selChild = undefined;
+        }
+      }
+    }
     const list = barItems(bar);
     const at = selIdx >= 0 ? selIdx + 1 : list.length;
-    list.splice(at, 0, newItem(id));
+    list.splice(at, 0, item);
     selIdx = at;
+    selChild = undefined;
     setBar(bar, list);
     renderLists();
   };
   const removeSel = () => {
     if (selIdx < 0) return;
-    const list = barItems(bar).filter((_, i) => i !== selIdx);
-    selIdx = Math.min(selIdx, list.length - 1);
-    setBar(bar, list);
+    const list = barItems(bar);
+    const ref = list[selIdx];
+    if (selChild !== undefined && ref?.kind === 'group' && isEditableFlyout(ref.id)) {
+      removeGroupChild(ref.id, selChild);
+      return;
+    }
+    if (ref?.kind === 'group' && isEditableFlyout(ref.id)) {
+      // Gruppe auflösen: Kinder steigen als normale Aktionszeilen auf.
+      const group = system && ownEntry(system.runtime.read().content.groups, ref.id);
+      if (group) {
+        const risen: Item[] = group.items.map((leaf) => leaf.kind === 'separator' ? { kind: 'separator' } as Item
+          : actions.get(leaf.id)?.items ? { kind: 'group', id: leaf.id } : { kind: 'action', id: leaf.id });
+        const next = [...list];
+        next.splice(selIdx, 1, ...risen);
+        selIdx = Math.min(selIdx, next.length - 1);
+        selChild = undefined;
+        const replaced = setBar(bar, next);
+        if (replaced && replaced.ok) dropCustomGroup(ref.id);
+        reinitAfterCustomChange(bar);
+        return;
+      }
+    }
+    const next = list.filter((_, i) => i !== selIdx);
+    selIdx = Math.min(selIdx, next.length - 1);
+    selChild = undefined;
+    setBar(bar, next);
+    renderLists();
+  };
+  /** Kind aus einer Aktionsgruppe löschen; leere Gruppe löst sich samt Kopfzeile auf. */
+  const removeGroupChild = (gid: string, child: number) => {
+    const current = system;
+    if (!current) return;
+    const group = ownEntry(current.runtime.read().content.groups, gid);
+    if (!group || child < 0 || child >= group.items.length || !isEditableFlyout(gid)) return;
+    const list = barItems(bar);
+    const rest = group.items.filter((_, i) => i !== child);
+    if (!rest.length) {
+      const updated = current.runtime.setGroupItems(gid, { kind: group.kind, items: rest });
+      if (!updated || !updated.ok) return;
+      const next = list.filter((_, i) => i !== selIdx);
+      selIdx = Math.min(selIdx, next.length - 1);
+      selChild = undefined;
+      const removed = setBar(bar, next);
+      if (removed && removed.ok) dropCustomGroup(gid);
+      else current.runtime.setGroupItems(gid, { kind: group.kind, items: group.items });
+      reinitAfterCustomChange(bar);
+      return;
+    }
+    const updated = current.runtime.setGroupItems(gid, { kind: group.kind, items: rest });
+    if (!updated || !updated.ok) return;
+    selChild = Math.min(child, rest.length - 1);
     renderLists();
   };
   const move = (d: number) => {
+    if (selChild !== undefined) {
+      const current = system;
+      const ref = current && barItems(bar)[selIdx];
+      if (!current || !ref || ref.kind !== 'group' || !isEditableFlyout(ref.id)) {
+        selChild = undefined;
+        return;
+      }
+      const group = ownEntry(current.runtime.read().content.groups, ref.id);
+      if (!group) return;
+      const k = selChild + d;
+      if (k < 0 || k >= group.items.length) return;
+      const items = [...group.items];
+      [items[selChild], items[k]] = [items[k], items[selChild]];
+      const moved = current.runtime.setGroupItems(ref.id, { kind: group.kind, items });
+      if (!moved || !moved.ok) return;
+      selChild = k;
+      renderLists();
+      return;
+    }
     const list = barItems(bar);
     const k = selIdx + d;
     if (selIdx < 0 || k < 0 || k >= list.length) return;
     [list[selIdx], list[k]] = [list[k], list[selIdx]];
     selIdx = k;
+    selChild = undefined;
     setBar(bar, list);
     renderLists();
   };
 
-  let dragFrom: { kind: 'avail'; id: string } | { kind: 'cur'; index: number } | null = null;
+  /** Gruppenblatt fürs Einrücken: nur Aktionen (keine Separatoren, Controls, Knopfgruppen — keine Verschachtelung). */
+  const leafForGroup = (item: Item): Leaf | undefined => {
+    if (item.kind === 'separator' || item.kind === 'group' || item.kind === 'control') return undefined;
+    if (actions.get(item.id)?.items) return undefined;
+    const resolved = system?.registry.resolveLegacy(item.id);
+    if (resolved === 'control' || resolved === 'group') return undefined;
+    return { kind: 'action', id: item.id };
+  };
+  /** Einrückziel: Zeilenaktion mit einrückbarer Vorzeile (Aktion oder Aktionsgruppe). */
+  const indentTarget = (): { prev: Item; target: Item } | undefined => {
+    if (!system || selIdx <= 0 || selChild !== undefined) return undefined;
+    const list = barItems(bar);
+    const target = list[selIdx];
+    const prev = list[selIdx - 1];
+    if (!target || !prev || prev.kind === 'separator' || !leafForGroup(target)) return undefined;
+    if (prev.kind === 'group') {
+      if (!isEditableFlyout(prev.id)) return undefined;
+    } else if (!leafForGroup(prev)) return undefined;
+    return { prev, target };
+  };
+  const canIndent = () => indentTarget() !== undefined;
+  const canOutdent = () => {
+    if (selIdx < 0 || selChild === undefined) return false;
+    const ref = barItems(bar)[selIdx];
+    return !!ref && ref.kind === 'group' && isEditableFlyout(ref.id);
+  };
+  const indent = () => {
+    const current = system;
+    const found = indentTarget();
+    if (!current || !found) return;
+    const list = barItems(bar);
+    const childLeaf = leafForGroup(found.target);
+    if (!childLeaf) return;
+    if (found.prev.kind === 'group') {
+      // Unter Aktionsgruppe einrücken: Kind hinten anhängen (kein Re-Init nötig).
+      const gid = found.prev.id;
+      const group = ownEntry(current.runtime.read().content.groups, gid);
+      if (!group) return;
+      const items = [...group.items, childLeaf];
+      const next = [...list];
+      next.splice(selIdx, 1);
+      const unlisted = setBar(bar, next);
+      if (!unlisted || !unlisted.ok) return;
+      const appended = current.runtime.setGroupItems(gid, { kind: group.kind, items });
+      if (!appended || !appended.ok) {
+        setBar(bar, list);
+        return;
+      }
+      selChild = items.length - 1;
+      selIdx--;
+      renderLists();
+      return;
+    }
+    // Unter Aktions-Zeile einrücken: neue eigene Gruppe aus Kopf-Aktion und Kind (kleinstfreies N).
+    const headLeaf = leafForGroup(found.prev);
+    if (!headLeaf) return;
+    const taken = new Set(Object.keys(current.runtime.read().content.groups));
+    let n = 1;
+    while (taken.has(`custom-group-${n}`)) n++;
+    const gid = `custom-group-${n}`;
+    const label = t('Gruppe {n}', { n });
+    const items = [headLeaf, childLeaf];
+    const custom = current.runtime as ToolbarSystem['runtime'] & CustomGroupMethods;
+    if (typeof custom.addGroup === 'function') {
+      const added = custom.addGroup({ id: gid, label, items: clone(items) });
+      if (added && added.ok) {
+        trackSessionCustomGroup(gid, label);
+        const next = [...list];
+        next.splice(selIdx - 1, 2, { kind: 'group', id: gid });
+        const listed = setBar(bar, next);
+        if (!listed || !listed.ok) {
+          if (typeof custom.removeGroup === 'function') custom.removeGroup(gid);
+          else dropCustomGroup(gid);
+          sessionCustomGroups = sessionCustomGroups.filter((group) => group.id !== gid);
+          return;
+        }
+        reinitAfterCustomChange(bar);
+        return;
+      }
+      if (!added || added.error !== 'Built-in group') return;
+    }
+    // Rückweg: Gruppe und Leistenbelegung in einer Storage-Transaktion schreiben, dann Re-Init.
+    trackSessionCustomGroup(gid, label);
+    const next = [...list];
+    next.splice(selIdx - 1, 2, { kind: 'group', id: gid });
+    const stored = commitGroupEdit((state) => {
+      setEntry(state.content.groups, gid, { kind: 'flyout', items: clone(items) });
+      const labels = storedLabels(state.content.labels);
+      labels[gid] = label;
+      (state.content as { labels?: Record<string, string> }).labels = labels;
+      setEntry(state.content.bars, bar, clone(next));
+    });
+    if (!stored && current.runtime.persistence().writable) {
+      sessionCustomGroups = sessionCustomGroups.filter((group) => group.id !== gid);
+      return;
+    }
+    reinitAfterCustomChange(bar);
+  };
+  const outdent = () => {
+    const current = system;
+    if (!current || selIdx < 0 || selChild === undefined) return;
+    const list = barItems(bar);
+    const ref = list[selIdx];
+    if (!ref || ref.kind !== 'group' || !isEditableFlyout(ref.id)) return;
+    const gid = ref.id;
+    const group = ownEntry(current.runtime.read().content.groups, gid);
+    if (!group || selChild >= group.items.length) return;
+    const leaf = group.items[selChild];
+    const risen: Item = leaf.kind === 'separator' ? { kind: 'separator' }
+      : actions.get(leaf.id)?.items ? { kind: 'group', id: leaf.id } : { kind: 'action', id: leaf.id };
+    const rest = group.items.filter((_, i) => i !== selChild);
+    if (!rest.length) {
+      // Letztes Kind ausgerückt: Gruppe auflösen, Kopf wird normale Aktionszeile.
+      const updated = current.runtime.setGroupItems(gid, { kind: group.kind, items: rest });
+      if (!updated || !updated.ok) return;
+      const next = [...list];
+      next.splice(selIdx, 1, risen);
+      const replaced = setBar(bar, next);
+      if (!replaced || !replaced.ok) {
+        current.runtime.setGroupItems(gid, { kind: group.kind, items: group.items });
+        return;
+      }
+      dropCustomGroup(gid);
+      selChild = undefined;
+      reinitAfterCustomChange(bar);
+      return;
+    }
+    const updated = current.runtime.setGroupItems(gid, { kind: group.kind, items: rest });
+    if (!updated || !updated.ok) return;
+    const next = [...list];
+    next.splice(selIdx + 1, 0, risen);
+    const listed = setBar(bar, next);
+    if (!listed || !listed.ok) {
+      current.runtime.setGroupItems(gid, { kind: group.kind, items: group.items });
+      return;
+    }
+    selIdx = selIdx + 1;
+    selChild = undefined;
+    renderLists();
+  };
+
+  let dragFrom: { kind: 'avail'; id: string } | { kind: 'cur'; index: number; child?: number } | null = null;
   const renderLists = () => {
     const focused = document.activeElement instanceof HTMLElement ? document.activeElement.closest<HTMLElement>('.tb-row') : null;
     const focusList = focused && (avail.contains(focused) ? avail : current.contains(focused) ? current : null);
     const focusIndex = focusList && focused ? [...focusList.querySelectorAll('.tb-row')].indexOf(focused) : -1;
     const focusId = focused?.dataset.action;
-    const used = new Set(barItems(bar).flatMap((item) => 'id' in item ? [item.id] : []));
+    const used = new Set(barItems(bar).flatMap((item) => {
+      if (item.kind === 'group') {
+        const group = system && ownEntry(system.runtime.read().content.groups, item.id);
+        return [item.id, ...(group?.items ?? []).flatMap((leaf) => leaf.kind === 'separator' ? [] : [leaf.id])];
+      }
+      return 'id' in item ? [item.id] : [];
+    }));
     avail.replaceChildren();
     let cat = '';
     for (const a of actions.values()) {
@@ -542,19 +877,57 @@ export function openToolbarDialog(start: string = 'main') {
     }
     current.replaceChildren();
     barItems(bar).forEach((item, i) => {
+      if (item.kind === 'group' && isEditableFlyout(item.id)) {
+        const state = system?.runtime.read();
+        const group = state && ownEntry(state.content.groups, item.id);
+        if (group) {
+          // Aktionsgruppe: Kopf zeigt den Gruppennamen (statt das Knopfgesicht zu
+          // wiederholen), Kinder eingerückt darunter — kein Mitglied doppelt.
+          const labels = state ? storedLabels(state.content.labels) : {};
+          const head: Action = { id: item.id, cat: '', label: labels[item.id] ?? actions.get(item.id)?.label ?? item.id, short: '▾', run() {} };
+          const header = row(head, {
+            draggable: true,
+            onclick: () => ((selIdx = i), (selChild = undefined), renderLists()),
+            ondblclick: () => ((selIdx = i), (selChild = undefined), removeSel()),
+            ondragstart: () => (dragFrom = { kind: 'cur', index: i }),
+          });
+          header.dataset.index = String(i);
+          header.dataset.group = item.id;
+          header.classList.toggle('sel', i === selIdx && selChild === undefined);
+          current.append(header);
+          group.items.forEach((leaf, c) => {
+            const lid = leaf.kind === 'separator' ? SEP : leaf.id;
+            const unknown: Action = { id: lid, cat: '', label: lid, run() {} };
+             const child = row(leaf.kind === 'separator' ? null : actions.get(lid) ?? unknown, {
+              draggable: true,
+              onclick: () => ((selIdx = i), (selChild = c), renderLists()),
+              ondblclick: () => ((selIdx = i), (selChild = c), removeSel()),
+              ondragstart: () => (dragFrom = { kind: 'cur', index: i, child: c }),
+            });
+            child.dataset.index = String(i);
+            child.dataset.child = String(c);
+            child.style.setProperty('padding-left', '1.5em');
+            child.classList.toggle('sel', i === selIdx && c === selChild);
+            current.append(child);
+          });
+          return;
+        }
+      }
       const id = 'id' in item ? item.id : SEP;
       const unknown: Action = { id, cat: '', label: id, run() {} };
       const r = row(item.kind === 'separator' ? null : actions.get(id) ?? unknown, {
         draggable: true,
-        onclick: () => ((selIdx = i), renderLists()),
-        ondblclick: () => ((selIdx = i), removeSel()),
+        onclick: () => ((selIdx = i), (selChild = undefined), renderLists()),
+        ondblclick: () => ((selIdx = i), (selChild = undefined), removeSel()),
         ondragstart: () => (dragFrom = { kind: 'cur', index: i }),
       });
       r.dataset.index = String(i);
-      r.classList.toggle('sel', i === selIdx);
+      r.classList.toggle('sel', i === selIdx && selChild === undefined);
       current.append(r);
     });
     if (!barItems(bar).length) current.append(h('div', { class: 'muted tb-hint' }, t('Aktionen hierher ziehen')));
+    if (indentBtn) indentBtn.disabled = !canIndent();
+    if (outdentBtn) outdentBtn.disabled = !canOutdent();
     if (focusList) {
       const rows = [...focusList.querySelectorAll<HTMLElement>('.tb-row')];
       const replacement = focusList === avail ? rows.find((candidate) => candidate.dataset.action === focusId) : rows[Math.min(focusIndex, rows.length - 1)];
@@ -582,6 +955,62 @@ export function openToolbarDialog(start: string = 'main') {
     if (!dragFrom) return;
     const list = barItems(bar);
     let k = dropIndex(e);
+    const targetRow = (e.target as HTMLElement).closest<HTMLElement>('.tb-row');
+    const targetIndex = targetRow?.dataset.index === undefined ? -1 : Number(targetRow.dataset.index);
+    const targetRef = list[targetIndex];
+    const targetGroupId = targetRow?.dataset.child !== undefined && targetRef?.kind === 'group' && isEditableFlyout(targetRef.id) ? targetRef.id : undefined;
+    const sourceRef = dragFrom.kind === 'cur' ? list[dragFrom.index] : undefined;
+    const sourceGroupId = dragFrom.kind === 'cur' && dragFrom.child !== undefined && sourceRef?.kind === 'group' && isEditableFlyout(sourceRef.id) ? sourceRef.id : undefined;
+    if (targetGroupId || sourceGroupId) {
+      const runtime = system?.runtime;
+      if (!runtime) return;
+      const state = runtime.read();
+      const sourceGroup = sourceGroupId ? ownEntry(state.content.groups, sourceGroupId) : undefined;
+      const sourceChild = dragFrom.kind === 'cur' ? dragFrom.child : undefined;
+      const dragged: Item | undefined = sourceGroup && sourceChild !== undefined ? sourceGroup.items[sourceChild]
+        : dragFrom.kind === 'avail' ? newItem(dragFrom.id) : list[dragFrom.index];
+      if (!dragged) return;
+      const leaf = leafForGroup(dragged);
+      if (targetGroupId && !leaf) return;
+      const changes = new Map<string, { kind: 'flyout' | 'section'; items: Leaf[] }>();
+      if (sourceGroup && sourceGroupId && sourceChild !== undefined)
+        changes.set(sourceGroupId, { kind: sourceGroup.kind, items: sourceGroup.items.filter((_, i) => i !== sourceChild) });
+      if (targetGroupId && leaf) {
+        const group = changes.get(targetGroupId) ?? ownEntry(state.content.groups, targetGroupId);
+        if (!group) return;
+        const items = [...group.items];
+        const box = targetRow!.getBoundingClientRect();
+        let at = Number(targetRow!.dataset.child) + (e.clientY > box.top + box.height / 2 ? 1 : 0);
+        if (sourceGroupId === targetGroupId && sourceChild !== undefined && at > sourceChild) at--;
+        items.splice(at, 0, leaf);
+        changes.set(targetGroupId, { kind: group.kind, items });
+      }
+      const next = [...list];
+      if (dragFrom.kind === 'cur' && !sourceGroupId) {
+        next.splice(dragFrom.index, 1);
+        if (k > dragFrom.index) k--;
+      }
+      if (!targetGroupId) next.splice(k, 0, dragged);
+      const emptied = sourceGroupId && changes.get(sourceGroupId)?.items.length === 0 ? sourceGroupId : undefined;
+      const final = emptied ? next.filter((item) => item.kind !== 'group' || item.id !== emptied) : next;
+      const restore = () => {
+        for (const id of changes.keys()) {
+          const group = ownEntry(state.content.groups, id);
+          if (group) runtime.setGroupItems(id, group);
+        }
+      };
+      for (const [id, group] of changes) {
+        if (!runtime.setGroupItems(id, group).ok) { restore(); return; }
+      }
+      if (!setBar(bar, final)?.ok) { restore(); return; }
+      if (emptied) dropCustomGroup(emptied);
+      selIdx = -1;
+      selChild = undefined;
+      dragFrom = null;
+      if (emptied && CUSTOM_GROUP.test(emptied)) reinitAfterCustomChange(bar);
+      else renderLists();
+      return;
+    }
     if (dragFrom.kind === 'avail') list.splice(k, 0, newItem(dragFrom.id));
     else {
       const [x] = list.splice(dragFrom.index, 1);
@@ -589,6 +1018,7 @@ export function openToolbarDialog(start: string = 'main') {
       list.splice(k, 0, x);
     }
     selIdx = k;
+    selChild = undefined;
     dragFrom = null;
     setBar(bar, list);
     renderLists();
@@ -598,6 +1028,7 @@ export function openToolbarDialog(start: string = 'main') {
     e.preventDefault();
     if (dragFrom?.kind !== 'cur') return;
     selIdx = dragFrom.index;
+    selChild = dragFrom.child;
     dragFrom = null;
     removeSel();
   });
@@ -632,7 +1063,6 @@ export function openToolbarDialog(start: string = 'main') {
       h('label', { class: 'check' }, shownChk, t('Anzeigen')),
     ),
     h('div', { class: 'tb-top' },
-      h('label', {}, t('Ausrichtung der Leiste'), orientation),
       h('label', {}, t('Zeilen der Leiste'), rows),
       h('label', {}, t('Spalten der Leiste'), columns),
       h('label', { class: 'check' }, locked, t('Leistenlayout sperren')),
@@ -648,6 +1078,8 @@ export function openToolbarDialog(start: string = 'main') {
         h('div', { class: 'tb-btns' },
           btn('↑', t('Nach oben bzw. links'), () => move(-1)),
           btn('↓', t('Nach unten bzw. rechts'), () => move(1)),
+          (indentBtn = btn('⇥', t('Eintrag einrücken'), indent)),
+          (outdentBtn = btn('⇤', t('Eintrag ausrücken'), outdent)),
           btn(t('Trennlinie'), t('Trennlinie hinter der markierten Stelle einfügen'), () => add(SEP)),
         ),
       ),
@@ -656,8 +1088,8 @@ export function openToolbarDialog(start: string = 'main') {
     h('div', { class: 'dialog-buttons' },
       btn(t('Standard wiederherstellen'), t('Diese Leiste auf die Standardbelegung zurücksetzen'), () => {
         selIdx = -1;
-        const definition = editableBars.find((candidate) => candidate.id === bar);
-        if (definition) setBar(bar, structuredClone(definition.items));
+        selChild = undefined;
+        system?.runtime.resetBarContent(bar);
         sync();
         renderLists();
       }),
@@ -668,6 +1100,7 @@ export function openToolbarDialog(start: string = 'main') {
       btn(t('Alle Belegungen zurücksetzen'), t('Belegungen zurücksetzen; Positionen und Symbolgrößen behalten'), () => {
         system?.runtime.resetContent();
         selIdx = -1;
+        selChild = undefined;
         sync();
         renderLists();
       }),

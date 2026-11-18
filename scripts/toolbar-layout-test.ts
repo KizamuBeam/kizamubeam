@@ -34,6 +34,46 @@ const initial = () => createState(definitions);
 const detached = () => value(applyLayout(initial(), { kind: 'detach', ownerId: 'tools', groupId: 'grp:draw', view: floating }, definitions));
 const roundtrip = (state: ToolbarState, defs = definitions) => value(decode(value(encode(state)), defs)).state;
 
+for (const edge of ['top', 'right', 'bottom', 'left'] as DockEdge[]) {
+  for (const lane of [0, 1, 6]) test(`insert dock lane ${lane} on ${edge} shifts hidden, absent and detached peers atomically`, () => {
+    const state = initial();
+    const view = (rank: number): ViewLayout => ({ ...clone(DEFAULT_VIEW), placement: { kind: 'dock', edge, lane: rank, order: 0 } });
+    state.layout.bars.main = view(4);
+    state.layout.bars.tools = view(0);
+    state.layout.bars.absent = view(1);
+    state.layout.bars.peer = view(3);
+    state.content.bars.absent = [{ kind: 'action', id: 'absent-plugin' }];
+    state.content.bars.peer = [];
+    state.layout.hidden.push('absent');
+    const id = detachedId('tools', 'grp:draw');
+    state.layout.detached[id] = { ownerId: 'tools', groupId: 'grp:draw', layout: view(1) };
+    state.layout.bars.otherEdge = { ...clone(DEFAULT_VIEW), placement: { kind: 'dock', edge: edge === 'top' ? 'left' : 'top', lane: 1, order: 0 } };
+    const before = clone(state);
+    const placed = value(applyLayout(state, { kind: 'place', target: { barId: 'main' }, view: view(lane), insert: true, insertLane: true,
+      participants: [] }, definitions));
+    const rank = (v: ViewLayout) => v.placement.kind === 'dock' ? v.placement.lane : -1;
+    assert.equal(rank(placed.layout.bars.main), lane);
+    assert.equal(rank(placed.layout.bars.tools), 0 >= lane ? 1 : 0);
+    assert.equal(rank(placed.layout.bars.absent), 1 >= lane ? 2 : 1);
+    assert.equal(rank(placed.layout.bars.peer), 3 >= lane ? 4 : 3);
+    assert.equal(rank(placed.layout.detached[id].layout), 1 >= lane ? 2 : 1);
+    assert.deepEqual(placed.layout.bars.otherEdge, before.layout.bars.otherEdge);
+    assert.deepEqual(placed.content, before.content);
+    assert.deepEqual(state, before);
+  });
+}
+test('new tear-off can insert a lane; repeated detach and rejected operations never shift it again', () => {
+  const state = initial();
+  const view: ViewLayout = { ...clone(DEFAULT_VIEW), placement: { kind: 'dock', edge: 'top', lane: 0, order: 0 } };
+  const operation = { kind: 'detach' as const, ownerId: 'tools', groupId: 'grp:draw', view, insert: true, insertLane: true };
+  const next = value(applyLayout(state, operation, definitions));
+  assert.equal(next.layout.bars.main.placement.kind === 'dock' && next.layout.bars.main.placement.lane, 1);
+  assert.deepEqual(value(applyLayout(next, operation, definitions)), next);
+  assert.equal(applyLayout(setLayoutLocked(state, true), operation, definitions).ok, false);
+  const runtime = createToolbarRuntime(definitions);
+  value(runtime.layout(operation));
+  assert.equal(value(runtime.layout(operation)).changed, false);
+});
 test('defaults: unlocked, visible, medium icons, CSS-pixel/count defaults', () => {
   const s = initial();
   assert.equal(s.layout.locked, false);
@@ -513,6 +553,106 @@ test('custom bars inside definitions stay removable, renamable and reset-safe', 
   assert.equal(Object.hasOwn(second.read().content.bars, 'custom-1'), false);
   assert.equal(fails(second.removeBar('main')), 'Built-in bar');
   assert.equal(fails(second.setBarLabel('main', 'X')), 'Built-in bar');
+});
+test('custom group add sets flyout items and trims the label', () => {
+  const runtime = createToolbarRuntime(definitions);
+  value(runtime.addGroup({ id: 'custom-group-1', label: '  Mine  ', items: [{ kind: 'action', id: 'save' }] }));
+  const s = runtime.read();
+  assert.deepEqual(s.content.groups['custom-group-1'], { kind: 'flyout', items: [{ kind: 'action', id: 'save' }] });
+  assert.equal(s.content.labels['custom-group-1'], 'Mine');
+  value(createToolbarRuntime(definitions).addGroup({ id: 'custom-group-2', label: 'Plain' }));
+  assert.deepEqual(runtime.read().content.groups['custom-group-1'].items, [{ kind: 'action', id: 'save' }]);
+});
+
+test('custom group add defaults to empty leaf items', () => {
+  const runtime = createToolbarRuntime(definitions);
+  value(runtime.addGroup({ id: 'custom-group-plain', label: 'Plain' }));
+  assert.deepEqual(runtime.read().content.groups['custom-group-plain'], { kind: 'flyout', items: [] });
+});
+
+test('custom group add rejects bad ids, duplicates, built-in ids and invalid labels', () => {
+  const runtime = createToolbarRuntime(definitions);
+  for (const id of ['', 'x'.repeat(65)]) assert.equal(fails(runtime.addGroup({ id, label: 'Ok' })), 'Invalid group id');
+  assert.equal(fails(runtime.addGroup({ id: 42 as unknown as string, label: 'Ok' })), 'Invalid group id');
+  assert.equal(fails(runtime.addGroup({ id: 'grp:draw', label: 'Copy' })), 'Group already exists');
+  value(runtime.addGroup({ id: 'custom-group-dup', label: 'Dup' }));
+  assert.equal(fails(runtime.addGroup({ id: 'custom-group-dup', label: 'Dup' })), 'Group already exists');
+  for (const label of ['', '   ', 'x'.repeat(41)]) assert.equal(fails(runtime.addGroup({ id: 'custom-group-x', label })), 'Invalid group label');
+  assert.equal(Object.hasOwn(runtime.read().content.groups, 'custom-group-x'), false);
+});
+
+test('custom group remove cleans bar references, detached views and choices', () => {
+  const runtime = createToolbarRuntime(definitions);
+  value(runtime.addGroup({ id: 'custom-group-1', label: 'Mine', items: [{ kind: 'action', id: 'save' }] }));
+  const before = runtime.read();
+  value(runtime.setBarItems('main', [...before.content.bars.main, { kind: 'group', id: 'custom-group-1' }]));
+  value(runtime.layout({ kind: 'detach', ownerId: 'main', groupId: 'custom-group-1', view: floating }));
+  value(runtime.choose('custom-group-1', 'save'));
+  assert.ok(Object.keys(runtime.read().layout.detached).some((id) => id === detachedId('main', 'custom-group-1')));
+  value(runtime.removeGroup('custom-group-1'));
+  const s = runtime.read();
+  assert.equal(Object.hasOwn(s.content.groups, 'custom-group-1'), false);
+  assert.equal(Object.hasOwn(s.content.labels, 'custom-group-1'), false);
+  assert.equal(s.content.bars.main.some((i) => i.kind === 'group' && i.id === 'custom-group-1'), false);
+  assert.equal(Object.values(s.layout.detached).some((v) => v.groupId === 'custom-group-1'), false);
+  assert.equal(Object.hasOwn(s.content.choices, 'custom-group-1'), false);
+  // Built-in group reference survives the cleanup.
+  assert.equal(s.content.bars.tools.some((i) => i.kind === 'group' && i.id === 'grp:draw'), true);
+});
+
+test('custom group remove rejects unknown and built-in groups', () => {
+  const runtime = createToolbarRuntime(definitions);
+  assert.equal(fails(runtime.removeGroup('missing')), 'Unknown group');
+  assert.equal(fails(runtime.removeGroup('grp:draw')), 'Built-in group');
+  value(runtime.addGroup({ id: 'custom-group-gone', label: 'Gone' }));
+  value(runtime.removeGroup('custom-group-gone'));
+  assert.equal(fails(runtime.removeGroup('custom-group-gone')), 'Unknown group');
+  assert.deepEqual(runtime.read().content.groups['grp:draw'], initial().content.groups['grp:draw']);
+});
+
+test('custom group label rename trims and rejects unknown/built-in/invalid labels', () => {
+  const runtime = createToolbarRuntime(definitions);
+  value(runtime.addGroup({ id: 'custom-group-rename', label: 'Before' }));
+  value(runtime.setGroupLabel('custom-group-rename', '  After  '));
+  assert.equal(runtime.read().content.labels['custom-group-rename'], 'After');
+  assert.equal(fails(runtime.setGroupLabel('missing', 'Name')), 'Unknown group');
+  assert.equal(fails(runtime.setGroupLabel('grp:draw', 'Name')), 'Built-in group');
+  for (const label of ['', '  ', 'x'.repeat(41)]) assert.equal(fails(runtime.setGroupLabel('custom-group-rename', label)), 'Invalid group label');
+  assert.equal(runtime.read().content.labels['custom-group-rename'], 'After');
+});
+
+test('built-in group content stays editable via setGroupItems', () => {
+  const runtime = createToolbarRuntime(definitions);
+  value(runtime.setGroupItems('grp:draw', { kind: 'section', items: [{ kind: 'action', id: 'save' }] }));
+  assert.deepEqual(runtime.read().content.groups['grp:draw'], { kind: 'section', items: [{ kind: 'action', id: 'save' }] });
+  assert.equal(fails(runtime.setGroupItems('missing', { kind: 'flyout', items: [] })), 'Unknown group');
+});
+
+test('custom groups survive encode/decode roundtrip; group labels are kept', () => {
+  const runtime = createToolbarRuntime(definitions);
+  value(runtime.addGroup({ id: 'custom-group-round', label: 'Round', items: [{ kind: 'action', id: 'save' }] }));
+  const s = roundtrip(runtime.read());
+  assert.deepEqual(s.content.groups['custom-group-round'], { kind: 'flyout', items: [{ kind: 'action', id: 'save' }] });
+  assert.equal(s.content.labels['custom-group-round'], 'Round');
+  s.content.labels['ghost:bar'] = 'Ghost';
+  const loaded = value(decode(JSON.stringify({ format: FORMAT, version: VERSION, state: s }), definitions)).state;
+  assert.equal(loaded.content.labels['custom-group-round'], 'Round');
+  assert.equal(Object.hasOwn(loaded.content.labels, 'ghost:bar'), false);
+  assert.deepEqual(roundtrip(loaded), loaded);
+});
+
+test('content reset preserves custom groups and their choices, restores built-in content', () => {
+  const runtime = createToolbarRuntime(definitions);
+  value(runtime.addGroup({ id: 'custom-group-safe', label: 'Safe', items: [{ kind: 'action', id: 'save' }] }));
+  value(runtime.choose('custom-group-safe', 'save'));
+  const customized = runtime.read();
+  customized.content.groups['grp:draw'].items.length = 0;
+  const reset = resetContent(customized, definitions);
+  assert.deepEqual(reset.content.groups['custom-group-safe'], { kind: 'flyout', items: [{ kind: 'action', id: 'save' }] });
+  assert.equal(reset.content.labels['custom-group-safe'], 'Safe');
+  assert.equal(reset.content.choices['custom-group-safe'], 'save');
+  assert.deepEqual(reset.content.groups['grp:draw'], initial().content.groups['grp:draw']);
+  assert.deepEqual(reset.layout, customized.layout);
 });
 console.log(`${passed} tests passed; ${failed} failed`);
 if (failed) process.exitCode = 1;
