@@ -20,3 +20,8 @@ Machine (vm/src-tauri/core/src/ruida.rs, an independent implementation) comes
 from the MeerK40t project (MIT, https://github.com/meerk40t/meerk40t) and the
 Ruida Protocol Analyzer by Steve Isaacs (MIT,
 https://github.com/StevenIsaacs/ruida-protocol-analyzer).
+
+Protocol knowledge used for the xTool firmware profile (xTool D1 family over
+USB: identification, line status poll, jog sequence; src/gcode.ts and
+src-tauri/src/stream.rs, an independent implementation) comes from the
+OpenBurn project (MIT, https://github.com/SJLS27/openburn).
