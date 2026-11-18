@@ -4971,6 +4971,8 @@
   "unbekannter Kontext in „context“ (erlaubt: {list})": "contexto desconhecido em “context” (permitidos: {list})",
   "„context“ fehlt für die Host-Funktion „context“": "falta “context” para a função de host “context”",
   "Leiste verschieben: Pfeile docken an, Umschalt+Pfeile verschieben oder wechseln die Reihe, Strg+Umschalt+Pfeile fügen Reihen ein, Eingabe löst ab": "Mover barra: as setas acoplam, Shift+setas movem ou mudam de fileira, Ctrl+Shift+setas inserem fileiras, Enter desencaixa",
+  "Rohplatte": "Chapa bruta",
+  "Rohplatten zeigen: geschlossene Konturen auf einem Schnitt-Layer ohne Ausgabe. Teile darauf bleiben Teile, die Platte bekommt Löcher an ihrer Stelle.": "Mostrar as chapas brutas: contornos fechados em uma camada de corte com a saída desativada. As peças sobre elas continuam sendo peças, e a chapa recebe furos em seus lugares.",
   "In die Leiste zurück": "Voltar à barra",
   "Zeilen der Leiste": "Linhas da barra",
   "Spalten der Leiste": "Colunas da barra",
