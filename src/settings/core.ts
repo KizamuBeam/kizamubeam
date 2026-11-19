@@ -206,6 +206,24 @@ export function registerCoreSettings(ed: Editor, hooks: CoreSettingsHooks) {
         kind: 'toggle', id: 'workspace.boolKeep', group: t('Boolesche Operationen'), label: t('Originale behalten'), def: false, keywords: t('Vereinen Abziehen Schnittmenge'),
         get: () => ed.boolKeep, set: (v) => ed.setBoolOptions({ keep: v }),
       },
+      {
+        kind: 'toggle', id: 'workspace.importAutoSelect', group: t('Import'), label: t('Importiertes nach dem Import auswählen'), def: true,
+        keywords: t('Import Auswahl Selektion'),
+        hint: t('Neu importierte Objekte werden wie bisher gleich ausgewählt; ausgeschaltet bleibt die bisherige Auswahl bestehen.'),
+        get: () => ed.importAutoSelect, set: (v) => ed.setImportAutoSelect(v),
+      },
+      {
+        kind: 'toggle', id: 'workspace.importCenterInBed', group: t('Import'), label: t('Import in Bettmitte legen'), def: false,
+        keywords: t('Import Mitte Zentrum Bett'),
+        hint: t('Neu importierte Objekte werden immer mittig auf den Arbeitsbereich gelegt; ausgeschaltet nur, wenn sie außerhalb liegen.'),
+        get: () => ed.importCenterInBed, set: (v) => ed.setImportCenterInBed(v),
+      },
+      {
+        kind: 'toggle', id: 'workspace.importSkippedNote', group: t('Import'), label: t('Hinweise zu übersprungenen Inhalten anzeigen'), def: true,
+        keywords: t('Import Hinweis übersprungen Text DXF SVG'),
+        hint: t('Nicht übernommene Inhalte (z. B. Texte, vorher in Pfade umwandeln) werden als Hinweis gemeldet; ausgeschaltet werden sie still ignoriert.'),
+        get: () => ed.importSkippedNote, set: (v) => ed.setImportSkippedNote(v),
+      },
     ],
   });
 

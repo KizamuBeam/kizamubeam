@@ -19,7 +19,7 @@ import { EditorCommands } from './editor/commands';
 import { EditorDocument } from './editor/document';
 import { EditorHinges } from './editor/hinges';
 import { EditorPattern } from './editor/pattern';
-import { EditorImages } from './editor/imageops';
+import { EditorImages, loadImportAutoSelect, loadImportCenterInBed, loadImportSkippedNote } from './editor/imageops';
 import { EditorJoints } from './editor/joints';
 import { EditorKeyboard, loadNudgeSteps, type NudgeSteps } from './editor/keyboard';
 import { EditorNodes } from './editor/nodes';
@@ -194,6 +194,12 @@ export class Editor {
   clickTolerance = loadClickTolerance();
   /** Fangdistanzen in px, normal und mit Alt (Edit → Settings → Arbeitsfläche und Fangen) */
   snapTolerance: SnapTolerance = loadSnapTolerance();
+  /** Importiertes nach dem Import auswählen (Opt-out, an) */
+  importAutoSelect = loadImportAutoSelect();
+  /** Import in Bettmitte legen (Opt-in, aus) */
+  importCenterInBed = loadImportCenterInBed();
+  /** Hinweise zu übersprungenen Inhalten anzeigen (Opt-out, an) */
+  importSkippedNote = loadImportSkippedNote();
   /** Klick-Toleranz ändern und merken */
   setClickTolerance(v: number) {
     if (!saveClickTolerance(v)) throw new Error(t('Einstellung konnte nicht gespeichert werden.'));

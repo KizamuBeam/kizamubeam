@@ -27,7 +27,7 @@ export class EditorText {
     if (c.x < 0 || c.y < 0 || c.x > bed.w || c.y > bed.h) c = { x: bed.w / 2, y: bed.h / 2 };
     const e = barcodeExtent(shape);
     const o: Obj = { id: newId(), m: translate(c.x - (e.x0 + e.x1) / 2, c.y - (e.y0 + e.y1) / 2), layer: this.currentLayer, shape };
-    this.placeNew([o], isLinear(shape) ? t('Strichcode eingefügt. Doppelklick öffnet ihn zum Bearbeiten.') : t('QR-Code eingefügt. Doppelklick öffnet ihn zum Bearbeiten.'));
+    this.placeNew([o], isLinear(shape) ? t('Strichcode eingefügt. Doppelklick öffnet ihn zum Bearbeiten.') : t('QR-Code eingefügt. Doppelklick öffnet ihn zum Bearbeiten.'), undefined, { select: true });
   }
   /** Inhalt oder Einstellungen eines QR- oder Strichcodes ändern; die Mitte bleibt, wo sie war */
   updateBarcode(this: Editor, o: Obj, patch: Partial<BarcodeShape>) {
