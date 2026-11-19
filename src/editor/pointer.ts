@@ -10,7 +10,7 @@ import { lassoTouchMode } from '../lasso';
 import { MAX_VECTOR_SAMPLES } from '../vectorFit';
 import { closureOf } from '../shaper';
 import { genLeaves, isMarkGroup } from './generators';
-import { HINGE_HINT_FIRST, HINGE_HINT_SECOND, LASSO_TOUCH_HINT, RULER, SNAP_PX, TOOL_HINTS } from './shared';
+import { HINGE_HINT_FIRST, HINGE_HINT_SECOND, LASSO_TOUCH_HINT, RULER, TOOL_HINTS } from './shared';
 import { ARC_MIN_RADIUS, arcPoint, arcSpec, arcSubPath, newArcDraft, snapAngle, type ArcDraft, type ArcMode } from './arc';
 import { OVERLAP_MOVE_PX } from '../overlapPicker';
 
@@ -155,7 +155,7 @@ export class EditorPointer {
           }
           if (!this.sel.includes(o)) return;
           // Wird an einem Fangpunkt der Auswahl gegriffen, fängt genau dieser Punkt
-          const own = findSnap(buildSnapSet(this.sel, (l) => this.layer(l.layer).show), wp, SNAP_PX / this.view.zoom);
+          const own = findSnap(buildSnapSet(this.sel, (l) => this.layer(l.layer).show), wp, this.snapTolerance.normal / this.view.zoom);
           this.drag = {
             type: 'move', start: wp, orig: this.sel.map((x) => x.m), moved: false,
             toggleRotate: was && !e.shiftKey && !ctrl, sx, sy,

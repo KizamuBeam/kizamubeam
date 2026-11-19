@@ -21,14 +21,14 @@ import { EditorHinges } from './editor/hinges';
 import { EditorPattern } from './editor/pattern';
 import { EditorImages } from './editor/imageops';
 import { EditorJoints } from './editor/joints';
-import { EditorKeyboard } from './editor/keyboard';
+import { EditorKeyboard, loadNudgeSteps, type NudgeSteps } from './editor/keyboard';
 import { EditorNodes } from './editor/nodes';
 import { EditorObjects } from './editor/objects';
 import { EditorPaths } from './editor/paths';
 import { EditorPointer, loadRightPan, loadZoomInverted } from './editor/pointer';
 import { EditorRender } from './editor/render';
 import { EditorShapeOps } from './editor/shapeops';
-import { EditorSnapping } from './editor/snapping';
+import { EditorSnapping, loadSnapTolerance, type SnapTolerance } from './editor/snapping';
 import { EditorToolOptions, loadRememberToolOptions, loadSelectAfterDraw } from './editor/toolOptions';
 import { EditorGuides } from './editor/guides';
 import { EditorText } from './editor/text';
@@ -45,7 +45,7 @@ import { EditorRelations, RelPick } from './editor/relations';
 import { EditorSketch, SketchSession } from './editor/sketch';
 import type { RelMode } from './relations';
 import { t } from './i18n';
-import { installOverlapPicker } from './overlapPicker';
+import { installOverlapPicker, loadClickTolerance, saveClickTolerance } from './overlapPicker';
 import { EditorFreehand } from './editor/freehand';
 import type { FreehandMode } from './freehandEdit';
 import { EditorSelection } from './editor/selection';
@@ -176,6 +176,17 @@ export class Editor {
   rememberToolOptions = loadRememberToolOptions();
   /** Nach dem Zeichnen zur Auswahl wechseln (Edit → Settings → Maus und Tastatur) */
   selectAfterDraw = loadSelectAfterDraw();
+  /** Schrittweiten der Pfeiltasten in mm (Edit → Settings → Maus und Tastatur) */
+  nudgeSteps: NudgeSteps = loadNudgeSteps();
+  /** Klick-Auswahltoleranz in px (Edit → Settings → Maus und Tastatur) */
+  clickTolerance = loadClickTolerance();
+  /** Fangdistanzen in px, normal und mit Alt (Edit → Settings → Arbeitsfläche und Fangen) */
+  snapTolerance: SnapTolerance = loadSnapTolerance();
+  /** Klick-Toleranz ändern und merken */
+  setClickTolerance(v: number) {
+    if (!saveClickTolerance(v)) throw new Error(t('Einstellung konnte nicht gespeichert werden.'));
+    this.clickTolerance = v;
+  }
   onCanvasContext: ((event: MouseEvent) => void) | null = null;
   hint = '';
 
@@ -509,7 +520,7 @@ export class Editor {
   }
   /** Oberstes Objekt der Ebene 0 unter dem Weltpunkt. */
   hitTest(p: Pt): Obj | null {
-    const tol = 4 / this.view.zoom;
+    const tol = this.clickTolerance / this.view.zoom;
     for (let i = this.doc.objs.length - 1; i >= 0; i--) {
       const top = this.doc.objs[i];
       if (!this.selectable(top)) continue;

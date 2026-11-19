@@ -146,6 +146,18 @@ export function registerCoreSettings(ed: Editor, hooks: CoreSettingsHooks) {
         get: () => ed.snapObjects, set: (v) => ed.setSnap({ objects: v }),
       },
       { kind: 'toggle', id: 'workspace.snapGrid', group: t('Fangen'), label: t('Am Raster fangen'), def: false, keywords: t('Fang'), get: () => ed.snapGrid, set: (v) => ed.setSnap({ grid: v }) },
+      {
+        kind: 'number', id: 'workspace.snapTolerance', group: t('Fangen'), label: t('Fangdistanz (px)'), min: 1, max: 64, def: 8,
+        keywords: t('Fangdistanz Fangen Einrasten'),
+        hint: t('Abstand in Bildschirmpunkten, ab dem Objekte einrasten; Alt verstärkt und zeigt Ausrichtungshilfen.'),
+        get: () => ed.snapTolerance.normal, set: (v) => ed.setSnapTolerance({ normal: v }),
+      },
+      {
+        kind: 'number', id: 'workspace.snapToleranceAlt', group: t('Fangen'), label: t('Fangdistanz mit Alt (px)'), min: 1, max: 64, def: 20,
+        keywords: t('Fangdistanz Fangen Einrasten'),
+        hint: t('Abstand in Bildschirmpunkten, ab dem Objekte einrasten; Alt verstärkt und zeigt Ausrichtungshilfen.'),
+        get: () => ed.snapTolerance.alt, set: (v) => ed.setSnapTolerance({ alt: v }),
+      },
       { kind: 'number', id: 'workspace.gridStep', group: t('Fangen'), label: t('Rasterweite (mm)'), min: 0.001, max: 1000, def: 1, keywords: t('Fang'), get: () => ed.gridStep, set: (v) => ed.setSnap({ step: v }) },
       {
         kind: 'select', id: 'workspace.centers', group: t('Fangen'), label: t('Mittelpunkte zeigen'), def: 'auto',
@@ -205,6 +217,30 @@ export function registerCoreSettings(ed: Editor, hooks: CoreSettingsHooks) {
         keywords: t('Auswahlwerkzeug Selektion Form anlegen Bogen Linie'),
         hint: t('Ausgeschaltet bleibt das Zeichenwerkzeug nach dem Anlegen aktiv; das neue Objekt ist trotzdem ausgewählt.'),
         get: () => ed.selectAfterDraw, set: (v) => ed.setSelectAfterDraw(v),
+      },
+      {
+        kind: 'number', id: 'input.nudgeStep', group: t('Tastatur'), label: t('Schrittweite Pfeiltasten (mm)'), min: 0.001, max: 1000, def: 1,
+        keywords: t('Pfeiltasten Nudge Schrittweite Tastatur'),
+        hint: t('Gilt für Objekte und Knoten; die Pfeiltasten verschieben um diese Weiten.'),
+        get: () => ed.nudgeSteps.normal, set: (v) => ed.setNudgeSteps({ normal: v }),
+      },
+      {
+        kind: 'number', id: 'input.nudgeStepShift', group: t('Tastatur'), label: t('Schrittweite mit Umschalt (mm)'), min: 0.001, max: 1000, def: 10,
+        keywords: t('Pfeiltasten Nudge Schrittweite Tastatur'),
+        hint: t('Gilt für Objekte und Knoten; die Pfeiltasten verschieben um diese Weiten.'),
+        get: () => ed.nudgeSteps.shift, set: (v) => ed.setNudgeSteps({ shift: v }),
+      },
+      {
+        kind: 'number', id: 'input.nudgeStepAlt', group: t('Tastatur'), label: t('Schrittweite mit Alt (mm)'), min: 0.001, max: 1000, def: 0.1,
+        keywords: t('Pfeiltasten Nudge Schrittweite Tastatur'),
+        hint: t('Gilt für Objekte und Knoten; die Pfeiltasten verschieben um diese Weiten.'),
+        get: () => ed.nudgeSteps.alt, set: (v) => ed.setNudgeSteps({ alt: v }),
+      },
+      {
+        kind: 'number', id: 'input.clickTolerance', group: t('Auswahl'), label: t('Klick-Toleranz (px)'), min: 1, max: 32, def: 4,
+        keywords: t('Klick Auswahl Toleranz Treffer'),
+        hint: t('Wie genau ein Klick treffen muss, um ein Objekt auszuwählen.'),
+        get: () => ed.clickTolerance, set: (v) => ed.setClickTolerance(v),
       },
       {
         kind: 'toggle', id: 'input.zoomInverted', group: t('Zoomen'), label: t('Mausrad-Zoomrichtung umkehren'), def: false,
