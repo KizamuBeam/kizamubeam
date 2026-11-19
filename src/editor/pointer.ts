@@ -24,6 +24,16 @@ export function loadRightPan(): boolean {
   }
 }
 
+const ZOOM_INVERTED_KEY = 'kizamubeam.zoomInverted';
+/** Inverted wheel-zoom direction is opt-in: off unless switched on in the settings */
+export function loadZoomInverted(): boolean {
+  try {
+    return JSON.parse(localStorage.getItem(ZOOM_INVERTED_KEY) ?? 'false') === true;
+  } catch {
+    return false;
+  }
+}
+
 const ROTATE_CURSOR =
   `url("data:image/svg+xml,${encodeURIComponent(
     '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><g fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12a7 7 0 1 1-2-5" stroke="white" stroke-width="4"/><path d="M19 4v4h-4" stroke="white" stroke-width="4"/><path d="M19 12a7 7 0 1 1-2-5" stroke="black" stroke-width="1.8"/><path d="M19 4v4h-4" stroke="black" stroke-width="1.8"/></g></svg>',
@@ -373,6 +383,16 @@ export class EditorPointer {
     this.rightPan = on;
     try {
       localStorage.setItem(RIGHT_PAN_KEY, JSON.stringify(on));
+    } catch {
+      /* storage unavailable */
+    }
+  }
+
+  /** Invert the mouse-wheel zoom direction (Edit → Settings → Mouse and keyboard) */
+  setZoomInverted(this: Editor, on: boolean) {
+    this.zoomInverted = on;
+    try {
+      localStorage.setItem(ZOOM_INVERTED_KEY, JSON.stringify(on));
     } catch {
       /* storage unavailable */
     }
@@ -845,7 +865,7 @@ export class EditorPointer {
         this.hint = '';
         if (d.obj) {
           this.emit('doc');
-          this.setTool('select');
+          if (this.selectAfterDraw) this.setTool('select');
           this.setSel([d.obj]);
         }
         return;
@@ -965,7 +985,10 @@ export class EditorPointer {
     e.preventDefault();
     if (e.ctrlKey && pinchGestureActive(this.canvas)) return;
     const { sx, sy } = this.evPt(e);
-    if (e.deltaY) this.zoomAt(canvasWheelFactor(e, Math.log(1.0015)), sx, sy);
+    if (e.deltaY) {
+      const factor = canvasWheelFactor(e, Math.log(1.0015));
+      this.zoomAt(this.zoomInverted && factor > 0 ? 1 / factor : factor, sx, sy);
+    }
   }
 
   newShape(this: Editor): Shape {
@@ -1055,6 +1078,7 @@ export class EditorPointer {
       this.arcDraft = null;
       this.hint = TOOL_HINTS.arc;
     }
+    this.saveToolOptions();
     if (this.arcDraft) this.arcHint(this.arcDraft);
     this.redraw();
     this.emit('tool');
@@ -1086,7 +1110,7 @@ export class EditorPointer {
     const o: Obj = { id: newId(), m: IDENT, layer: this.currentLayer, shape: { kind: 'path', subs: [{ nodes: sub.nodes, closed: false }] } };
     this.doc.objs.push(o);
     this.emit('doc');
-    this.setTool('select');
+    if (this.selectAfterDraw) this.setTool('select');
     this.setSel([o]);
     return true;
   }
@@ -1108,7 +1132,7 @@ export class EditorPointer {
     const o: Obj = { id: newId(), m: IDENT, layer: this.currentLayer, shape: { kind: 'path', subs: [d] } };
     this.doc.objs.push(o);
     this.emit('doc');
-    this.setTool('select');
+    if (this.selectAfterDraw) this.setTool('select');
     this.setSel([o]);
   }
 

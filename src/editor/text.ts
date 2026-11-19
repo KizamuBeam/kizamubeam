@@ -173,6 +173,7 @@ export class EditorText {
   }
   updateTexts(this: Editor, patch: Partial<TextShape>) {
     Object.assign(this.textDefaults, Object.fromEntries(Object.entries(patch).filter(([k]) => k !== 'text' && k !== 'path' && k !== 'vt' && k !== 'maxW' && k !== 'maxH' && k !== 'fit')));
+    this.saveTextDefaults();
     const ts = this.selTexts();
     if (!ts.length) return;
     this.snapshot(t('Text-Eigenschaften'));

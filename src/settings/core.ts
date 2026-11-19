@@ -92,6 +92,16 @@ export function registerCoreSettings(ed: Editor, hooks: CoreSettingsHooks) {
       },
       ...typographySettingsFields(),
       {
+        kind: 'text', id: 'appearance.textFont', group: t('Textwerkzeug'), label: t('Standardschrift'), def: 'Arial',
+        keywords: t('Schriftart Text Default'),
+        get: () => ed.textDefaults.font, set: (v) => ed.updateTexts({ font: v || 'Arial' }),
+      },
+      {
+        kind: 'number', id: 'appearance.textSize', group: t('Textwerkzeug'), label: t('Standardschriftgröße (mm)'), min: 1, max: 500, def: 10,
+        keywords: t('Schriftgröße Text Default'),
+        get: () => ed.textDefaults.size, set: (v) => ed.updateTexts({ size: v }),
+      },
+      {
         kind: 'select', id: 'appearance.toolbarIconSize', label: t('Symbolgröße'), def: 'm',
         options: () => [['s', t('Klein|Symbole')], ['m', t('Normal|Symbole')], ['l', t('Groß|Symbole')]],
         get: () => toolbarIconSize(),
@@ -183,6 +193,24 @@ export function registerCoreSettings(ed: Editor, hooks: CoreSettingsHooks) {
         keywords: t('Rechtsklick Ziehen Mitteltaste Leertaste'),
         hint: t('Mitteltaste und Leertaste + Ziehen verschieben immer. Ein Rechtsklick ohne Bewegung öffnet weiter das Kontextmenü bzw. beendet die Linie.'),
         get: () => ed.rightPan, set: (v) => ed.setRightPan(v),
+      },
+      {
+        kind: 'toggle', id: 'input.rememberToolOptions', group: t('Werkzeuge'), label: t('Werkzeugschalter merken'), def: false,
+        keywords: t('Optionen Ecken Stern Radius Toleranz Bogen Formerkennung Start'),
+        hint: t('Merkt sich z. B. Ecken, Stern, Eckenradius, Toleranzen und Bogenmodus für den nächsten Start. Ausgeschaltet bleiben die Schalter flüchtig wie bisher.'),
+        get: () => ed.rememberToolOptions, set: (v) => ed.setRememberToolOptions(v),
+      },
+      {
+        kind: 'toggle', id: 'input.selectAfterDraw', group: t('Zeichnen'), label: t('Nach dem Zeichnen zur Auswahl wechseln'), def: true,
+        keywords: t('Auswahlwerkzeug Selektion Form anlegen Bogen Linie'),
+        hint: t('Ausgeschaltet bleibt das Zeichenwerkzeug nach dem Anlegen aktiv; das neue Objekt ist trotzdem ausgewählt.'),
+        get: () => ed.selectAfterDraw, set: (v) => ed.setSelectAfterDraw(v),
+      },
+      {
+        kind: 'toggle', id: 'input.zoomInverted', group: t('Zoomen'), label: t('Mausrad-Zoomrichtung umkehren'), def: false,
+        keywords: t('Zoom Richtung invertieren Scrollrad'),
+        hint: t('Standard: Nach oben scrollen vergrößert. Umgekehrt schaltet diese Option ein: Nach oben scrollen verkleinert.'),
+        get: () => ed.zoomInverted, set: (v) => ed.setZoomInverted(v),
       },
       {
         kind: 'select', id: 'input.overlapTrigger', group: t('Überlappungsauswahl'), label: t('Überlappungsauswahl'), def: 'right', keywords: t('Objekt unter dem Mauszeiger auswählen Rechtsklick Linksklick'),

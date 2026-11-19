@@ -25,10 +25,11 @@ import { EditorKeyboard } from './editor/keyboard';
 import { EditorNodes } from './editor/nodes';
 import { EditorObjects } from './editor/objects';
 import { EditorPaths } from './editor/paths';
-import { EditorPointer, loadRightPan } from './editor/pointer';
+import { EditorPointer, loadRightPan, loadZoomInverted } from './editor/pointer';
 import { EditorRender } from './editor/render';
 import { EditorShapeOps } from './editor/shapeops';
 import { EditorSnapping } from './editor/snapping';
+import { EditorToolOptions, loadRememberToolOptions, loadSelectAfterDraw } from './editor/toolOptions';
 import { EditorGuides } from './editor/guides';
 import { EditorText } from './editor/text';
 import { EditorGenerators } from './editor/generators';
@@ -169,6 +170,12 @@ export class Editor {
   suppressContextMenu = false;
   /** Drag with the right mouse button pans the view (opt-in, Edit → Settings → Mouse and keyboard) */
   rightPan = loadRightPan();
+  /** Inverted mouse-wheel zoom direction (opt-in, Edit → Settings → Mouse and keyboard) */
+  zoomInverted = loadZoomInverted();
+  /** Werkzeugschalter über Neustarts merken (Opt-in, Edit → Settings → Maus und Tastatur) */
+  rememberToolOptions = loadRememberToolOptions();
+  /** Nach dem Zeichnen zur Auswahl wechseln (Edit → Settings → Maus und Tastatur) */
+  selectAfterDraw = loadSelectAfterDraw();
   onCanvasContext: ((event: MouseEvent) => void) | null = null;
   hint = '';
 
@@ -318,6 +325,8 @@ export class Editor {
     this.loadSnapSettings();
     this.loadGridSettings();
     this.loadBoolSettings();
+    this.loadToolOptions();
+    this.loadTextDefaults();
     // Texte werden mit den Schriftkonturen gezeichnet; nach dem Laden einer Schrift neu zeichnen
     onFontLoaded(() => this.emit('sel'));
     onImageReady(() => this.redraw());
@@ -616,6 +625,7 @@ export interface Editor
     EditorCommands,
     EditorObjects,
     EditorText,
+    EditorToolOptions,
     EditorGenerators,
     EditorParams,
     EditorNest,
@@ -653,6 +663,7 @@ const PARTS = [
   EditorCommands,
   EditorObjects,
   EditorText,
+  EditorToolOptions,
   EditorGenerators,
   EditorParams,
   EditorNest,
