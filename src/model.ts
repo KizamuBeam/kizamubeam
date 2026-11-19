@@ -382,8 +382,11 @@ export interface Mate {
   out?: boolean;
   /** Überblattung: Kreuzungspunkt auf beiden Kanten (Anteil vom Anfang) und Schlitztiefen */
   lap?: { ua: number; ub: number; da: number; db: number };
-  /** Kerf und Spiel, mit denen die Verbindung gezeichnet wurde (für „Konstruktion prüfen“; fehlt bei älteren) */
-  fit?: { k: number; c: number };
+  /**
+   * Kerf und Spiel, mit denen die Verbindung gezeichnet wurde (für „Konstruktion prüfen“; fehlt bei älteren). v: Version
+   * der Verbindungsgeometrie (jointsGeom.ts); ab 2 ist c das Gesamtspiel, ohne v das Spiel je Seite bei Zinken (#402).
+   */
+  fit?: { k: number; c: number; v?: number };
 }
 
 export type LayerMode = 'line' | 'fill';
@@ -485,7 +488,7 @@ export interface RampSettings {
 }
 
 /** Sub-Layer: eigene Bearbeitung derselben Formen; Air Assist und Aussehen gelten vom Layer */
-export type SubLayer = Omit<CutSettings, 'air' | 'look' | 'sub'> & { output: boolean };
+export type SubLayer = Omit<CutSettings, 'air' | 'look' | 'sub'> & { output: boolean; name: string };
 
 export const CUT_KEYS: (keyof CutSettings)[] = [
   'mode', 'speed', 'power', 'minPower', 'passes', 'air', 'kerf', 'tabs', 'fillStyle', 'interval', 'angle', 'crossHatch', 'bidirectional', 'overscan',
@@ -502,7 +505,7 @@ export const defaultRamp = (): RampSettings => ({ enabled: false, length: 1, ang
 export function defaultSubLayer(mode: LayerMode = 'line'): SubLayer {
   const d = defaultCutSettings(mode) as Partial<CutSettings>;
   delete d.air;
-  return { ...(d as SubLayer), output: true };
+  return { ...(d as SubLayer), output: true, name: '' };
 }
 
 /** Fehlende Felder eines Sub-Layers auffüllen (ältere Dateien, Import) */
@@ -511,6 +514,7 @@ function normalizeSub(s: SubLayer): SubLayer {
   for (const k of SUB_KEYS) if (s[k] === undefined) (s as unknown as Record<string, unknown>)[k] = d[k];
   fillNested(s);
   if (s.output === undefined) s.output = true;
+  if (s.name === undefined) s.name = '';
   return s;
 }
 
@@ -578,7 +582,7 @@ export const isCutLayer = (L: Layer) => L.mode === 'line' || !!L.sub?.some((s) =
 
 /** Ältere Dateien kennen nicht alle Einstellungen: fehlende mit Standardwerten auffüllen */
 export function normalizeLayer(L: Layer): Layer {
-  if (L.tabs && L.fillStyle !== undefined && L.ramp && L.dedup !== undefined && L.dedupTol !== undefined && L.zStep !== undefined && (!L.sub || L.sub.every((s) => s.ramp && s.dedup !== undefined && s.dedupTol !== undefined && s.output !== undefined))) return L;
+  if (L.tabs && L.fillStyle !== undefined && L.ramp && L.dedup !== undefined && L.dedupTol !== undefined && L.zStep !== undefined && (!L.sub || L.sub.every((s) => s.ramp && s.dedup !== undefined && s.dedupTol !== undefined && s.output !== undefined && s.name !== undefined))) return L;
   return normalizeCut(L);
 }
 

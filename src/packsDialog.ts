@@ -192,25 +192,26 @@ function netSwitch(): HTMLElement {
   return h('label', { class: 'check note' }, box, ' ', t('Erweiterungen dürfen keine Daten aus dem Internet laden (offline)'));
 }
 
-type Filter = 'all' | 'content' | 'plugins';
+type Filter = 'all' | 'content' | 'plugins' | 'templates' | 'materials' | 'assets';
 const hasContent = (devices: number, templates: number, materials: number, assets: number) => devices + templates + materials + assets > 0;
 
 /** Window „Extensions“: installed packs and the catalogue, with a search and a filter for content or plugins (#206) */
 export async function openPacksDialog(doc?: Doc) {
   await ensurePacks();
   const list = h('div', { class: 'pack-list' });
+  const catalogPanel = h('div', { class: 'pack-panel' });
+  const installedPanel = h('div', { class: 'pack-panel' });
+  const details = h('aside', { class: 'pack-details' });
   const err = h('p', { class: 'error' });
   const search = h('input', { type: 'search', placeholder: t('Suchen …'), class: 'pack-search' }) as HTMLInputElement;
-  const filter = h('select', {},
-    h('option', { value: 'all' }, t('Alle')),
-    h('option', { value: 'content' }, t('Inhalte|Erweiterungen')),
-    h('option', { value: 'plugins' }, t('Plugins')),
-  ) as HTMLSelectElement;
+  let filter: Filter = 'all';
   /** Whether an entry passes the search and the filter */
-  const shown = (words: (string | undefined)[], plugins: number, content: boolean) => {
-    const f = filter.value as Filter;
-    if (f === 'plugins' && !plugins) return false;
-    if (f === 'content' && !content) return false;
+  const shown = (words: (string | undefined)[], plugins: number, devices: number, templates: number, materials: number, assets: number) => {
+    if (filter === 'plugins' && !plugins) return false;
+    if (filter === 'content' && !hasContent(devices, templates, materials, assets)) return false;
+    if (filter === 'templates' && !templates) return false;
+    if (filter === 'materials' && !materials) return false;
+    if (filter === 'assets' && !assets) return false;
     const q = search.value.trim().toLowerCase();
     if (!q) return true;
     const hay = words.filter(Boolean).join(' ').toLowerCase();
@@ -226,6 +227,10 @@ export async function openPacksDialog(doc?: Doc) {
     }
     fill();
     fillCatalog();
+  };
+  const selectCard = (card: HTMLElement, content: HTMLElement) => {
+    content.querySelectorAll('.pack-card.selected').forEach((x) => x.classList.remove('selected'));
+    card.classList.add('selected');
   };
   const card = (ip: InstalledPack) => {
     const { pack, file } = ip;
@@ -249,7 +254,10 @@ export async function openPacksDialog(doc?: Doc) {
       if (!confirm(msg + extra)) return;
       await removePack(file);
     };
-    return h('div', { class: 'pack-card' + (ip.disabled ? ' disabled' : '') },
+    const result = h('div', { class: 'pack-card' + (ip.disabled ? ' disabled' : ''), tabIndex: 0, onclick: () => {
+      selectCard(result, list);
+      showInstalledDetails(ip);
+    } },
       h('div', { class: 'pack-text' },
         h('div', {}, h('b', {}, pack.name), ` ${pack.version}`, pack.author ? h('span', { class: 'muted' }, ` · ${pack.author}`) : null, ' ', ...badges),
         h('div', { class: 'muted' }, packSummary(pack)),
@@ -265,6 +273,7 @@ export async function openPacksDialog(doc?: Doc) {
         h('button', { class: 'btn small', onclick: act(remove) }, t('Entfernen')),
       ),
     );
+    return result;
   };
   /** Network access of a plugin (#280): the switch, its servers and the requests of this session */
   const netRow = (m: PluginManifest) => {
@@ -285,11 +294,47 @@ export async function openPacksDialog(doc?: Doc) {
         : null,
     );
   };
+  const showInstalledDetails = (ip: InstalledPack) => {
+    const { pack } = ip;
+    details.replaceChildren(
+      h('h4', {}, pack.name),
+      h('div', { class: 'muted' }, `${pack.version}${pack.author ? ` · ${pack.author}` : ''}`),
+      h('p', { class: 'muted' }, packSummary(pack)),
+      ...(pack.description ? [h('p', {}, pack.description)] : []),
+      ...(pack.homepage ? [h('p', { class: 'pack-url muted' }, pack.homepage)] : []),
+      h('div', { class: 'pack-details-actions' },
+        h('button', { class: 'btn primary', onclick: act(() => setPackDisabled(pack.id, !ip.disabled)) }, ip.disabled ? t('Einschalten') : t('Ausschalten')),
+        h('button', { class: 'btn', onclick: act(() => removePack(ip.file)) }, t('Entfernen')),
+      ),
+    );
+  };
+  const showCatalogDetails = (e: CatalogEntry) => {
+    const name = localText(e.name);
+    const st = stateOf(e);
+    const label = {
+      install: t('Installieren'),
+      update: t('Auf {version} aktualisieren', { version: e.version }),
+      installed: t('Installiert'),
+      'newer-installed': t('Neuere Version installiert'),
+      'needs-app': e.minApp ? t('Braucht KizamuBeam {version}', { version: e.minApp }) : t('Braucht eine neuere Version von KizamuBeam'),
+    }[st];
+    const action = h('button', { class: 'btn primary', disabled: st !== 'install' && st !== 'update' }, label) as HTMLButtonElement;
+    action.onclick = () => fromCatalog(e, action);
+    details.replaceChildren(
+      h('h4', {}, name),
+      h('div', { class: 'muted' }, `${e.version}${e.author ? ` · ${e.author}` : ''}`),
+      badge(t('Geprüft (Katalog)'), 'verified', t('Diese Datei stammt aus dem signierten KizamuBeam-Katalog.')),
+      h('p', { class: 'muted' }, countSummary(e.devices, e.templates, e.materials, e.assets, e.plugins)),
+      ...(localText(e.description) ? [h('p', {}, localText(e.description))] : []),
+      ...(e.source ? [h('p', { class: 'pack-url muted' }, t('Quellcode: {url}', { url: e.source }))] : []),
+      h('div', { class: 'pack-details-actions' }, action),
+    );
+  };
   const fill = () => {
     list.replaceChildren();
     for (const ip of allPacks()) {
       const p = ip.pack;
-      if (shown([p.name, p.id, p.author, p.description], p.plugins.length, hasContent(p.devices.length, p.templates.length, p.materials.length, p.assets.length))) list.append(card(ip));
+      if (shown([p.name, p.id, p.author, p.description], p.plugins.length, p.devices.length, p.templates.length, p.materials.length, p.assets.length)) list.append(card(ip));
     }
     for (const msg of pluginProblems()) list.append(h('p', { class: 'error' }, msg));
     for (const b of brokenPacks())
@@ -313,8 +358,59 @@ export async function openPacksDialog(doc?: Doc) {
   const catStatus = h('p', { class: 'note' });
   const updateAll = h('button', { class: 'btn small primary', hidden: true }) as HTMLButtonElement;
   let catalog: Catalog | null = null;
+  let view: 'catalog' | 'installed' | 'updates' = 'catalog';
   const stateOf = (e: CatalogEntry) => catalogState(e, allPacks().find((x) => x.pack.id === e.id)?.pack, APP_VERSION);
   const updates = () => (catalog?.packs ?? []).filter((e) => stateOf(e) === 'update');
+  const catalogTab = h('button', { class: 'pack-tab', type: 'button' }, t('Katalog')) as HTMLButtonElement;
+  const installedTab = h('button', { class: 'pack-tab', type: 'button' }) as HTMLButtonElement;
+  const updatesTab = h('button', { class: 'pack-tab', type: 'button' }) as HTMLButtonElement;
+  const catalogHeading = h('h4', {}, t('Katalog'));
+  const tabs = h('div', { class: 'pack-tabs', role: 'tablist' }, catalogTab, installedTab, updatesTab);
+  const categoryButtons: { filter: Filter; button: HTMLButtonElement }[] = [];
+  const sidebar = h('nav', { class: 'pack-categories' }, h('h4', {}, t('Inhalte|Erweiterungen')));
+  const addCategory = (value: Filter, label: string) => {
+    const button = h('button', { class: 'pack-category', type: 'button', onclick: () => {
+      filter = value;
+      refilter();
+    } }, label) as HTMLButtonElement;
+    categoryButtons.push({ filter: value, button });
+    sidebar.append(button);
+  };
+  addCategory('all', t('Alle'));
+  addCategory('plugins', t('Plugins'));
+  addCategory('content', t('Inhalte|Erweiterungen'));
+  addCategory('templates', t('Vorlagen'));
+  addCategory('materials', t('Material'));
+  addCategory('assets', t('Bibliotheks-Einträge'));
+  const workspace = h('div', { class: 'pack-workspace' }, sidebar, installedPanel, catalogPanel, details);
+  const syncView = () => {
+    const installed = allPacks().length;
+    const updateCount = updates().length;
+    installedTab.textContent = `${t('Installiert')} (${installed})`;
+    updatesTab.textContent = `${t('Updates')} (${updateCount})`;
+    catalogHeading.textContent = view === 'updates' ? t('Updates') : t('Katalog');
+    catalogPanel.hidden = view === 'installed';
+    installedPanel.hidden = view !== 'installed';
+    catalogTab.classList.toggle('active', view === 'catalog');
+    installedTab.classList.toggle('active', view === 'installed');
+    updatesTab.classList.toggle('active', view === 'updates');
+    for (const item of categoryButtons) item.button.classList.toggle('active', item.filter === filter);
+    catalogTab.setAttribute('aria-selected', String(view === 'catalog'));
+    installedTab.setAttribute('aria-selected', String(view === 'installed'));
+    updatesTab.setAttribute('aria-selected', String(view === 'updates'));
+  };
+  catalogTab.onclick = () => {
+    view = 'catalog';
+    fillCatalog();
+  };
+  installedTab.onclick = () => {
+    view = 'installed';
+    syncView();
+  };
+  updatesTab.onclick = () => {
+    view = 'updates';
+    fillCatalog();
+  };
   const fromCatalog = async (e: CatalogEntry, btn: HTMLButtonElement) => {
     btn.disabled = true;
     try {
@@ -354,11 +450,16 @@ export async function openPacksDialog(doc?: Doc) {
     const n = updates().length;
     updateAll.hidden = n < 2;
     updateAll.textContent = t('Alle aktualisieren ({n})', { n });
-    if (!catalog) return;
+    if (!catalog) {
+      syncView();
+      return;
+    }
+    let first: { card: HTMLElement; entry: CatalogEntry } | null = null;
     for (const e of catalog.packs) {
+      if (view === 'updates' && stateOf(e) !== 'update') continue;
       const name = localText(e.name);
       const desc = localText(e.description);
-      if (!shown([name, e.id, e.author, desc], e.plugins, hasContent(e.devices, e.templates, e.materials, e.assets))) continue;
+      if (!shown([name, e.id, e.author, desc], e.plugins, e.devices, e.templates, e.materials, e.assets)) continue;
       const st = stateOf(e);
       const label = {
         install: t('Installieren'),
@@ -371,7 +472,7 @@ export async function openPacksDialog(doc?: Doc) {
       btn.onclick = () => fromCatalog(e, btn);
       const kinds = e.plugins ? [badge(t('Plugins'), 'plugins', (e.runtimes ?? []).map((r) => (r === 'js' ? 'JavaScript' : 'WebAssembly')).join(', '))] : [];
       if (e.network?.length) kinds.push(badge(t('Netzwerk'), 'network', e.network.join(', ')));
-      catList.append(h('div', { class: 'pack-card' },
+      const card = h('div', { class: 'pack-card', tabIndex: 0 },
         h('div', { class: 'pack-text' },
           h('div', {}, h('b', {}, name), ` ${e.version}`, e.author ? h('span', { class: 'muted' }, ` · ${e.author}`) : null, ' ', ...kinds),
           h('div', { class: 'muted' }, countSummary(e.devices, e.templates, e.materials, e.assets, e.plugins)),
@@ -379,10 +480,23 @@ export async function openPacksDialog(doc?: Doc) {
           e.source ? h('div', { class: 'muted pack-url' }, t('Quellcode: {url}', { url: e.source })) : null,
         ),
         btn,
-      ));
+      );
+      card.onclick = () => {
+        selectCard(card, catList);
+        showCatalogDetails(e);
+      };
+      catList.append(card);
+      first ??= { card, entry: e };
     }
+    if (first) {
+      selectCard(first.card, catList);
+      showCatalogDetails(first.entry);
+    } else details.replaceChildren();
     if (!catalog.packs.length) catList.append(h('p', { class: 'note' }, t('Der Katalog enthält noch keine Pakete.')));
-    else if (!catList.children.length) catList.append(h('p', { class: 'note' }, t('Keine Treffer.')));
+    else if (!catList.children.length) catList.append(h('p', { class: 'note' }, view === 'updates' && !search.value.trim()
+      ? t('{n} Aktualisierungen verfügbar.', { n: 0 })
+      : t('Keine Treffer.')));
+    syncView();
   };
   const loadCatalog = async () => {
     catStatus.textContent = t('Katalog wird geladen …');
@@ -404,16 +518,11 @@ export async function openPacksDialog(doc?: Doc) {
   };
   const refilter = () => (fill(), fillCatalog());
   search.addEventListener('input', refilter);
-  filter.addEventListener('change', refilter);
   const dlg = h('dialog', { class: 'packs-dialog' },
     h('h3', {}, t('Erweiterungen')),
-    h('div', { class: 'pack-filter' }, search, filter),
-    h('h4', {}, t('Installiert')),
-    list,
-    netSwitch(),
-    h('h4', {}, t('Katalog'), ' ', h('button', { class: 'btn small', onclick: loadCatalog }, t('Neu laden')), ' ', updateAll),
-    catStatus,
-    catList,
+    h('div', { class: 'pack-filter' }, search),
+    tabs,
+    workspace,
     err,
     h('div', { class: 'dialog-buttons' },
       hasPackFolder() ? h('button', { class: 'btn', onclick: () => openPackFolder().catch((e) => (err.textContent = errText(e))) }, t('Ordner zeigen')) : null,
@@ -422,7 +531,14 @@ export async function openPacksDialog(doc?: Doc) {
       h('button', { class: 'btn', onclick: () => dlg.close() }, t('Schließen')),
     ),
   ) as HTMLDialogElement;
+  installedPanel.append(h('h4', {}, t('Installiert')), list, netSwitch());
+  catalogPanel.append(
+    h('div', { class: 'pack-section-heading' }, catalogHeading, h('div', {}, h('button', { class: 'btn small', onclick: loadCatalog }, t('Neu laden')), ' ', updateAll)),
+    catStatus,
+    catList,
+  );
   fill();
+  syncView();
   showDialog(dlg);
   void loadCatalog();
 }

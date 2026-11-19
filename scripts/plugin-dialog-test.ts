@@ -67,7 +67,7 @@ await test('schema v1: sections are translated, advanced wins, a newer dialog sc
   assert.equal(g.schema[4].advanced, true);
   assert.equal(g.schema[2].options[1][1], 'Sliding');
   g.dispose();
-  assert.throws(() => manifest(TRAY, { dialog: { version: 6 } }), /neuere Version|newer version/);
+  assert.throws(() => manifest(TRAY, { dialog: { version: 7 } }), /neuere Version|newer version/);
   assert.throws(() => manifest(TRAY, { dialog: 'big' }), /dialog/);
   assert.throws(() => manifest(TRAY, { params: [{ key: 'a', type: 'bool', def: true, section: '<b>' }] }), /Abschnitt|section/);
 });
@@ -254,14 +254,16 @@ await test('stage 4: a drawing surface with views, pointer events, selectable ro
       const pts = (req.state && req.state.pts) || JSON.parse(req.params.pts);
       const flip = req.view === 'side' ? -1 : 1;
       return {
-        frame: { x0: -50, y0: -50, x1: 50, y1: 50 },
+        // The surface size in pixels (#411), when the app gives it: the frame widens with it here
+        frame: { x0: -50, y0: -50, x1: req.size ? req.size.width / 10 : 50, y1: 50 },
         layers: [{ key: 'grid', ...(req.have.includes('grid') ? {} : { items: [{ type: 'line', pts: [[-50, 0], [50, 0]], style: 'muted' }] }) }],
         items: [
           { type: 'line', pts: pts.map((q) => [q.x, q.y * flip]) },
           ...pts.map((q, i) => ({ type: 'handle', id: 'h' + i, x: q.x, y: q.y * flip, style: req.selected.pts === i ? 'accent' : 'normal' })),
           { type: 'text', x: 0, y: 0, text: { code: 'count', values: { n: pts.length } } },
+          { type: 'text', x: 5, y: 0, text: '81 mm', angle: 90, align: 'center' },
         ],
-        ...(req.state && req.state.drawing ? { track: true } : {}),
+        ...(req.state && req.state.drawing ? { track: true, cursor: 'crosshair', escape: true } : {}),
       };
     },
     onSurface: ({ event, surface, params }) => {
@@ -303,11 +305,15 @@ await test('stage 4: a drawing surface with views, pointer events, selectable ro
     // Texts on the surface are translated, layers come once
     const p = { pts: JSON.stringify([{ name: '', x: 0, y: 0 }, { name: 'B', x: 10, y: 5 }]) };
     const d = await g.draw!({ view: 'side', state: null, selected: { pts: 1 }, have: [] }, p);
-    assert.equal(d.items.length, 4);
+    assert.equal(d.items.length, 5);
     assert.deepEqual(d.items[2], { type: 'handle', id: 'h1', x: 10, y: -5, style: 'accent' });
     assert.deepEqual(d.items[3], { type: 'text', x: 0, y: 0, text: '2 points' });
+    // A turned and centred text keeps its angle and alignment on the way to the dialog (#412)
+    assert.deepEqual(d.items[4], { type: 'text', x: 5, y: 0, text: '81 mm', angle: 90, align: 'center' });
     assert.equal(d.layers![0].items!.length, 1);
     assert.equal((await g.draw!({ view: 'top', state: null, selected: {}, have: ['grid'] }, p)).layers![0].items, undefined);
+    assert.equal(d.frame.x1, 50, 'without a size');
+    assert.equal((await g.draw!({ view: 'top', state: null, selected: {}, have: ['grid'], size: { width: 700, height: 500 } }, p)).frame.x1, 70, 'the size reaches the plugin');
     await g.prepare(p);
     assert.deepEqual(g.view!(p).rowAuto, { pts: ['Point 1', 'Point 2'] });
   } finally {
@@ -324,6 +330,8 @@ await test('stage 4: a drawing surface with views, pointer events, selectable ro
   assert.equal(s[0].surface!.view, 'top');
   assert.equal(s[1].message, 'Click to add points (top)');
   assert.equal(s[1].surface!.track, true);
+  assert.deepEqual([s[1].surface!.cursor, s[1].surface!.escape], ['crosshair', true], 'cursor and Escape as the drawing asks (#411)');
+  assert.deepEqual([s[0].surface!.cursor, s[0].surface!.escape], [undefined, undefined]);
   assert.equal(s[2].message, 'Point added');
   assert.equal(s[2].parts.length, 1);
   assert.deepEqual(JSON.parse(String(s[3].params.pts))[1], { name: '', x: 30, y: 15 });
@@ -337,8 +345,86 @@ await test('stage 4: a drawing surface with views, pointer events, selectable ro
   // The surface and the new list and button features need dialog version 3; bad drawings are refused
   assert.throws(() => manifest(code, { params, texts, dialog: { ...dialog, version: 2 } }), /Version 3|version 3/);
   assert.throws(() => manifest(code, { params, texts, dialog: { ...dialog, surface: { views: [] } } }), /dialog/);
+  // The help as a list (#411) needs dialog version 6; its texts are looked up like the single one
+  const listHelp = { ...dialog, surface: { ...dialog.surface, help: ['help', 'added'] } };
+  assert.throws(() => manifest(code, { params, texts, dialog: { ...listHelp, version: 5 } }), /Version 6|version 6/);
+  assert.throws(() => manifest(code, { params, texts, dialog: { ...listHelp, version: 6, surface: { ...listHelp.surface, help: [] } } }), /dialog/);
+  assert.throws(() => manifest(code, { params, texts, dialog: { ...listHelp, version: 6, surface: { ...listHelp.surface, help: ['help', 3] } } }), /Textschlüssel|text key/);
+  const g6 = pluginGenerator(manifest(code, { params, texts, dialog: { ...listHelp, version: 6 } }), { id: 'p6', name: 'P' });
+  assert.deepEqual(g6.surface!.help, ['Click to add', 'Point added']);
+  g6.dispose();
   const { checkDrawing, checkEvent } = await import('../src/plugins/contract');
   assert.throws(() => checkDrawing({ frame: { x0: 0, y0: 0, x1: 1, y1: 1 }, items: [{ type: 'circle' }] }), /item type/);
+  assert.throws(() => checkDrawing({ frame: { x0: 0, y0: 0, x1: 1, y1: 1 }, items: [], cursor: 'wait' }), /cursor/);
+  assert.throws(() => checkDrawing({ frame: { x0: 0, y0: 0, x1: 1, y1: 1 }, items: [], escape: 'yes' }), /escape/);
+  assert.equal(checkDrawing({ frame: { x0: 0, y0: 0, x1: 1, y1: 1 }, items: [], escape: false }).escape, false);
+  assert.equal(checkDrawing({ frame: { x0: 0, y0: 0, x1: 1, y1: 1 }, items: [], cursor: 'default' }).cursor, 'default');
+  // Fields for the right column and marks in the preview (#411)
+  const F = { x0: 0, y0: 0, x1: 1, y1: 1 };
+  const tri = [{ closed: true, nodes: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }] }];
+  const side = checkDrawing({ frame: F, items: [], fields: [{ id: 'len', label: { code: 'len' }, value: 5, min: 0, readonly: true }], highlight: [{ part: 1 }, { part: 0, subs: tri }] });
+  assert.deepEqual(side.fields, [{ id: 'len', label: { code: 'len' }, value: 5, min: 0, readonly: true }]);
+  assert.deepEqual(side.highlight, [{ part: 1 }, { part: 0, subs: [{ closed: true, nodes: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }] }] }]);
+  assert.throws(() => checkDrawing({ frame: F, items: [], fields: [{ id: 'a', label: 'A', value: '5' }] }), /field value/);
+  assert.throws(() => checkDrawing({ frame: F, items: [], fields: [{ id: 'a', label: 'A', value: 1 }, { id: 'a', label: 'B', value: 2 }] }), /twice/);
+  assert.throws(() => checkDrawing({ frame: F, items: [], fields: Array.from({ length: 9 }, (_, i) => ({ id: 'f' + i, label: 'F', value: i })) }), /fields/);
+  assert.throws(() => checkDrawing({ frame: F, items: [], highlight: [{ part: -1 }] }), /highlight/);
+  assert.throws(() => checkDrawing({ frame: F, items: [], highlight: [{ part: 0, subs: 'x' }] }), /highlight/);
+  // Texts turned and centred on their point (#412): both fields optional, a text without them stays as before
+  const turned = checkDrawing({ frame: F, items: [
+    { type: 'text', x: 1, y: 2, text: 'a', angle: 90, align: 'center' },
+    { type: 'text', x: 1, y: 2, text: 'b', align: 'start' },
+    { type: 'text', x: 1, y: 2, text: 'c' },
+  ] });
+  assert.deepEqual(turned.items, [
+    { type: 'text', x: 1, y: 2, text: 'a', angle: 90, align: 'center' },
+    { type: 'text', x: 1, y: 2, text: 'b', align: 'start' },
+    { type: 'text', x: 1, y: 2, text: 'c' },
+  ]);
+  assert.throws(() => checkDrawing({ frame: F, items: [{ type: 'text', x: 0, y: 0, text: 'a', align: 'middle' }] }), /text align/);
+  assert.throws(() => checkDrawing({ frame: F, items: [{ type: 'text', x: 0, y: 0, text: 'a', angle: '90' }] }), /text angle/);
+  assert.throws(() => checkDrawing({ frame: F, items: [{ type: 'text', x: 0, y: 0, text: 'a', angle: Infinity }] }), /text angle/);
+  // A bubble under a text: true is kept, false left out, anything else refused
+  const bubbles = checkDrawing({ frame: F, items: [{ type: 'text', x: 1, y: 2, text: 'a', bubble: true }, { type: 'text', x: 1, y: 2, text: 'b', bubble: false }] });
+  assert.deepEqual(bubbles.items, [{ type: 'text', x: 1, y: 2, text: 'a', bubble: true }, { type: 'text', x: 1, y: 2, text: 'b' }]);
+  assert.throws(() => checkDrawing({ frame: F, items: [{ type: 'text', x: 0, y: 0, text: 'a', bubble: 'yes' }] }), /text bubble/);
+  // How the surface draws them: the calls on a recording canvas, in screen pixels
+  const { drawText } = await import('../src/generators/dialogSurface');
+  const record = () => {
+    const calls: unknown[][] = [];
+    // Text 6 px wide per letter; alpha and colour as the surface sets them before a text
+    const ctx = new Proxy({ measureText: (s: string) => ({ width: 6 * s.length }), globalAlpha: 1, fillStyle: '#accent' } as Record<string, unknown>, {
+      get: (o, k) => (k in o ? o[k as string] : (...a: unknown[]) => calls.push([k, ...a])),
+      set: (o, k, v) => (calls.push([`${String(k)}=`, v]), (o[k as string] = v), true),
+    });
+    return { ctx: ctx as unknown as CanvasRenderingContext2D, calls: () => calls.filter((c) => c[0] !== 'font=') };
+  };
+  const plain = record();
+  drawText(plain.ctx, { type: 'text', x: 0, y: 0, text: 'a' }, 100, 50);
+  assert.deepEqual(plain.calls(), [['fillText', 'a', 106, 44]], 'as before: 6 px after and above the point');
+  const up = record();
+  drawText(up.ctx, { type: 'text', x: 0, y: 0, text: '81 mm', angle: 90, align: 'center' }, 100, 50);
+  assert.deepEqual(up.calls(), [
+    ['save'], ['translate', 100, 50], ['rotate', -Math.PI / 2], ['textAlign=', 'center'], ['textBaseline=', 'middle'], ['fillText', '81 mm', 0, 0], ['restore'],
+  ], 'centred on the point, read from bottom to top');
+  const turnedStart = record();
+  drawText(turnedStart.ctx, { type: 'text', x: 0, y: 0, text: 'a', angle: 90 }, 100, 50);
+  assert.deepEqual(turnedStart.calls(), [['save'], ['translate', 100, 50], ['rotate', -Math.PI / 2], ['fillText', 'a', 6, -6], ['restore']], 'start follows the angle');
+  const centred = record();
+  drawText(centred.ctx, { type: 'text', x: 0, y: 0, text: 'a', align: 'center' }, 100, 50);
+  assert.deepEqual(centred.calls(), [['save'], ['translate', 100, 50], ['textAlign=', 'center'], ['textBaseline=', 'middle'], ['fillText', 'a', 0, 0], ['restore']], 'centred, not turned');
+  // The bubble: the background colour, 80 % opaque, 4 px around the text, then the text in its own colour
+  const under = (left: number, top: number, w: number) => [
+    ['globalAlpha=', 0.8], ['fillStyle=', '#back'], ['beginPath'], ['roundRect', left, top, w, 15, 7.5], ['fill'], ['globalAlpha=', 1], ['fillStyle=', '#accent'],
+  ];
+  const bubbled = record();
+  drawText(bubbled.ctx, { type: 'text', x: 0, y: 0, text: '81 mm', angle: 90, align: 'center', bubble: true }, 100, 50, '#back');
+  assert.deepEqual(bubbled.calls(), [
+    ['save'], ['translate', 100, 50], ['rotate', -Math.PI / 2], ['textAlign=', 'center'], ['textBaseline=', 'middle'], ...under(-19, -7.5, 38), ['fillText', '81 mm', 0, 0], ['restore'],
+  ], 'centred on the text, turned with it');
+  const bubbledStart = record();
+  drawText(bubbledStart.ctx, { type: 'text', x: 0, y: 0, text: 'a', bubble: true }, 100, 50, '#back');
+  assert.deepEqual(bubbledStart.calls(), [['save'], ['translate', 100, 50], ...under(2, -17, 14), ['fillText', 'a', 6, -6], ['restore']], 'under a text beside its point');
   assert.throws(() => checkDrawing({ frame: { x0: 0, y0: 0, x1: 1, y1: 1 }, items: [], layers: [{ key: 'a', tris: [1, 2, 3] }] }), /tris/);
   assert.throws(() => checkDrawing({ frame: { x0: 0, y0: 0, x1: 1, y1: 1 }, items: [{ type: 'line', pts: [[0, 0]], style: 'pink' }] }), /style/);
   assert.throws(() => checkEvent({ select: { pts: 1.5 } }), /select/);

@@ -20,10 +20,28 @@ import { setContextLayer } from '../plugins/context';
 import { surfaceArea } from './dialogSurface';
 
 const LAST_KEY = (id: string) => `kizamubeam.gen.${id}`;
+/** Marks remembered values written with total play (#402); the values are synced, so the mark travels with them */
+const PLAY_TOTAL = '_playTotal';
+/** Parameters that are the total play of a joint and were the play per side before #402 (ParamSpec.playTotal) */
+const playKeys = (g: Pick<Generator, 'schema'>) => g.schema.filter((s) => s.playTotal).map((s) => s.key);
+
+/**
+ * Remembered values of a generator. Those written before #402 have the play per side: doubled once, so a new box gets
+ * the same joints as the last one.
+ */
+export function lastRaw(g: Pick<Generator, 'id' | 'schema'>): Record<string, unknown> {
+  const raw = JSON.parse(localStorage.getItem(LAST_KEY(g.id)) ?? '{}') as Record<string, unknown>;
+  const keys = playKeys(g).filter((k) => typeof raw[k] === 'number');
+  if (raw[PLAY_TOTAL] || !keys.length) return raw;
+  const out: Record<string, unknown> = { ...raw, [PLAY_TOTAL]: true };
+  for (const k of keys) out[k] = 2 * (raw[k] as number);
+  localStorage.setItem(LAST_KEY(g.id), JSON.stringify(out));
+  return out;
+}
 
 function lastParams(g: Generator): Params {
   try {
-    return normalizeParams(g, JSON.parse(localStorage.getItem(LAST_KEY(g.id)) ?? '{}'));
+    return normalizeParams(g, lastRaw(g));
   } catch {
     return defaultParams(g);
   }
@@ -47,6 +65,12 @@ const isSuggested = (g: Generator, key: string, p: Params) => {
 
 /** Dauert eine Vorschau länger (große Baugruppen), wird sie erst kurz nach der letzten Eingabe neu berechnet */
 const SLOW_PREVIEW_MS = 40;
+/**
+ * A plugin that answers quickly is not announced: "being computed" (and its cancel button) shows only when the answer
+ * takes longer, so the foot of the dialog, and the surface that takes the room above it, does not jump with every
+ * change (#411)
+ */
+const PENDING_SHOW_MS = 400;
 const PREVIEW_DELAY_MS = 120;
 const fmtNum = (v: number) => (Number.isInteger(v) ? String(v) : f2(v));
 
@@ -260,44 +284,19 @@ export function openGenDialog(ed: Editor, genId: string, o?: Obj, init?: Params,
     if (!form.childElementCount) form.remove();
     return panel;
   });
+  // The panel of the lists under the steps grows only when a list is left in it (not all went into steps)
+  if (lists?.el.querySelector('.gen-list')) lists.el.classList.add('gen-grow');
+  /** The step with the surface: what the surface puts in the right column is shown only with it */
+  const surfaceStep = (g.steps ?? []).findIndex((st) => st.items.includes('surface'));
   function showStep(i: number) {
     stepPanels.forEach((el, k) => (el.hidden = k !== i));
+    if (surface) surface.side.hidden = surfaceStep >= 0 && i !== surfaceStep;
     stepTabs.forEach((b, k) => b.classList.toggle('on', k === i));
   }
   if (stepPanels.length) showStep(0);
 
-  const render = () => {
-    // Werte für die Prüfung auf den gültigen Bereich bringen; die Eingabefelder behalten, was getippt wurde
-    // Formeln mit den aktuellen Parameterwerten auswerten (fehlerhafte Formeln sperren Erzeugen)
-    const rb = resolveBinds(g, normalizeParams(g, p), binds);
-    const np = rb.params;
-    for (const s of g.schema) if (s.type === 'text' && !p[s.key] && document.activeElement !== textInputs.get(s.key)) {
-      const control = textInputs.get(s.key);
-      if (control) control.value = autoText(g, s.key, np);
-    }
-    for (const s of g.schema) rows.get(s.key)!.forEach((el) => (el.hidden = !fieldActive(s, np)));
-    sectionEls.forEach((el, i) => (el.hidden = !sectionKeys[i].some((s) => fieldActive(s, np))));
-    const r = buildGen(g, np);
-    r.issues.unshift(...rb.issues);
-    if (rb.issues.some((i) => i.level === 'error')) r.parts = [];
-    if (Object.keys(binds).length) for (const pt of r.parts) pt.shape.bind = { ...binds };
-    built = r.parts.length ? r : null;
-    issuesEl.replaceChildren(...r.issues.map((i) => h('div', { class: i.level === 'error' ? 'error' : 'warn' }, i.msg)));
-    // A plugin still computing can be stopped; a stopped or timed-out run can be started again
-    if (g.cancel && r.issues.some((i) => i.code === PENDING))
-      issuesEl.append(h('button', { class: 'btn small', onclick: () => g.cancel!() }, t('Berechnung abbrechen')));
-    else if (g.recompute && r.issues.some((i) => i.code === 'plugin-cancelled' || i.code === 'plugin-timeout'))
-      issuesEl.append(h('button', { class: 'btn small', onclick: () => g.recompute!(np) }, t('Neu berechnen')));
-    for (const s of g.schema) {
-      const bad = r.issues.some((i) => i.key === s.key && i.level === 'error');
-      rows.get(s.key)!.forEach((el) => el.classList.toggle('invalid', bad));
-    }
-    // A step with an error in one of its fields is marked, so it can be found from another step
-    (g.steps ?? []).forEach((st, k) => stepTabs[k].classList.toggle('invalid', r.issues.some((i) => i.level === 'error' && !!i.key && st.items.includes(i.key))));
-    infoEl.replaceChildren(...r.info.map(([k, v]) => h('div', {}, h('span', { class: 'muted' }, k), ' ', v)));
-    okBtn.disabled = addBtn.disabled = !built || asking;
-    surface?.refresh(np);
-    lists?.refresh(np);
+  /** The preview: all parts at their suggested place, fitted together, and the marks the surface's drawing asks for */
+  const paintPreview = () => {
     const ctx = canvas.getContext('2d')!;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -315,7 +314,8 @@ export function openGenDialog(ed: Editor, genId: string, o?: Obj, init?: Params,
     ctx.fillStyle = css.getPropertyValue('--accent-soft').trim() || 'rgba(80,140,220,0.18)';
     ctx.strokeStyle = css.color || '#333';
     ctx.lineWidth = 1 / k;
-    for (const pt of built.parts) {
+    const parts = built.parts;
+    for (const pt of parts) {
       ctx.setTransform(k, 0, 0, k, canvas.width / 2 + (pt.at.x - previewX) * k, canvas.height / 2 + (pt.at.y - previewY) * k);
       const path = subsToPath2D(pt.shape.subs);
       ctx.fill(path, 'evenodd');
@@ -329,6 +329,68 @@ export function openGenDialog(ed: Editor, genId: string, o?: Obj, init?: Params,
         ctx.restore();
       }
     }
+    const accent = css.getPropertyValue('--accent').trim() || '#2f6fd6';
+    for (const m of surface?.drawing()?.highlight ?? []) {
+      const pt = parts[m.part];
+      if (!pt) continue;
+      ctx.setTransform(k, 0, 0, k, canvas.width / 2 + (pt.at.x - previewX) * k, canvas.height / 2 + (pt.at.y - previewY) * k);
+      ctx.save();
+      ctx.strokeStyle = ctx.fillStyle = accent;
+      ctx.lineWidth = 2 / k;
+      const path = subsToPath2D(m.subs ?? pt.shape.subs);
+      if (!m.subs) {
+        ctx.globalAlpha = 0.3;
+        ctx.fill(path, 'evenodd');
+        ctx.globalAlpha = 1;
+      }
+      ctx.stroke(path);
+      ctx.restore();
+    }
+  };
+  surface?.onDrawing(paintPreview);
+
+  const render = () => {
+    // Werte für die Prüfung auf den gültigen Bereich bringen; die Eingabefelder behalten, was getippt wurde
+    // Formeln mit den aktuellen Parameterwerten auswerten (fehlerhafte Formeln sperren Erzeugen)
+    const rb = resolveBinds(g, normalizeParams(g, p), binds);
+    const np = rb.params;
+    for (const s of g.schema) if (s.type === 'text' && !p[s.key] && document.activeElement !== textInputs.get(s.key)) {
+      const control = textInputs.get(s.key);
+      if (control) control.value = autoText(g, s.key, np);
+    }
+    for (const s of g.schema) rows.get(s.key)!.forEach((el) => (el.hidden = !fieldActive(s, np)));
+    sectionEls.forEach((el, i) => (el.hidden = !sectionKeys[i].some((s) => fieldActive(s, np))));
+    const r = buildGen(g, np);
+    r.issues.unshift(...rb.issues);
+    if (rb.issues.some((i) => i.level === 'error')) r.parts = [];
+    if (Object.keys(binds).length) for (const pt of r.parts) pt.shape.bind = { ...binds };
+    built = r.parts.length ? r : null;
+    const showIssues = () => {
+      issuesEl.replaceChildren(...r.issues.map((i) => h('div', { class: i.level === 'error' ? 'error' : 'warn' }, i.msg)));
+      // A plugin still computing can be stopped; a stopped or timed-out run can be started again
+      if (g.cancel && r.issues.some((i) => i.code === PENDING))
+        issuesEl.append(h('button', { class: 'btn small', onclick: () => g.cancel!() }, t('Berechnung abbrechen')));
+      else if (g.recompute && r.issues.some((i) => i.code === 'plugin-cancelled' || i.code === 'plugin-timeout'))
+        issuesEl.append(h('button', { class: 'btn small', onclick: () => g.recompute!(np) }, t('Neu berechnen')));
+    };
+    clearTimeout(pendingShow);
+    if (r.issues.some((i) => i.code === PENDING) && !pendingShown) pendingShow = window.setTimeout(() => ((pendingShown = true), showIssues()), PENDING_SHOW_MS);
+    else {
+      pendingShown = r.issues.some((i) => i.code === PENDING);
+      showIssues();
+    }
+    for (const s of g.schema) {
+      const bad = r.issues.some((i) => i.key === s.key && i.level === 'error');
+      rows.get(s.key)!.forEach((el) => el.classList.toggle('invalid', bad));
+    }
+    // A step with an error in one of its fields is marked, so it can be found from another step
+    (g.steps ?? []).forEach((st, k) => stepTabs[k].classList.toggle('invalid', r.issues.some((i) => i.level === 'error' && !!i.key && st.items.includes(i.key))));
+    infoEl.replaceChildren(...r.info.map(([k, v]) => h('div', {}, h('span', { class: 'muted' }, k), ' ', v)));
+    okBtn.disabled = addBtn.disabled = !built || asking;
+    surface?.refresh(np);
+    lists?.refresh(np);
+    paintPreview();
+    if (!built) return;
     if (old && matEntry) {
       const pt = calibPatch();
       const differs = !!pt && Object.entries(pt).some(([k, v]) => typeof v === 'number' ? Math.abs(v - Number(p[k])) > 1e-6 : v !== p[k]);
@@ -363,6 +425,9 @@ export function openGenDialog(ed: Editor, genId: string, o?: Obj, init?: Params,
   // Vorschau sofort, außer die letzte Berechnung war langsam: dann nach einer kurzen Pause im Tippen. Vor jeder
   // Aktion (Klick, Enter, Übernehmen) wird eine ausstehende Berechnung nachgeholt, damit nichts mit alten Werten entsteht.
   let pending = 0;
+  /** "being computed" is waiting to be shown (timer), or shown */
+  let pendingShow = 0;
+  let pendingShown = false;
   let renderMs = 0;
   /** A question of the generator is open (OK and Add stay off) */
   let asking = false;
@@ -372,6 +437,7 @@ export function openGenDialog(ed: Editor, genId: string, o?: Obj, init?: Params,
   const flush = () => {
     if (pending) clearTimeout(pending);
     pending = 0;
+    clearTimeout(pendingShow);
     const t0 = performance.now();
     render();
     renderMs = performance.now() - t0;
@@ -493,7 +559,7 @@ export function openGenDialog(ed: Editor, genId: string, o?: Obj, init?: Params,
       if (answer === 'cancel') return dlg.close();
     }
     try {
-      localStorage.setItem(LAST_KEY(g.id), JSON.stringify(r.parts[0].shape.params));
+      localStorage.setItem(LAST_KEY(g.id), JSON.stringify({ ...r.parts[0].shape.params, ...(playKeys(g).length ? { [PLAY_TOTAL]: true } : {}) }));
     } catch {
       /* Speicher nicht verfügbar */
     }
@@ -510,30 +576,38 @@ export function openGenDialog(ed: Editor, genId: string, o?: Obj, init?: Params,
     onclick: () => void commit(false),
   }, t('Hinzufügen')) as HTMLButtonElement;
 
+  // Layout (#411): the body grows with the dialog and scrolls when it does not fit, the foot (question, issues, notes,
+  // buttons) stays at the bottom. The steps lie on top of each other, so the dialog keeps one size for all of them;
+  // the surface and the lists take the room. A dialog with a surface or lists can always be resized (dialogDrag.ts),
+  // and its size is kept per generator.
   const dlg = h(
     'dialog',
-    { class: 'offset-dialog gen-dialog' },
+    { class: 'offset-dialog gen-dialog' + (surface || lists ? ' dlg-resizable' : ''), 'data-dlg-size': `gen:${g.id}` },
     h('h3', {}, old ? t('{name} bearbeiten', { name: g.name }) : t('{name} erstellen', { name: g.name })),
     stepTabs.length ? h('div', { class: 'conn-row gen-steps', role: 'tablist' }, ...stepTabs) : null,
-    h('div', { class: 'qr-layout' },
-      h('div', {},
-        ...stepPanels,
-        h('div', { class: 'form' }, ...main),
-        ...sectionEls,
-        adv.length ? h('details', {}, h('summary', {}, t('Erweitert')), h('div', { class: 'form' }, ...adv)) : null,
+    h('div', { class: 'gen-body' },
+      h('div', { class: 'qr-layout gen-main' },
+        h('div', { class: 'gen-fields' },
+          stepPanels.length ? h('div', { class: 'gen-step-stack' }, ...stepPanels) : null,
+          h('div', { class: 'form' }, ...main),
+          ...sectionEls,
+          adv.length ? h('details', {}, h('summary', {}, t('Erweitert')), h('div', { class: 'form' }, ...adv)) : null,
+        ),
+        h('div', { class: 'gen-side' }, canvas, infoEl, surface?.side ?? null),
       ),
-      h('div', {}, canvas, infoEl),
+      inStep.has('surface') ? null : (surface?.el ?? null),
+      lists?.el ?? null,
     ),
-    inStep.has('surface') ? null : (surface?.el ?? null),
-    lists?.el ?? null,
-    askEl,
-    issuesEl,
-    calibNote,
-    kerfNote,
-    h('div', { class: 'dialog-buttons' },
-      h('button', { class: 'btn', onclick: () => dlg.close() }, t('Abbrechen')),
-      addBtn,
-      okBtn,
+    h('div', { class: 'gen-foot' },
+      askEl,
+      issuesEl,
+      calibNote,
+      kerfNote,
+      h('div', { class: 'dialog-buttons' },
+        h('button', { class: 'btn', onclick: () => dlg.close() }, t('Abbrechen')),
+        addBtn,
+        okBtn,
+      ),
     ),
   );
   dlg.addEventListener('keydown', (e) => {

@@ -38,6 +38,11 @@ interface SpecBase {
   section?: string;
   /** New objects always start with def instead of the last-used value (layout choices of saved objects) */
   resetOnNew?: boolean;
+  /**
+   * The value is the total play of a joint, and was the play per side before #402: a last-used value remembered
+   * before that is doubled once (generators/dialog.ts)
+   */
+  playTotal?: boolean;
   /** Feld nur zeigen (und beachten), wenn diese Bedingung gilt */
   showIf?: Rule;
 }
@@ -251,17 +256,27 @@ export interface GenSurface {
   views: { id: string; label: string }[];
   /** Height in CSS pixels; the width follows the dialog */
   height?: number;
-  /** Help line under the surface */
-  help?: string;
+  /**
+   * Help for the surface: one text is a line under the surface, a list of texts a short list in the right column
+   * (under the preview and the info), shown while the step with the surface is shown
+   */
+  help?: string | string[];
 }
 
 export type GenStyle = 'normal' | 'muted' | 'accent' | 'warn';
+
+/**
+ * Where a text stands at its point (#412): start = 6 px after and above it (the default), center = centred on it in
+ * both directions. Both follow the text's angle (degrees, counter-clockwise; 90 = read from bottom to top).
+ */
+export type GenTextAlign = 'start' | 'center';
 
 /** A shape on the surface. Handles and lines with an id can be hit by the pointer (topmost first, handles before lines) */
 export type GenItem =
   | { type: 'line'; pts: [number, number][]; closed?: boolean; style?: GenStyle; width?: number; dash?: boolean; alpha?: number; id?: string }
   | { type: 'handle'; x: number; y: number; id: string; style?: GenStyle; size?: number }
-  | { type: 'text'; x: number; y: number; text: string; style?: GenStyle };
+  /** bubble: a rounded, half see-through patch of the background colour under the text, so it stays readable over lines */
+  | { type: 'text'; x: number; y: number; text: string; style?: GenStyle; angle?: number; align?: GenTextAlign; bubble?: boolean };
 
 /**
  * A layer that rarely changes (the silhouette of a model, the outlines of the parts): the app keeps it as a
@@ -282,13 +297,52 @@ export interface GenLayer {
   alpha?: number;
 }
 
+/**
+ * A number field the drawing puts in the right column, under the preview (#411): for example a measure of the selected
+ * shape. A typed value goes to the generator as a "field" event; the field shows the drawing's value again after it.
+ */
+export interface GenSideField {
+  id: string;
+  label: string;
+  /** mm */
+  value: number;
+  min?: number;
+  max?: number;
+  /** Shown but not editable (e.g. a length whose ends are both fixed) */
+  readonly?: boolean;
+  title?: string;
+}
+
+/**
+ * A part of the preview drawn in the accent colour (#411), by its index in the generated parts: the whole part, or
+ * only `subs` (in the part's coordinates, like its outline)
+ */
+export interface GenHighlight {
+  part: number;
+  subs?: SubPath[];
+}
+
 export interface GenDrawing {
   /** Area of the view (mm) that is fitted into the surface */
   frame: { x0: number; y0: number; x1: number; y1: number };
   layers?: GenLayer[];
   items: GenItem[];
-  /** Pointer moves are sent even without a pressed button (e.g. while a line is being drawn) */
+  /**
+   * Pointer moves are sent even without a pressed button (e.g. while a line is being drawn), and a move at the pointer
+   * when a modifier key is pressed or released over the surface
+   */
   track?: boolean;
+  /**
+   * Cursor over the whole surface, also over shapes with an id (e.g. the normal one while a key shows something else
+   * than dragging); without it, "move" over shapes with an id and the normal cursor elsewhere
+   */
+  cursor?: 'default' | 'crosshair';
+  /** Escape goes to the generator (true) or closes the dialog (false); without it, it goes to the generator while track is on */
+  escape?: boolean;
+  /** Number fields in the right column (e.g. the measures of the selected shape) */
+  fields?: GenSideField[];
+  /** Parts of the preview to mark (e.g. what the selected row is in the box) */
+  highlight?: GenHighlight[];
 }
 
 /** What the surface shows now: the view, free data of the generator (kept by the app) and the selected rows */
@@ -303,11 +357,13 @@ export interface GenSurfaceState {
 export interface GenDrawRequest extends GenSurfaceState {
   /** Keys of the layers the app already has */
   have: string[];
+  /** Size of the surface in screen pixels (it grows with the dialog; draw is asked again when it changes) */
+  size?: { width: number; height: number };
 }
 
 /** A pointer or key event on the surface, in mm of the view */
 export interface GenPointer {
-  type: 'down' | 'move' | 'up' | 'dblclick' | 'context' | 'key' | 'select';
+  type: 'down' | 'move' | 'up' | 'dblclick' | 'context' | 'key' | 'select' | 'field';
   x: number;
   y: number;
   /** Id of the handle or line under the pointer (down, dblclick, context) */
@@ -321,6 +377,9 @@ export interface GenPointer {
   /** select: the list and row that was clicked */
   list?: string;
   row?: number;
+  /** field: the field of the drawing that was typed in (its id) and the new value */
+  field?: string;
+  value?: number;
   /** Modifier keys held during the event (only present when held): Shift, Alt (Option), Ctrl (Cmd on macOS) */
   shift?: true;
   alt?: true;
@@ -407,7 +466,7 @@ export interface Generator {
   /** Texts for issue codes that generate() may throw (Error.message = code); buildGen translates them */
   texts?: Record<string, () => string>;
   /** Plug-in joints: kind of fit and the parameter that holds the play (design check, material calibration) */
-  fit?: { kind: 'pair' | 'slot'; play: string };
+  fit?: { kind: 'pair' | 'slot'; play: string; total?: boolean };
   /** Position of every part in space (3D view, assembly check); th = material thickness of the view as fallback */
   poses?(p: Params, th: number): AsmPoses | null;
   /** The parts form one connected assembly that the assembly check examines */

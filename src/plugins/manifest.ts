@@ -55,7 +55,7 @@ export interface PluginManifest {
   /** Servers the app may fetch data from for the plugin (#280); needs the host function fetch */
   network?: PluginNetHost[];
   /** Plug-in joints (generators): kind of fit and the number parameter that holds the play (design check) */
-  fit?: { kind: 'pair' | 'slot'; play: string };
+  fit?: { kind: 'pair' | 'slot'; play: string; total?: boolean };
   /** The parts form one connected assembly that the assembly check examines */
   assemblyCheck?: boolean;
   /**
@@ -152,9 +152,10 @@ export class ManifestError extends Error {}
  * (selection, an image file, the camera image) and a number field next to a button. Version 3: a drawing surface
  * (draw, onSurface) with views, selectable rows and row buttons in lists, placeholders for number columns, and
  * conditions on action buttons. A plugin that needs a newer schema is refused with an update hint instead of being
- * shown half-broken.
+ * shown half-broken. Version 6: the surface help as a list of texts in the right column.
  */
-export const DIALOG_VERSION = 5;
+export const DIALOG_VERSION = 6;
+const MAX_HELP = 12;
 const MAX_STEPS = 8;
 const MAX_VIEWS = 6;
 const MAX_ROW_ACTIONS = 4;
@@ -217,6 +218,7 @@ function param(v: unknown, i: number): ParamSpec {
     key, label: key,
     ...(v.advanced === true ? { advanced: true } : {}),
     ...(v.resetOnNew === true ? { resetOnNew: true } : {}),
+    ...(v.playTotal === true ? { playTotal: true } : {}),
     // Text key of the section heading; the generator replaces it with the text
     ...(typeof v.section === 'string' ? { section: v.section } : {}),
   };
@@ -311,7 +313,7 @@ function column(v: unknown, at: string): GenColumn {
 
 /**
  * Lists, actions (schema version 2), the surface (version 3), images kept with the project (version 4), steps,
- * sortable lists and colour columns (version 5) of a dialog
+ * sortable lists and colour columns (version 5), the surface help as a list (version 6) of a dialog
  */
 function dialogParts(d: Record<string, unknown>, schema: ParamSpec[], keys: Set<string>): { lists?: GenList[]; actions?: GenAction[]; surface?: GenSurface; steps?: GenStep[] } {
   const out: { lists?: GenList[]; actions?: GenAction[]; surface?: GenSurface; steps?: GenStep[] } = {};
@@ -400,7 +402,11 @@ function dialogParts(d: Record<string, unknown>, schema: ParamSpec[], keys: Set<
       if (!isNum(sf.height) || sf.height < 100 || sf.height > 800) throw new ManifestError(t('ungültige Angabe „dialog“'));
       surface.height = Math.round(sf.height);
     }
-    if (sf.help !== undefined) surface.help = textKey(sf.help, 'surface');
+    if (Array.isArray(sf.help)) {
+      needs(6, 'surface.help');
+      if (!sf.help.length || sf.help.length > MAX_HELP) throw new ManifestError(t('ungültige Angabe „dialog“'));
+      surface.help = sf.help.map((x) => textKey(x, 'surface.help'));
+    } else if (sf.help !== undefined) surface.help = textKey(sf.help, 'surface');
     out.surface = surface;
   }
   if (d.steps !== undefined) {
@@ -495,8 +501,9 @@ export function parsePlugin(raw: unknown, where: string): PluginManifest {
     if (raw.fit !== undefined) {
       const f = raw.fit;
       const play = isObj(f) ? schema.find((s) => s.key === f.play) : undefined;
-      if (!isObj(f) || (f.kind !== 'pair' && f.kind !== 'slot') || !play || !(NUMERIC as readonly string[]).includes(play.type)) fail(t('ungültige Angabe „{key}“', { key: 'fit' }));
-      m.fit = { kind: (f as { kind: 'pair' | 'slot' }).kind, play: play!.key };
+      if (!isObj(f) || (f.kind !== 'pair' && f.kind !== 'slot') || !play || !(NUMERIC as readonly string[]).includes(play.type) || (f.total !== undefined && typeof f.total !== 'boolean'))
+        fail(t('ungültige Angabe „{key}“', { key: 'fit' }));
+      m.fit = { kind: (f as { kind: 'pair' | 'slot' }).kind, play: play!.key, ...((f as { total?: boolean }).total ? { total: true } : {}) };
     }
     if (raw.assemblyCheck !== undefined) {
       if (typeof raw.assemblyCheck !== 'boolean') fail(t('ungültige Angabe „{key}“', { key: 'assemblyCheck' }));

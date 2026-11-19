@@ -1,7 +1,7 @@
 // Tests der Maschinenausgabe: Start-/End-Skripte, „Start Here“, Vorschau gegen Job. Aufruf: npm run test:gcode
 import './core-fixtures-env';
 import { strict as assert } from 'node:assert';
-import { buildJob, burns, flattenSub, leadMarks, checkBed, DEFAULT_ROTARY, Device, estimate, frameGCode, gcodeFooter, jogLines, jogToLines, Moves, moveLines as rapidTo, newDevice, Rotary, rotaryMoves, rotaryTestLines, sameMoves, startHere, writeGCode, zJogLines } from '../src/gcode';
+import { buildJob, burns, flattenSub, leadMarks, checkBed, DEFAULT_ROTARY, Device, estimate, frameGCode, gcodeFooter, jogLines, jogToLines, META_PREFIX, moveLines as rapidTo, MOVE_CUT, MOVE_ENGRAVE, MOVE_TRAVEL, Moves, newDevice, Rotary, rotaryMoves, rotaryTestLines, sameMoves, startHere, writeGCode, zJogLines } from '../src/gcode';
 import { emptyStatus, parseStatus, WorkOffset } from '../src/machine';
 import { defaultImageLayer, defaultLayer, imageOutput, defaultSubLayer, Layer, loadDoc, normalizeLayer, Obj } from '../src/model';
 import { dedupPolys } from '../src/dedup';
@@ -587,6 +587,24 @@ await test('Sub-Layer: erst füllen, dann ausschneiden; ausgeschaltete Sub-Layer
   assert.equal(mv.f[mv.n - 1], 300);
 });
 
+await test('Prozessmarken: Füllen graviert, Sub-Layer schneidet, Eilgang neutral', async () => {
+  const sub = [{ ...defaultSubLayer('line'), speed: 300, power: 90 }];
+  const job = await cutJob([square()], { mode: 'fill', speed: 3000, power: 30, interval: 1, sub });
+  const mv = job.moves;
+  let fill = 0,
+    cut = 0;
+  for (let i = 0; i < mv.n; i++) {
+    if (mv.s[i] > 0 && mv.f[i] === 3000) {
+      assert.equal(mv.cls[i], MOVE_ENGRAVE);
+      fill++;
+    } else if (mv.s[i] > 0 && mv.f[i] === 300) {
+      assert.equal(mv.cls[i], MOVE_CUT);
+      cut++;
+    } else assert.equal(mv.cls[i], MOVE_TRAVEL);
+  }
+  assert.ok(fill > 0 && cut > 0, `fill ${fill}, cut ${cut}`);
+});
+
 await test('Durchgänge laufen pro Bearbeitung: erst Sub1 fertig, dann Sub2 (#218)', async () => {
   const sub = [
     { ...defaultSubLayer('line'), speed: 600, power: 80, passes: 2 },
@@ -602,6 +620,69 @@ await test('Durchgänge laufen pro Bearbeitung: erst Sub1 fertig, dann Sub2 (#21
     }
   }
   assert.deepEqual(groups, [900, 600, 1200]);
+});
+
+await test('Sublayer-Index bleibt auch bei deaktiviertem Sub-Layer stabil', async () => {
+  const sub = [
+    { ...defaultSubLayer('line'), speed: 300, power: 90 },
+    { ...defaultSubLayer('line'), speed: 100, power: 10, output: false },
+    { ...defaultSubLayer('line'), speed: 1200, power: 80 },
+  ];
+  const job = await cutJob([square()], { mode: 'fill', speed: 3000, power: 30, interval: 1, sub });
+  const mv = job.moves;
+  const byFeed = new Map<number, Set<number>>();
+  for (let i = 0; i < mv.n; i++) {
+    if (!(mv.f[i] > 0 && mv.s[i] > 0)) continue;
+    const set = byFeed.get(mv.f[i]) ?? new Set<number>();
+    set.add(mv.sub[i]);
+    byFeed.set(mv.f[i], set);
+  }
+  // Hauptbearbeitung -1, erster Sub 0, deaktivierter Sub fehlt, dritter Sub behält Index 2
+  assert.deepEqual([...byFeed.get(3000)!], [-1]);
+  assert.deepEqual([...byFeed.get(300)!], [0]);
+  assert.deepEqual([...byFeed.get(1200)!], [2]);
+  assert.ok(!byFeed.has(100), 'deaktivierter Sub-Layer erzeugt keine Arbeitsbewegung');
+});
+
+await test('Kommentar-Export ändert keine Maschinenzeilen', async () => {
+  const d = { ...newDevice({ fw: 'fluidnc' }), startScript: 'M7', endScript: 'M9' };
+  const sub = [{ ...defaultSubLayer('line'), speed: 300, power: 90 }];
+  const job = await cutJob([square()], { mode: 'fill', speed: 3000, power: 30, interval: 1, sub }, d);
+  const est = estimate(job.moves, d);
+  const plain = writeGCode(job, d, est);
+  const ann = writeGCode(job, d, est, 'KizamuBeam', true);
+  // Ohne Option keine einzige Meta-Zeile
+  assert.ok(!plain.lines.some((l) => l.startsWith(META_PREFIX)));
+  assert.ok(plain.origins.every((o) => o !== 'meta'));
+  // Mit Option: nach Entfernen der Meta-Zeilen exakt dieselbe Ausgabe
+  const stripped = ann.lines.filter((l) => !l.startsWith(META_PREFIX));
+  assert.deepEqual(stripped, plain.lines);
+  assert.deepEqual(motion(stripped), motion(plain.lines));
+  assert.equal(ann.lines.length - stripped.length > 0, true);
+  // Herkunft je Zeile: Länge passt, Meta nur auf Meta-Zeilen, Abschnitte vorhanden
+  assert.equal(ann.origins.length, ann.lines.length);
+  for (let i = 0; i < ann.lines.length; i++) {
+    if (ann.lines[i].startsWith(META_PREFIX)) assert.equal(ann.origins[i], 'meta');
+    else assert.ok(ann.origins[i] !== 'meta');
+  }
+  const kinds = new Set(ann.origins);
+  for (const k of ['header', 'start', 'move', 'end', 'footer'] as const) assert.ok(kinds.has(k), `Herkunft ${k} fehlt`);
+  assert.ok(ann.lines.some((l) => l === `${META_PREFIX} layer 1 sub 0`), 'Sublayer-Marke fehlt');
+});
+
+await test('Sublayer-Namen ändern die Maschinenausgabe nicht', async () => {
+  const d = newDevice({ fw: 'fluidnc' });
+  const sub = [{ ...defaultSubLayer('line'), speed: 300, power: 90 }];
+  const plain = await cutJob([square()], { mode: 'fill', speed: 3000, power: 30, interval: 1, sub }, d);
+  const named = await cutJob([square()], {
+    mode: 'fill',
+    speed: 3000,
+    power: 30,
+    interval: 1,
+    sub: [{ ...sub[0], name: 'Feinschnitt' }],
+  }, d);
+  const est = estimate(plain.moves, d);
+  assert.deepEqual(writeGCode(named, d, est).lines, writeGCode(plain, d, est).lines);
 });
 
 await test('Laser zur Klickposition: absolutes Verfahren je Firmware', () => {
@@ -1026,7 +1107,119 @@ await test('xTool status report without a state word', () => {
   assert.equal(parseStatus('<Hold:0|MPos:1,2,0>', run, wco).state, 'Hold');
 });
 
+// ---------- Ruida DSP (.rd Export & Import, Issue #244) ----------
+
+await test('Ruida: .rd Export, Layer-Parameter (Speed, Power, MinPower, Air) und Decoder', async () => {
+  const { decodeRuida, importRuida, isRuidaFile, prepareGCode } = await Promise.all([import('../src/ruida'), import('../src/gcode')]).then(([r, g]) => ({ ...r, ...g }));
+  const dev = newDevice({
+    fw: 'ruida',
+    bedW: 600,
+    bedH: 400,
+    ruidaOrigin: 'top-right',
+    ruidaMagic: '88',
+    ruidaLaser: '1',
+    optInnerFirst: false,
+    optTravel: false,
+    optGroup: false,
+  });
+  // Rechteck bei (100, 50) mit 80x40 mm im Dokument (bedH=400 → Bett Y: 310..350, Ruida top-right: X=420..500, Y=50..90)
+  const rect: Obj = { id: 1, m: [1, 0, 0, 1, 100, 50], layer: 2, shape: { kind: 'rect', w: 80, h: 40, r: 0 } as never };
+  const doc = loadDoc({ bed: { w: 600, h: 400 }, objs: [rect], layers: {} });
+  const layerFn = (i: number): Layer => ({
+    ...defaultLayer(i),
+    speed: 1500, // 25 mm/s
+    power: 65,
+    minPower: 20,
+    air: true,
+  });
+  const job = await buildJob({
+    doc,
+    layer: layerFn,
+    imgLayer: defaultImageLayer,
+    device: dev,
+    only: null,
+    position: null,
+    forPreview: false,
+  });
+  const prep = await prepareGCode(job, dev, estimate(job.moves, dev), 'test', layerFn);
+  assert.ok(prep.ruida && prep.ruida.length > 20, 'Ruida-Binärdaten erzeugt');
+  assert.ok(isRuidaFile(prep.ruida!));
+
+  const dec = decodeRuida(prep.ruida!);
+  assert.equal(dec.magic, 0x88);
+  assert.equal(dec.startFrom, 'absolute');
+  assert.equal(dec.eof, true);
+  assert.equal(dec.cuts.length, 4);
+  assert.ok(dec.bounds);
+  assert.ok(Math.abs(dec.bounds![0] - 420) < 0.01 && Math.abs(dec.bounds![1] - 50) < 0.01);
+  assert.ok(Math.abs(dec.bounds![2] - 500) < 0.01 && Math.abs(dec.bounds![3] - 90) < 0.01);
+
+  const l2 = dec.layers.get(2)!;
+  assert.ok(l2, 'Layer 2 in .rd vorhanden');
+  assert.ok(Math.abs(l2.speed - 1500) < 1);
+  assert.ok(Math.abs(l2.power - 65) < 0.2);
+  assert.ok(Math.abs(l2.minPower - 20) < 0.2);
+  assert.equal(l2.air, true);
+
+  // Round-Trip-Import zurück in ein KizamuBeam-Dokument
+  const imp = importRuida(prep.ruida!, 600, 400, 'top-right');
+  assert.equal(imp.objs.length, 1);
+  const pathObj = imp.objs[0];
+  assert.equal(pathObj.layer, 2);
+  assert.equal(pathObj.shape.kind, 'path');
+  const nodes = pathObj.shape.subs[0].nodes;
+  const xs = nodes.map((n) => n.x);
+  const ys = nodes.map((n) => n.y);
+  assert.ok(Math.abs(Math.min(...xs) - 100) < 0.01);
+  assert.ok(Math.abs(Math.max(...xs) - 180) < 0.01);
+  assert.ok(Math.abs(Math.min(...ys) - 50) < 0.01);
+  assert.ok(Math.abs(Math.max(...ys) - 90) < 0.01);
+  const impLayer = imp.layers[2]!;
+  assert.equal(impLayer.speed, 1500);
+  assert.equal(impLayer.power, 65);
+  assert.equal(impLayer.minPower, 20);
+  assert.equal(impLayer.air, true);
+});
+
+await test('Ruida: Nullpunkt-Ecken, relative Referenz (current/user) und Magic 0x11 / 0x38', async () => {
+  const { decodeRuida, toRuidaAbs, fromRuidaAbs, sanitizeRuidaFilename, writeRuida } = await import('../src/ruida');
+  assert.equal(sanitizeRuidaFilename('mein-job_12345.rd'), 'MEIN-JOB');
+  assert.equal(sanitizeRuidaFilename('...'), 'KIZAMU');
+  for (const origin of ['top-right', 'top-left', 'bottom-left', 'bottom-right'] as const) {
+    const [rx, ry] = toRuidaAbs(origin, 500, 300, 123.4, 56.7);
+    const [bx, by] = fromRuidaAbs(origin, 500, 300, rx, ry);
+    assert.ok(Math.abs(bx - 123.4) < 1e-6 && Math.abs(by - 56.7) < 1e-6, origin);
+  }
+  const mv = new Moves(50, 60);
+  mv.push(50, 60, 0, 0, 0);
+  mv.push(70, 60, 1200, 0.5, 0);
+  const bytes = writeRuida(mv, {
+    x0: 50,
+    y0: 60,
+    bedW: 500,
+    bedH: 300,
+    origin: 'bottom-left',
+    startFrom: 'current',
+    magic: 0x38,
+    laser: 'both',
+    filename: 'testjob',
+    upload: true,
+    layers: [{ index: 0, speed: 1200, power: 50, minPower: 0, color: 0xff0000 }],
+  });
+  const dec = decodeRuida(bytes);
+  assert.equal(dec.magic, 0x38);
+  assert.equal(dec.startFrom, 'current');
+  assert.equal(dec.filename, 'TESTJOB');
+  assert.equal(dec.upload, true);
+  assert.equal(dec.cuts.length, 1);
+  assert.deepEqual(dec.cuts[0].from, [0, 0]);
+  assert.deepEqual(dec.cuts[0].to, [20, 0]);
+  // minPower=0 fällt auf maxPower (50%) zurück, damit Ecken nicht ungewollt auf 0% abfallen
+  assert.ok(Math.abs(dec.layers.get(0)!.minPower - 50) < 0.2);
+});
+
 if (failed) {
   console.log(`${failed} Test(s) fehlgeschlagen`);
   process.exit(1);
 }
+

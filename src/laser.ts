@@ -2,11 +2,11 @@
 import type { Editor } from './editor';
 import { commandMatches } from './commandKeys';
 import { escapeXml, h, numInput, setIcon, setTrustedSvg } from './dom';
-import { saveText } from './files';
+import { saveBinary, saveText } from './files';
 import { native } from './native';
 import {
   anchorOf, BedCheck, Box, buildJob, burns, checkBed, DEFAULT_ROTARY, Device, estimate, Firmware, FIRMWARES, liveStatus, formatDuration, frameGCode, Job, jogLines, jogToLines, LASER_TYPES, moveLines, LaserModule, LaserType, loadDevices, Moves, newDevice,
-  posShift, prepareGCode, Rotary, RotaryAxis, rotaryCirc, rotaryOn, rotaryTestLines, sameMoves, saveDevices, StartFrom, startHere, zJogLines,
+  posShift, prepareGCode, Rotary, RotaryAxis, rotaryCirc, rotaryOn, rotaryTestLines, RuidaLaser, RuidaMagic, RuidaOrigin, sameMoves, sanitizeRuidaFilename, saveDevices, StartFrom, startHere, zJogLines,
 } from './gcode';
 import { isTauri, machine, PortInfo } from './machine';
 import type { PreparedGCode } from './gcode';
@@ -21,8 +21,14 @@ import { openCheck } from './checkPanel';
 import { presetList } from './packs';
 import { laserTypeLabel, presetPicker } from './packsDialog';
 import { dec, locale, t, tBackend, tn } from './i18n';
+import { getTypography, groupFactor, onTypographyChange, resolveTypography } from './uiTypography';
 import { isNightly } from './updates';
 import { version as APP_VERSION } from '../package.json';
+import { electricityTariffText, energyDraft, estimateEnergy, parseEnergyNumber } from './energy';
+import { energyPreview, energySettingsRows, saveEnergySettings } from './energyUi';
+import { previewSplitter } from './previewLayout';
+import { advancePlayback, analyzePlayback, computeFactors, DEFAULT_TARGET, MAX_MARKERS, MAX_TARGET, MIN_TARGET } from './previewPlayback';
+import type { PlaybackSettings } from './previewPlayback';
 
 const store = loadDevices();
 /** Das gewählte Gerät (live gebunden: wechselt mit der Auswahl) */
@@ -166,7 +172,7 @@ function nothingToDo(job: Job): boolean {
 /** Fahrwege des Jobs gegen den Arbeitsbereich prüfen, mit dem Werkstück-Nullpunkt, den die Steuerung meldet */
 export const bedCheck = (ed: Editor, job: Job): BedCheck => checkBed(job.travel, ed.doc.bed, device, machine.workOffset());
 
-const mm = (v: number) => v.toFixed(1);
+const mm = (v: number) => dec(v.toFixed(1));
 const range = (b: Box) => ({ x0: mm(b.x0), x1: mm(b.x1), y0: mm(b.y0), y1: mm(b.y1) });
 
 /** Warnung zur Prüfung (null = alles im Arbeitsbereich) */
@@ -296,7 +302,7 @@ export async function uploadJob(ed: Editor, fs: FluidFs, file: string): Promise<
   const job = await makeJob(ed, false);
   if (nothingToDo(job)) return null;
   job.warnings.forEach((w) => notify(w));
-  const g = await prepareGCode(job, device, estimate(job.moves, device));
+  const g = await prepareGCode(job, device, estimate(job.moves, device), undefined, (i) => ed.layer(i));
   return uploadGCode(g, fs, file);
 }
 
@@ -324,7 +330,7 @@ export async function startJob(ed: Editor, src?: JobSource) {
   if (nothingToDo(job) || (!src && !designOk(ed)) || !boundsOk(ed, job) || !airOk(job)) return;
   job.warnings.forEach((w) => notify(w));
   const est = estimate(job.moves, device);
-  const g = await prepareGCode(job, device, est, src?.name);
+  const g = await prepareGCode(job, device, est, src?.name, src?.layer ?? ((i) => ed.layer(i)));
   notify(t('Job gestartet, geschätzt {total}.', { total: formatDuration(est.total) }));
   if ((await runGCode(g)) && !src) ed.afterJob();
 }
@@ -351,7 +357,7 @@ export async function startJobAt(ed: Editor, preview: Moves, i: number, frac: nu
   job.warnings.forEach((w) => notify(w));
   const est = estimate(job.moves, device);
   const at = formatDuration(Math.max(0, total - est.total));
-  const g = await prepareGCode(job, device, est, t('{name} ab {at}', { name: src?.name ?? 'KizamuBeam', at }));
+  const g = await prepareGCode(job, device, est, t('{name} ab {at}', { name: src?.name ?? 'KizamuBeam', at }), src?.layer ?? ((i) => ed.layer(i)));
   notify(t('Job ab {at} gestartet, geschätzt {total}.', { at, total: formatDuration(est.total) }));
   return runGCode(g);
 }
@@ -370,12 +376,43 @@ export async function saveGCode(ed: Editor, src?: JobSource) {
   const job = await makeJob(ed, false, src);
   if (nothingToDo(job)) return;
   if (device.startFrom === 'current') notify(t('Hinweis: Die Datei enthält die aktuelle Laserposition als Startpunkt.'));
-  const g = await prepareGCode(job, device, estimate(job.moves, device), src?.name);
-  const name = src ? `${src.name.toLowerCase().replace(/[^a-z0-9äöüß]+/g, '-')}.gcode` : 'projekt.gcode';
+  const g = await prepareGCode(
+    job,
+    device,
+    estimate(job.moves, device),
+    src?.name,
+    src?.layer ?? ((i) => ed.layer(i)),
+    device.fw === 'ruida' ? { filename: src?.name || 'KIZAMU' } : undefined,
+  );
+  const slug = src ? src.name.toLowerCase().replace(/[^a-z0-9äöüß]+/g, '-') : 'projekt';
+  if (device.fw === 'ruida') {
+    const name = `${slug}.rd`;
+    const saved = g.ruida
+      ? await saveBinary(name, 'Ruida (.rd)', 'rd', g.ruida)
+      : (await native<string | null>('ruida_save', { id: g.id, defaultName: name, filterName: 'Ruida (.rd)' })) !== null;
+    if (saved && !src) ed.afterJob();
+    return;
+  }
+  const name = `${slug}.gcode`;
   const saved = g.lines
     ? await saveText(name, 'G-Code', 'gcode', 'text/plain', g.lines.join('\n') + '\n')
     : (await native<string | null>('gcode_save', { id: g.id, defaultName: name, filterName: 'G-Code' })) !== null;
   if (saved && !src) ed.afterJob();
+}
+
+export async function uploadRuidaToController(ed: Editor, src?: JobSource) {
+  if (!canRun()) return;
+  const job = await makeJob(ed, false, src);
+  if (nothingToDo(job) || (!src && !designOk(ed)) || !boundsOk(ed, job) || !airOk(job)) return;
+  const defName = sanitizeRuidaFilename(src?.name || 'KIZAMU');
+  const raw = prompt(t('Dateiname im Ruida-Speicher (max. 8 Zeichen, A–Z / 0–9):'), defName);
+  if (!raw) return;
+  const fname = sanitizeRuidaFilename(raw);
+  job.warnings.forEach((w) => notify(w));
+  const est = estimate(job.moves, device);
+  const g = await prepareGCode(job, device, est, fname, src?.layer ?? ((i) => ed.layer(i)), { filename: fname, upload: true });
+  const ok = await machine.runPrepared(g);
+  if (ok && !src) ed.afterJob();
 }
 
 /** Job und Zeitschätzung des Dokuments ohne Ausgabe (für KI-Agenten) */
@@ -487,6 +524,11 @@ function laserTab(ed: Editor): HTMLElement {
   const originB = big('origin', t('Ursprung'), t('Zum Nullpunkt fahren'), () => sendAll(moveLines(device, 'X0 Y0')));
   const previewB = big('preview', t('Vorschau'), t('Vorschau mit Zeitschätzung (Alt+P)'), () => openPreview(ed));
   const saveB = big('gcode', 'G-Code', t('G-Code speichern'), () => saveGCode(ed));
+  const ruidaMemB = h('button', {
+    class: 'btn',
+    title: t('Job als benannte Datei im internen Speicher der Ruida-Steuerung ablegen (ohne sofortigen Start)'),
+    onclick: () => uploadRuidaToController(ed),
+  }, t('In Steuerung speichern …')) as HTMLButtonElement;
   const bar = h('div', { class: 'progress' }, h('div', { class: 'fill' }));
   const progTxt = h('div', { class: 'progress-text' });
   const msg = h('div', { class: 'note laser-msg' });
@@ -559,6 +601,7 @@ function laserTab(ed: Editor): HTMLElement {
     pinTxt,
     h('div', { class: 'conn-row' }, portSel, refreshBtn, connBtn),
     h('div', { class: 'laser-grid' }, startB, pauseB, stopB, frameB, contourB, homeB, originB, previewB, saveB),
+    ruidaMemB,
     frameViewRow,
     bar,
     progTxt,
@@ -603,10 +646,14 @@ function laserTab(ed: Editor): HTMLElement {
       portSel.append(h('option', { value: n }, p?.description ? `${n} (${p.description})` : n));
     }
     if (!names.length) portSel.append(h('option', { value: '', disabled: true }, t('Keine serielle Schnittstelle gefunden')));
-    portSel.append(h('option', { value: NET }, t('WLAN: {address}', { address: `${device.host}:${device.tcpPort}` })));
-    portSel.append(h('option', { value: NET_WS }, t('WLAN (WebSocket): {address}', { address: `${device.host}:${device.wsPort}` })));
+    if (device.fw === 'ruida') {
+      portSel.append(h('option', { value: NET }, t('Netzwerk (UDP): {address}', { address: `${device.host}:${device.ruidaPort || 50200}` })));
+    } else {
+      portSel.append(h('option', { value: NET }, t('WLAN: {address}', { address: `${device.host}:${device.tcpPort}` })));
+      portSel.append(h('option', { value: NET_WS }, t('WLAN (WebSocket): {address}', { address: `${device.host}:${device.wsPort}` })));
+    }
     if (device.conn === 'remote' || device.remoteFp) portSel.append(h('option', { value: REMOTE }, t('Anderer KizamuBeam: {address}', { address: `${device.host}:${device.remotePort}` })));
-    portSel.value = device.conn === 'tcp' ? NET : device.conn === 'ws' ? NET_WS : device.conn === 'remote' ? REMOTE : device.port || names[0] || NET;
+    portSel.value = device.conn === 'tcp' || (device.fw === 'ruida' && device.conn === 'ws') ? NET : device.conn === 'ws' ? NET_WS : device.conn === 'remote' ? REMOTE : device.port || names[0] || NET;
   };
   const applyPortChoice = () => {
     if (portSel.value === NET) device.conn = 'tcp';
@@ -632,7 +679,7 @@ function laserTab(ed: Editor): HTMLElement {
     stTxt.textContent = stateLabel + (machine.connected ? ` · ${machine.where}` : '');
     dot.className = `dot ${cls}`;
     const p = machine.connected ? machine.status.wpos : null;
-    posTxt.textContent = p ? `X ${p[0].toFixed(2)}  Y ${p[1].toFixed(2)}` : '';
+    posTxt.textContent = p ? `X ${dec(p[0].toFixed(2))}  Y ${dec(p[1].toFixed(2))}` : '';
     devSel.disabled = machine.connected || machine.connecting;
     const on = machine.connected,
       busy = machine.running || !!uploading;
@@ -643,6 +690,10 @@ function laserTab(ed: Editor): HTMLElement {
     for (const b of [startB, frameB, contourB, homeB, originB]) b.disabled = !on || busy;
     pauseB.disabled = !on;
     stopB.disabled = !on;
+    saveB.lastChild!.textContent = device.fw === 'ruida' ? '.rd' : 'G-Code';
+    saveB.title = device.fw === 'ruida' ? t('Als Ruida-Datei (.rd) speichern') : t('G-Code speichern');
+    ruidaMemB.hidden = device.fw !== 'ruida';
+    ruidaMemB.disabled = !on || busy;
     const hold = machine.status.state.startsWith('Hold');
     pauseB.lastChild!.textContent = hold ? t('Weiter') : t('Pause');
     setIcon(pauseB.firstChild as HTMLElement, hold ? 'play' : 'pause');
@@ -808,7 +859,7 @@ function moveTab(ed: Editor): HTMLElement {
   const refresh = () => {
     const s = machine.status;
     pos.textContent = machine.connected && s.wpos
-      ? t('Position X {x}  Y {y} mm', { x: s.wpos[0].toFixed(2), y: s.wpos[1].toFixed(2) }) + (device.zAxis && Number.isFinite(s.wpos[2]) ? `  Z ${s.wpos[2].toFixed(2)}` : '') + (s.mpos && (Math.abs(s.mpos[0] - s.wpos[0]) > 1e-3 || Math.abs(s.mpos[1] - s.wpos[1]) > 1e-3) ? t(' (Maschine {x} / {y})', { x: s.mpos[0].toFixed(2), y: s.mpos[1].toFixed(2) }) : '')
+      ? t('Position X {x}  Y {y} mm', { x: dec(s.wpos[0].toFixed(2)), y: dec(s.wpos[1].toFixed(2)) }) + (device.zAxis && Number.isFinite(s.wpos[2]) ? `  Z ${dec(s.wpos[2].toFixed(2))}` : '') + (s.mpos && (Math.abs(s.mpos[0] - s.wpos[0]) > 1e-3 || Math.abs(s.mpos[1] - s.wpos[1]) > 1e-3) ? t(' (Maschine {x} / {y})', { x: dec(s.mpos[0].toFixed(2)), y: dec(s.mpos[1].toFixed(2)) }) : '')
       : t('Nicht verbunden');
     root.querySelectorAll('button').forEach((b) => ((b as HTMLButtonElement).disabled = !machine.connected || machine.running));
     zSection.hidden = !device.zAxis;
@@ -888,7 +939,7 @@ let lastDeviceTab = 0;
 
 /** Einstellungen eines Geräts bearbeiten (ohne Angabe: das gewählte) */
 export function openDeviceDialog(ed: Editor, target: Device = device, onDone?: () => void) {
-  const d = { ...target };
+  const d = { ...target, energy: energyDraft(target.energy) };
   const bed = { w: d.bedW, h: d.bedH };
   const isCurrent = target === device;
   // FR #235: Tabs statt Scroll-Liste — gleiche Felder, gleiche Speicherung, nur sortiert.
@@ -912,10 +963,16 @@ export function openDeviceDialog(ed: Editor, target: Device = device, onDone?: (
     const el = h('input', { type: 'checkbox', checked: get(), onchange: (e: Event) => set((e.target as HTMLInputElement).checked) });
     rows.push(h('label', { title }, label), h('span', {}, el));
   };
-  const head = (t: string) => rows.push(h('div', { class: 'sub' }, t));
+  const head = (txt: string) => {
+    const el = h('div', { class: 'sub' }, txt);
+    rows.push(el);
+    return el;
+  };
+  const ruidaEls: HTMLElement[] = [];
+  const nonRuidaEls: HTMLElement[] = [];
   newTab(t('Allgemein'));
   text(t('Name'), () => d.name, (v) => (d.name = v));
-  const sMaxRef: { el?: HTMLInputElement } = {};
+  const sMaxRef: { el?: HTMLInputElement; lab?: HTMLElement } = {};
   const fwSel = h('select', {
     onchange: (e: Event) => {
       const old = FIRMWARES[d.fw];
@@ -923,12 +980,48 @@ export function openDeviceDialog(ed: Editor, target: Device = device, onDone?: (
       // Leistungsskala mitziehen, wenn sie noch dem Standard der alten Firmware entsprach
       if (d.sMax === old.sMax && sMaxRef.el) ((d.sMax = FIRMWARES[d.fw].sMax), (sMaxRef.el.value = String(d.sMax)));
       readBtn.disabled = !canRead();
+      syncFw();
     },
   }, ...(Object.keys(FIRMWARES) as Firmware[]).map((k) => h('option', { value: k, selected: k === d.fw }, FIRMWARES[k].label))) as HTMLSelectElement;
   rows.push(h('label', {}, t('Steuerung (Firmware)')), fwSel);
   const bw = num(t('Breite (mm)'), () => bed.w, (v) => (bed.w = v), t('Arbeitsbereich X'));
   const bh = num(t('Höhe (mm)'), () => bed.h, (v) => (bed.h = v), t('Arbeitsbereich Y'));
-  sMaxRef.el = num(t('S-Wert für 100 %'), () => d.sMax, (v) => (d.sMax = v), t('GRBL $30 bzw. FluidNC speed_map (meist 1000), Marlin meist 255, Smoothieware 1'));
+  {
+    const title = t('GRBL $30 bzw. FluidNC speed_map (meist 1000), Marlin meist 255, Smoothieware 1');
+    const lab = h('label', { title }, t('S-Wert für 100 %'));
+    const el = numInput('', (v) => v > 0 && (d.sMax = v), title);
+    el.value = String(d.sMax);
+    rows.push(lab, el);
+    sMaxRef.el = el;
+    sMaxRef.lab = lab;
+    nonRuidaEls.push(lab, el);
+  }
+  {
+    const ruidaHead = head('Ruida DSP');
+    const origLab = h('label', { title: t('Ecke des Arbeitsbereichs, in der die Ruida-Steuerung ihren Maschinennullpunkt (0, 0) hat') }, t('Maschinennullpunkt'));
+    const origSel = h('select', { onchange: (e: Event) => (d.ruidaOrigin = (e.target as HTMLSelectElement).value as RuidaOrigin) },
+      h('option', { value: 'top-right', selected: (d.ruidaOrigin ?? 'top-right') === 'top-right' }, t('Hinten rechts (Standard)')),
+      h('option', { value: 'top-left', selected: d.ruidaOrigin === 'top-left' }, t('Hinten links')),
+      h('option', { value: 'bottom-left', selected: d.ruidaOrigin === 'bottom-left' }, t('Vorne links')),
+      h('option', { value: 'bottom-right', selected: d.ruidaOrigin === 'bottom-right' }, t('Vorne rechts')),
+    );
+    const magicLab = h('label', { title: t('Byte-Verschleierung für .rd-Dateien und Direktverbindung (meist 0x88 für RDC6442/RDC6445)') }, t('Paket-Codierung (Magic)'));
+    const magicSel = h('select', { onchange: (e: Event) => (d.ruidaMagic = (e.target as HTMLSelectElement).value as RuidaMagic) },
+      h('option', { value: 'auto', selected: (d.ruidaMagic ?? '88') === 'auto' }, t('Automatisch erkennen')),
+      h('option', { value: '88', selected: (d.ruidaMagic ?? '88') === '88' }, '0x88 (RDC6442 / RDC6445)'),
+      h('option', { value: '11', selected: d.ruidaMagic === '11' }, '0x11 (RDC6342G / 634XG)'),
+      h('option', { value: '38', selected: d.ruidaMagic === '38' }, '0x38 (RDL9635)'),
+    );
+    const laserLab = h('label', { title: t('Welche Laserröhre im Auftrag angesteuert wird') }, t('Laserröhre'));
+    const laserSel = h('select', { onchange: (e: Event) => (d.ruidaLaser = (e.target as HTMLSelectElement).value as RuidaLaser) },
+      h('option', { value: '1', selected: (d.ruidaLaser ?? '1') === '1' }, t('Laser 1')),
+      h('option', { value: '2', selected: d.ruidaLaser === '2' }, t('Laser 2')),
+      h('option', { value: 'both', selected: d.ruidaLaser === 'both' }, t('Laser 1 + 2')),
+    );
+    const ruidaNote = h('div', { class: 'note wide' }, t('Ruida-Direktsteuerung ist experimentell: Vor dem ersten Auftrag Fahrtrichtungen, Nullpunkt und Rahmen prüfen. Für den Dateiexport über RDWorks oder USB-Stick genügt „.rd speichern“.'));
+    rows.push(origLab, origSel, magicLab, magicSel, laserLab, laserSel, ruidaNote);
+    ruidaEls.push(ruidaHead, origLab, origSel, magicLab, magicSel, laserLab, laserSel, ruidaNote);
+  }
   head(t('Lasermodul'));
   {
     const laserTip = t('Nur zur Information, z. B. für passende Materialeinstellungen; ändert den G-Code nicht');
@@ -943,7 +1036,7 @@ export function openDeviceDialog(ed: Editor, target: Device = device, onDone?: (
     ));
     const opt = (label: string, get: () => number | undefined, set: (v: number | undefined) => void) => {
       const el = h('input', { type: 'text', inputmode: 'decimal', value: String(get() ?? ''), placeholder: t('unbekannt'), oninput: (e: Event) => {
-        const v = parseFloat((e.target as HTMLInputElement).value.replace(',', '.'));
+        const v = parseFloat((e.target as HTMLInputElement).value.replace(/,/g, '.'));
         set(Number.isFinite(v) && v > 0 ? v : undefined);
       } });
       rows.push(h('label', { title: laserTip }, label), el);
@@ -960,26 +1053,33 @@ export function openDeviceDialog(ed: Editor, target: Device = device, onDone?: (
   bool(t('Z+ fährt Richtung Material'), () => d.zFlip, (v) => (d.zFlip = v), t('Einschalten, wenn bei dieser Maschine positive Z-Werte den Tisch anheben oder den Kopf absenken'));
   bool(t('Z-Jog nur nach Referenzfahrt'), () => d.zJogStrict ?? true, (v) => (d.zJogStrict = v), t('Bewegen-Fenster: Z-Tasten bleiben gesperrt, bis einmal referenziert wurde (pro Verbindung). Aus = lax: dann genügt eine bekannte Position.'));
   rows.push(h('label', {}, t('Drehachse')), h('span', {}, h('button', { class: 'btn small', onclick: () => openRotaryDialog() }, t('Drehachse (Rotary) …'))));
-  head(t('Air Assist & Ausgänge'));
-  rows.push(h('label', { title: t('Wird auf Layern mit „Air Assist“ vor dem Lasern gesendet, ausgeschaltet wird mit M9') }, t('Einschalten mit')), h('select', { onchange: (e: Event) => (d.airCmd = (e.target as HTMLSelectElement).value as Device['airCmd']) },
-    h('option', { value: 'M8', selected: d.airCmd !== 'M7' }, t('M8 (Flood, üblich)')),
-    h('option', { value: 'M7', selected: d.airCmd === 'M7' }, 'M7 (Mist)'),
-  ));
-  const outsIn = h('input', {
-    type: 'text', value: d.jobOutputs.join(', '), placeholder: t('z. B. 0, 1'),
-    onchange: (e: Event) => {
-      const el = e.target as HTMLInputElement;
-      d.jobOutputs = [...new Set(el.value.split(/[\s,;]+/).filter(Boolean).map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n < 8))];
-      el.value = d.jobOutputs.join(', ');
-    },
-  }) as HTMLInputElement;
-  rows.push(h('label', { title: t('Digitale Ausgänge (user_outputs, M64/M65 P…), die während jedes Jobs an sind, z. B. Absaugung') }, t('Ausgänge im Job')), outsIn);
+  {
+    const airHead = head(t('Air Assist & Ausgänge'));
+    const airLab = h('label', { title: t('Wird auf Layern mit „Air Assist“ vor dem Lasern gesendet, ausgeschaltet wird mit M9') }, t('Einschalten mit'));
+    const airSel = h('select', { onchange: (e: Event) => (d.airCmd = (e.target as HTMLSelectElement).value as Device['airCmd']) },
+      h('option', { value: 'M8', selected: d.airCmd !== 'M7' }, t('M8 (Flood, üblich)')),
+      h('option', { value: 'M7', selected: d.airCmd === 'M7' }, 'M7 (Mist)'),
+    );
+    const outsLab = h('label', { title: t('Digitale Ausgänge (user_outputs, M64/M65 P…), die während jedes Jobs an sind, z. B. Absaugung') }, t('Ausgänge im Job'));
+    const outsIn = h('input', {
+      type: 'text', value: d.jobOutputs.join(', '), placeholder: t('z. B. 0, 1'),
+      onchange: (e: Event) => {
+        const el = e.target as HTMLInputElement;
+        d.jobOutputs = [...new Set(el.value.split(/[\s,;]+/).filter(Boolean).map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n < 8))];
+        el.value = d.jobOutputs.join(', ');
+      },
+    }) as HTMLInputElement;
+    rows.push(airLab, airSel, outsLab, outsIn);
+    nonRuidaEls.push(airHead, airLab, airSel, outsLab, outsIn);
+  }
   rows.push(h('div', { class: 'note wide' }, t('Startreferenz und Job-Ursprung stehen im Laser-Fenster.')));
   newTab(t('Verbindung|Gerät'));
+  const connTcpOpt = h('option', { value: 'tcp', selected: d.conn === 'tcp' }, t('WLAN (Telnet)')) as HTMLOptionElement;
+  const connWsOpt = h('option', { value: 'ws', selected: d.conn === 'ws' }, t('WLAN (WebSocket)')) as HTMLOptionElement;
   const connSel: HTMLSelectElement = h('select', { onchange: (e: Event) => (d.conn = (e.target as HTMLSelectElement).value as Device['conn']) },
     h('option', { value: 'serial', selected: d.conn === 'serial' }, t('USB (seriell)')),
-    h('option', { value: 'tcp', selected: d.conn === 'tcp' }, t('WLAN (Telnet)')),
-    h('option', { value: 'ws', selected: d.conn === 'ws' }, t('WLAN (WebSocket)')),
+    connTcpOpt,
+    connWsOpt,
     h('option', { value: 'remote', selected: d.conn === 'remote' }, t('Anderer KizamuBeam (Netzwerk)')),
   ) as HTMLSelectElement;
   rows.push(h('label', {}, t('Anschluss')), connSel);
@@ -989,19 +1089,39 @@ export function openDeviceDialog(ed: Editor, target: Device = device, onDone?: (
   portIn.setAttribute('list', portList.id);
   rows.push(h('label', { title: t('Feste USB-Schnittstelle dieses Geräts') }, t('USB-Schnittstelle')), portIn, portList);
   machine.ports().then((ps) => ps.forEach((p) => portList.append(h('option', { value: p.name }, p.description || p.name)))).catch(() => {});
+  const baudLab = h('label', {}, t('Baudrate'));
   const baud = h('select', { onchange: (e: Event) => (d.baud = Number((e.target as HTMLSelectElement).value)) },
     ...[57600, 115200, 230400, 250000, 460800, 921600].map((b) => h('option', { value: String(b), selected: b === d.baud }, String(b))),
   );
-  rows.push(h('label', {}, t('Baudrate')), baud);
+  rows.push(baudLab, baud);
+  nonRuidaEls.push(baudLab, baud);
   const hostIn = h('input', { type: 'text', value: d.host, oninput: (e: Event) => (d.host = (e.target as HTMLInputElement).value.trim()) }) as HTMLInputElement;
-  rows.push(h('label', {}, t('WLAN-Adresse')), h('span', { class: 'conn-row' }, hostIn,
-    h('button', {
-      class: 'btn small', title: t('FluidNC-Steuerungen im lokalen Netzwerk suchen'),
-      onclick: () => import('./fluidncDialog').then((m) => m.openDiscovery(d.httpPort || 80, (host) => ((d.host = host), (hostIn.value = host)))),
-    }, t('Suchen …'))));
-  num(t('Telnet-Port'), () => d.tcpPort, (v) => (d.tcpPort = Math.round(v)));
-  num(t('WebSocket-Port'), () => d.wsPort, (v) => (d.wsPort = Math.round(v)), t('FluidNC: 81; ist er nicht erreichbar, wird 80 versucht'));
-  num(t('Web-Port'), () => d.httpPort, (v) => (d.httpPort = Math.round(v)), t('Weboberfläche von FluidNC (meist 80): zum Hochladen auf SD-Karte/Flash und für die Suche'));
+  const fluidDiscoverBtn = h('button', {
+    class: 'btn small', title: t('FluidNC-Steuerungen im lokalen Netzwerk suchen'),
+    onclick: () => import('./fluidncDialog').then((m) => m.openDiscovery(d.httpPort || 80, (host) => ((d.host = host), (hostIn.value = host)))),
+  }, t('Suchen …'));
+  rows.push(h('label', {}, t('WLAN-Adresse')), h('span', { class: 'conn-row' }, hostIn, fluidDiscoverBtn));
+  {
+    const rPortTitle = t('UDP-Zielport der Ruida-Steuerung (Standard 50200)');
+    const rPortLab = h('label', { title: rPortTitle }, t('UDP-Datenport'));
+    const rPortEl = numInput('', (v) => v > 0 && v <= 65535 && (d.ruidaPort = Math.round(v)), rPortTitle);
+    rPortEl.value = String(d.ruidaPort || 50200);
+    const jPortTitle = t('UDP-Port für Ruida-Tastenbefehle (Standard 50207, 0 = aus)');
+    const jPortLab = h('label', { title: jPortTitle }, t('UDP-Tastenport'));
+    const jPortEl = numInput('', (v) => v >= 0 && v <= 65535 && (d.ruidaJogPort = Math.round(v)), jPortTitle);
+    jPortEl.value = String(d.ruidaJogPort ?? 50207);
+    rows.push(rPortLab, rPortEl, jPortLab, jPortEl);
+    ruidaEls.push(rPortLab, rPortEl, jPortLab, jPortEl);
+  }
+  {
+    const tcpEl = num(t('Telnet-Port'), () => d.tcpPort, (v) => (d.tcpPort = Math.round(v)));
+    const tcpLab = rows[rows.length - 2] as HTMLElement;
+    const wsEl = num(t('WebSocket-Port'), () => d.wsPort, (v) => (d.wsPort = Math.round(v)), t('FluidNC: 81; ist er nicht erreichbar, wird 80 versucht'));
+    const wsLab = rows[rows.length - 2] as HTMLElement;
+    const httpEl = num(t('Web-Port'), () => d.httpPort, (v) => (d.httpPort = Math.round(v)), t('Weboberfläche von FluidNC (meist 80): zum Hochladen auf SD-Karte/Flash und für die Suche'));
+    const httpLab = rows[rows.length - 2] as HTMLElement;
+    nonRuidaEls.push(tcpLab, tcpEl, wsLab, wsEl, httpLab, httpEl);
+  }
   // Remote KizamuBeam: host address is the network address above
   const remotePortIn = num(t('Host-Port'), () => d.remotePort, (v) => (d.remotePort = Math.round(v)), t('Port eines anderen KizamuBeam im Host-Modus (Standard 47900)'));
   const pairState = h('span', { class: 'note' });
@@ -1066,8 +1186,12 @@ export function openDeviceDialog(ed: Editor, target: Device = device, onDone?: (
     d.rxBuffer = free;
     bufNote.textContent = t('Die Steuerung meldet {n} Bytes freien Empfangspuffer; eingestellt auf {m}.', { n: bf[1], m: free });
   };
-  rows.push(h('label', { title: t('Wie viele Zeichen KizamuBeam an die Steuerung schickt, bevor sie bestätigt hat. Wirkt beim nächsten Verbinden.') }, t('Empfangspuffer')),
-    h('span', { class: 'conn-row' }, bufSel, h('button', { class: 'btn small', title: t('Pufferstand der verbundenen Steuerung lesen'), onclick: measureBuf }, t('Messen'))), bufNote);
+  {
+    const bufLab = h('label', { title: t('Wie viele Zeichen KizamuBeam an die Steuerung schickt, bevor sie bestätigt hat. Wirkt beim nächsten Verbinden.') }, t('Empfangspuffer'));
+    const bufRow = h('span', { class: 'conn-row' }, bufSel, h('button', { class: 'btn small', title: t('Pufferstand der verbundenen Steuerung lesen'), onclick: measureBuf }, t('Messen')));
+    rows.push(bufLab, bufRow, bufNote);
+    nonRuidaEls.push(bufLab, bufRow, bufNote);
+  }
   bool(t('Beim Verbinden referenzieren'), () => d.homeOnConnect, (v) => (d.homeOnConnect = v), t('Nach dem Verbinden eine Referenzfahrt starten'));
   rows.push(h('label', { title: t('Ohne Endschalter bietet der Assistent „Laser einrichten“ keine Referenzfahrt an') }, t('Endschalter')), h('select', { onchange: (e: Event) => (d.limitSwitches = (e.target as HTMLSelectElement).value as Device['limitSwitches']) },
     h('option', { value: 'unknown', selected: d.limitSwitches === 'unknown' }, t('Unbekannt')),
@@ -1089,18 +1213,20 @@ export function openDeviceDialog(ed: Editor, target: Device = device, onDone?: (
   const updatePointer = () => {
     const o = d.pointerOffset;
     const s = 4, cx = 110, cy = 60; // px pro mm; Zeigerpunkt in der Mitte
+    // Technisch: Diagrammtexte im Geräteeinstellungs-Dialog (Baseline: 9/10/10)
+    const fTe = groupFactor(resolveTypography(getTypography()), 'technical');
     const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
     const bx = clamp(cx + o.x * s, 14, 206), by = clamp(cy - o.y * s, 14, 106); // +Y = hinten/oben
     setTrustedSvg(
       poDiagram,
       `<svg viewBox="0 0 220 120" width="220" height="120" role="img">` +
       `<rect x="4" y="4" width="212" height="112" fill="none" stroke="currentColor" stroke-opacity="0.3" rx="4"/>` +
-      `<text x="10" y="18" font-size="9" fill="currentColor" fill-opacity="0.6">+Y ↑ · +X →</text>` +
+      `<text x="10" y="18" font-size="${9 * fTe}" fill="currentColor" fill-opacity="0.6">+Y ↑ · +X →</text>` +
       `<line x1="${cx}" y1="${cy}" x2="${bx}" y2="${by}" stroke="currentColor" stroke-dasharray="4 3"/>` +
       `<circle cx="${cx}" cy="${cy}" r="5" fill="#4da3ff"/>` +
-      `<text x="${cx + 9}" y="${cy + 4}" font-size="10" fill="#4da3ff">${escapeXml(t('Zeiger'))}</text>` +
+      `<text x="${cx + 9}" y="${cy + 4}" font-size="${10 * fTe}" fill="#4da3ff">${escapeXml(t('Zeiger'))}</text>` +
       `<g stroke="#ff5252" stroke-width="2"><line x1="${bx - 6}" y1="${by}" x2="${bx + 6}" y2="${by}"/><line x1="${bx}" y1="${by - 6}" x2="${bx}" y2="${by + 6}"/></g>` +
-      `<text x="${bx + 9}" y="${by + 4}" font-size="10" fill="#ff5252">${escapeXml(t('Strahl'))}</text></svg>`,
+      `<text x="${bx + 9}" y="${by + 4}" font-size="${10 * fTe}" fill="#ff5252">${escapeXml(t('Strahl'))}</text></svg>`,
     );
     poSentence.textContent =
       (o.enabled ? '' : t('Derzeit ausgeschaltet. ')) +
@@ -1118,10 +1244,10 @@ export function openDeviceDialog(ed: Editor, target: Device = device, onDone?: (
     const el = numInput('', (v) => {
       if (!Number.isFinite(v)) return;
       set(Math.max(-max, Math.min(max, v)));
-      el.value = get().toFixed(2);
+      el.value = dec(get().toFixed(2));
       updatePointer();
     }, title);
-    el.value = get().toFixed(2);
+    el.value = dec(get().toFixed(2));
     rows.push(h('label', { title }, label), el);
   };
   poNum(t('Versatz X (mm)'), t('Lage des Strahls gegenüber dem Zeigerpunkt in X, aus der Kalibrierung (Position Strahl minus Position Zeiger)'), () => d.pointerOffset.x, (v) => (d.pointerOffset.x = v));
@@ -1129,27 +1255,62 @@ export function openDeviceDialog(ed: Editor, target: Device = device, onDone?: (
   rows.push(poDiagram, poSentence, poRotNote);
   rows.push(h('div', { class: 'note wide' }, t('Nur für Positionieren, Startreferenz (Aktuelle Position/Benutzer-Ursprung) und Rotpunkt-Framing. Geometrie, Schnitt und G-Code-Export bleiben Werkzeuglaser.')));
   updatePointer();
+  // Typografie live nachführen, beim Schließen abmelden
+  const offTypo = onTypographyChange(() => updatePointer());
+  newTab(t('Energie'));
+  const energyTabIndex = tabs.length - 1;
+  const energyRows = energySettingsRows(d.energy);
+  rows.push(...energyRows);
   newTab(t('G-Code'));
-  head('FluidNC');
-  rows.push(h('label', { title: t('Bei WLAN-Aussetzern läuft ein Job von SD-Karte oder Flash weiter; er wird vor dem Start über die Weboberfläche hochgeladen') }, t('Job ausführen')),
-    h('select', { onchange: (e: Event) => (d.runFrom = (e.target as HTMLSelectElement).value as Device['runFrom']) },
+  {
+    const fncHead = head('FluidNC');
+    const fncLab = h('label', { title: t('Bei WLAN-Aussetzern läuft ein Job von SD-Karte oder Flash weiter; er wird vor dem Start über die Weboberfläche hochgeladen') }, t('Job ausführen'));
+    const fncSel = h('select', { onchange: (e: Event) => (d.runFrom = (e.target as HTMLSelectElement).value as Device['runFrom']) },
       h('option', { value: 'stream', selected: d.runFrom === 'stream' }, t('Vom Rechner senden')),
       h('option', { value: 'sd', selected: d.runFrom === 'sd' }, t('Auf SD-Karte laden und dort starten')),
       h('option', { value: 'localfs', selected: d.runFrom === 'localfs' }, t('Im Flash speichern und dort starten')),
-    ));
-  rows.push(h('label', {}, ''), h('span', { class: 'conn-row' },
-    h('button', { class: 'btn small', title: t('config.yaml der verbundenen Steuerung lesen und ändern'), onclick: () => import('./fluidncDialog').then((m) => m.openFluidConfig()) }, t('Konfiguration …')),
-    h('button', { class: 'btn small', title: t('Dateien auf SD-Karte und Flash'), onclick: () => import('./fluidncDialog').then((m) => m.openFluidFiles(ed)) }, t('Dateien …')),
-  ));
-  head(t('G-Code-Skripte'));
+    );
+    const fncEmpty = h('label', {}, '');
+    const fncBtns = h('span', { class: 'conn-row' },
+      h('button', { class: 'btn small', title: t('config.yaml der verbundenen Steuerung lesen und ändern'), onclick: () => import('./fluidncDialog').then((m) => m.openFluidConfig()) }, t('Konfiguration …')),
+      h('button', { class: 'btn small', title: t('Dateien auf SD-Karte und Flash'), onclick: () => import('./fluidncDialog').then((m) => m.openFluidFiles(ed)) }, t('Dateien …')),
+    );
+    const scrHead = head(t('G-Code-Skripte'));
+    rows.push(fncLab, fncSel, fncEmpty, fncBtns);
+    // Move scrHead after fncBtns in rows
+    rows.splice(rows.indexOf(scrHead), 1);
+    rows.push(scrHead);
+    nonRuidaEls.push(fncHead, fncLab, fncSel, fncEmpty, fncBtns, scrHead);
+  }
   const script = (label: string, title: string, get: () => string, set: (v: string) => void) => {
     const el = h('textarea', { class: 'script', rows: 3, spellcheck: false, placeholder: t('Eine Zeile je Befehl'), oninput: (e: Event) => set((e.target as HTMLTextAreaElement).value) }) as HTMLTextAreaElement;
     el.value = get();
-    rows.push(h('label', { class: 'wide', title }, label), el);
+    const lab = h('label', { class: 'wide', title }, label);
+    rows.push(lab, el);
+    nonRuidaEls.push(lab, el);
   };
   script(t('Vor dem Job'), t('Wird nach G21, G90 und dem Laser-Modus gesendet, vor der ersten Bewegung'), () => d.startScript, (v) => (d.startScript = v));
   script(t('Nach dem Job'), t('Wird nach dem Ausschalten des Lasers (M5) gesendet, vor dem Programmende'), () => d.endScript, (v) => (d.endScript = v));
-  rows.push(h('div', { class: 'note wide' }, t('Gilt für Jobs und gespeicherten G-Code, nicht für Rahmenfahrten. Die Zeilen werden unverändert gesendet.')));
+  {
+    const gcodeNote = h('div', { class: 'note wide' }, t('Gilt für Jobs und gespeicherten G-Code, nicht für Rahmenfahrten. Die Zeilen werden unverändert gesendet.'));
+    const ruidaGcodeNote = h('div', { class: 'note wide' }, t('Ruida-Steuerungen verwenden binäre .rd-Aufträge statt G-Code. Start- und Endskripte entfallen.'));
+    rows.push(gcodeNote, ruidaGcodeNote);
+    nonRuidaEls.push(gcodeNote);
+    ruidaEls.push(ruidaGcodeNote);
+  }
+  const syncFw = () => {
+    const isRuida = d.fw === 'ruida';
+    for (const el of ruidaEls) el.hidden = !isRuida;
+    for (const el of nonRuidaEls) el.hidden = isRuida;
+    connTcpOpt.textContent = isRuida ? t('Netzwerk (UDP)') : t('WLAN (Telnet)');
+    connWsOpt.hidden = isRuida;
+    fluidDiscoverBtn.hidden = isRuida;
+    if (isRuida && d.conn === 'ws') {
+      d.conn = 'tcp';
+      connSel.value = 'tcp';
+    }
+  };
+  syncFw();
   newTab(t('Erweitert'));
   head(t('KI-Agenten'));
   const limit = (label: string, title: string, get: () => number, set: (v: number) => void) => {
@@ -1166,7 +1327,7 @@ export function openDeviceDialog(ed: Editor, target: Device = device, onDone?: (
     () => d.agentMinSpeed, (v) => (d.agentMinSpeed = Math.max(0, v)));
   rows.push(h('div', { class: 'note wide' }, t('Gerätevorlagen für neue Geräte stehen im Dialog „Geräte …“.')));
   const readNote = h('div', { class: 'note wide' });
-  // Lesen nur vom verbundenen Gerät und nur bei FluidNC und GRBL-artigen Steuerungen
+  // Lesen nur vom verbundenen Gerät und nur bei FluidNC, GRBL-artigen Steuerungen und Ruida
   const canRead = () => isCurrent && machine.connected && !machine.running && FIRMWARES[d.fw].read !== null;
   const readBtn: HTMLButtonElement = h('button', {
     class: 'btn',
@@ -1177,7 +1338,7 @@ export function openDeviceDialog(ed: Editor, target: Device = device, onDone?: (
       const got: Record<string, number> = {};
       const off = machine.on((e) => {
         if (e.type !== 'line') return;
-        // FluidNC: $/axes/x/max_travel_mm=400.000 · GRBL: $130=400.000
+        // FluidNC: $/axes/x/max_travel_mm=400.000 · GRBL/Ruida: $130=400.000
         let m = /\/axes\/([xy])\/(max_travel_mm|max_rate_mm_per_min|acceleration_mm_per_sec2)\s*[=:]\s*([\d.]+)/i.exec(e.line);
         if (m) got[`${m[1].toLowerCase()}.${m[2]}`] = Number(m[3]);
         m = /^\$(30|11[01]|12[01]|13[01])=([\d.]+)/.exec(e.line);
@@ -1203,7 +1364,7 @@ export function openDeviceDialog(ed: Editor, target: Device = device, onDone?: (
         if (isFinite(r)) ((d.rapid = r), (rapid.value = String(r)), found.push(t('Eilgang {r} mm/min', { r })));
         const a = Math.min(got['x.acceleration_mm_per_sec2'] || Infinity, got['y.acceleration_mm_per_sec2'] || Infinity);
         if (isFinite(a)) ((d.accel = a), (accel.value = String(a)), found.push(t('Beschleunigung {a} mm/s²', { a })));
-        if (got.smax && sMaxRef.el) ((d.sMax = got.smax), (sMaxRef.el.value = String(got.smax)), found.push(t('S-Wert für 100 % {smax}', { smax: got.smax })));
+        if (got.smax && sMaxRef.el && d.fw !== 'ruida') ((d.sMax = got.smax), (sMaxRef.el.value = String(got.smax)), found.push(t('S-Wert für 100 % {smax}', { smax: got.smax })));
         readNote.textContent = found.length ? t('Gelesen: {found}. Mit „Übernehmen“ speichern.', { found: found.join(', ') }) : t('Keine Werte erhalten. Details stehen in der Konsole.');
       }, 2500);
     },
@@ -1235,16 +1396,18 @@ export function openDeviceDialog(ed: Editor, target: Device = device, onDone?: (
         onclick: () => {
           // Felder, die noch den Fokus haben, zuerst übernehmen
           (document.activeElement as HTMLElement | null)?.blur();
-          Object.assign(target, d, { bedW: bed.w, bedH: bed.h });
-          if (isCurrent) applyBed(ed);
-          deviceChanged();
-          dlg.close();
-          onDone?.();
+          saveEnergySettings(energyRows, () => selectTab(energyTabIndex), () => {
+            Object.assign(target, d, { bedW: bed.w, bedH: bed.h });
+            if (isCurrent) applyBed(ed);
+            deviceChanged();
+            dlg.close();
+            onDone?.();
+          });
         },
       }, t('Übernehmen')),
     ),
   );
-  dlg.addEventListener('close', () => dlg.remove());
+  dlg.addEventListener('close', () => (offTypo(), dlg.remove()));
   dlg.addEventListener('keydown', (e) => e.stopPropagation());
   document.body.append(dlg);
   dlg.showModal();
@@ -1300,10 +1463,10 @@ export function openRotaryDialog() {
   const perRev = numField(() => r.perRev, (v) => (r.perRev = v), t('Achsweg, den die Steuerung für eine volle Umdrehung der Walze bzw. des Futters fährt'));
   rows.push(h('label', {}, perRevLabel), perRev);
   const [rollerLab, rollerEl] = row(t('Walzendurchmesser (mm)'), numField(() => r.rollerDiam, (v) => (r.rollerDiam = v)), t('Durchmesser der angetriebenen Walze'));
-  const objDiam = numField(() => r.objectDiam, (v) => ((r.objectDiam = v), (circ.value = (Math.PI * v).toFixed(2))), t('Am breitesten Punkt der Gravur messen'));
+  const objDiam = numField(() => r.objectDiam, (v) => ((r.objectDiam = v), (circ.value = dec((Math.PI * v).toFixed(2)))), t('Am breitesten Punkt der Gravur messen'));
   row(t('Objektdurchmesser (mm)'), objDiam);
-  const circ = numInput('', (v) => v > 0 && ((r.objectDiam = v / Math.PI), (objDiam.value = r.objectDiam.toFixed(2)), update()), t('Umfang statt Durchmesser eingeben, z. B. mit einem Maßband gemessen'));
-  circ.value = (Math.PI * r.objectDiam).toFixed(2);
+  const circ = numInput('', (v) => v > 0 && ((r.objectDiam = v / Math.PI), (objDiam.value = dec(r.objectDiam.toFixed(2))), update()), t('Umfang statt Durchmesser eingeben, z. B. mit einem Maßband gemessen'));
+  circ.value = dec((Math.PI * r.objectDiam).toFixed(2));
   row(t('Objektumfang (mm)'), circ);
   const taper = h('input', { type: 'checkbox', checked: r.taper, onchange: (e: Event) => ((r.taper = (e.target as HTMLInputElement).checked), update()) });
   row(t('Konisches Objekt'), h('span', {}, taper), t('Für Becher und andere Objekte, die zu einem Ende dünner werden: die Gravur bleibt überall maßhaltig'));
@@ -1462,43 +1625,190 @@ export async function openPreview(ed: Editor, src?: JobSource) {
     hereBtn.title = why ?? t('Den Job ab der Stelle des Schiebereglers lasern, z. B. nach einem Abbruch');
   };
   const offMachine = machine.on(updateHere);
-  const speedSel = h('select', { title: t('Abspielgeschwindigkeit') },
-    ...[1, 2, 5, 10, 20, 50, 100, 200].map((v) => h('option', { value: String(v), selected: v === 10 }, `${v}×`)),
-  ) as HTMLSelectElement;
+  const speedSelect = (value: number) => {
+    const sel = h('select', { title: t('Abspielgeschwindigkeit') },
+      ...[1, 2, 5, 10, 20, 50, 100, 200, 400, 1000].map((v) => h('option', { value: String(v), selected: v === value }, `${v}×`)),
+    ) as HTMLSelectElement;
+    sel.value = String(value);
+    return sel;
+  };
+  const engraveSel = speedSelect(50);
+  engraveSel.classList.add('preview-engrave');
+  const cutSel = speedSelect(10);
+  cutSel.classList.add('preview-cut');
+  const pauseChk = h('input', { type: 'checkbox' }) as HTMLInputElement;
+  pauseChk.classList.add('preview-pause');
+  const smoothChk = h('input', { type: 'checkbox' }) as HTMLInputElement;
+  smoothChk.classList.add('preview-smooth');
+  const targetInp = h('input', { type: 'number', min: String(MIN_TARGET), max: String(MAX_TARGET), step: '1', value: String(DEFAULT_TARGET), class: 'preview-target', 'aria-describedby': 'preview-target-error' }) as HTMLInputElement;
+  const targetErr = h('span', { class: 'preview-error', id: 'preview-target-error', role: 'status', hidden: true }, t('Ziel muss zwischen 1 und 600 Sekunden liegen.'));
+  const factorTxt = h('span', { class: 'preview-factors' });
+  const status = h('span', { class: 'preview-status', role: 'status' });
+  const layerOf = (i: number) => (src ? src.layer(i) : ed.layer(i));
+  const layerColor = (i: number) => (src ? src.color(i) : ed.layerDrawColor(i));
+  const pct = (v: number) => `${(v * 100).toLocaleString(locale, { maximumFractionDigits: 1 })} %`;
+  const readPlayback = (): PlaybackSettings => ({
+    engrave: Number(engraveSel.value),
+    cut: Number(cutSel.value),
+    smooth: smoothChk.checked,
+    target: Number(targetInp.value),
+  });
+  let analysis = analyzePlayback(mv, est, readPlayback());
+  const stat = (k: string, v: string) => [h('dt', {}, k), h('dd', {}, v)];
+  const subLabel = (layer: number, sub: number) => {
+    const L = layerOf(layer);
+    if (sub < 0) return L.name;
+    const custom = L.sub?.[sub]?.name?.trim();
+    return `${L.name} – ${custom || t('Sublayer {n}', { n: sub + 1 })}`;
+  };
+  const layerRows = analysis.layerTimes.map((lt) => {
+    const swatch = h('span', { class: 'preview-layer-swatch' });
+    swatch.style.background = layerColor(lt.layer);
+    return h('div', { class: `preview-layer${lt.sub >= 0 ? ' sub' : ''}` },
+      swatch,
+      h('span', { class: 'preview-layer-name' }, subLabel(lt.layer, lt.sub)),
+      h('span', { class: 'preview-layer-time' }, formatDuration(lt.seconds)),
+      h('span', { class: 'preview-layer-share' }, pct(lt.share)),
+    );
+  });
+  const breakdown = h('details', { class: 'preview-breakdown' },
+    h('summary', {}, t('Zeit je Layer und Prozessart')),
+    h('div', { class: 'preview-layer-list' }, ...layerRows),
+    h('dl', { class: 'preview-stats preview-process-times' },
+      ...stat(t('Gravieren'), formatDuration(analysis.processTimes.engrave)),
+      ...stat(t('Schneiden'), formatDuration(analysis.processTimes.cut)),
+      ...stat(t('Laserlose Fahrzeit'), formatDuration(analysis.processTimes.travel)),
+    ),
+  ) as HTMLDetailsElement;
+  breakdown.open = true;
+  const jumpTo = (m: (typeof analysis.markers)[number]) => {
+    setPlaying(false);
+    status.textContent = '';
+    time = m.time;
+    render();
+  };
+  const markers = h('div', { class: 'preview-markers' });
+  // Bei sehr vielen Layern liegen 24-px-Ziele übereinander; dann führt eine einzelne Auswahl zum Layer.
+  const dense = analysis.markers.length > MAX_MARKERS;
+  for (const m of analysis.markers) {
+    const name = subLabel(m.layer, m.sub);
+    const change = m.change ? `, ${t('Prozesswechsel')}` : '';
+    if (dense) {
+      const tick = h('span', { class: `preview-marker static${m.change ? ' change' : ''}`, 'aria-hidden': 'true' });
+      tick.style.left = `${est.total ? (m.time / est.total) * 100 : 0}%`;
+      markers.append(tick);
+      continue;
+    }
+    const marker = h('button', {
+      type: 'button',
+      class: `preview-marker${m.change ? ' change' : ''}`,
+      title: `${name}${change}`,
+      'aria-label': t('Zu Layer „{name}“ springen', { name }) + change,
+    }) as HTMLButtonElement;
+    marker.style.left = `${est.total ? (m.time / est.total) * 100 : 0}%`;
+    marker.addEventListener('click', () => jumpTo(m));
+    markers.append(marker);
+  }
+  const layerJump = dense
+    ? (h('select', { class: 'preview-layer-jump', 'aria-label': t('Zu Layer springen') },
+        h('option', { value: '', selected: true, disabled: true }, t('Zu Layer springen')),
+        ...analysis.markers.map((m, i) => h('option', { value: String(i) }, `${subLabel(m.layer, m.sub)} · ${formatDuration(m.time)}${m.change ? `, ${t('Prozesswechsel')}` : ''}`)),
+      ) as HTMLSelectElement)
+    : null;
+  layerJump?.addEventListener('change', () => {
+    const m = analysis.markers[Number(layerJump.value)];
+    if (m) jumpTo(m);
+  });
+  const timeline = h('div', { class: 'preview-timeline' }, markers, slider);
+  const syncFactors = () => {
+    analysis.factors = computeFactors(analysis.processTimes, readPlayback());
+    factorTxt.textContent = t('Faktor Gravieren {engrave}×, Schneiden {cut}×', {
+      engrave: Number(analysis.factors.engrave.toFixed(1)).toLocaleString(locale),
+      cut: Number(analysis.factors.cut.toFixed(1)).toLocaleString(locale),
+    });
+    factorTxt.hidden = !smoothChk.checked;
+  };
+  const validTarget = () => {
+    const v = Number(targetInp.value);
+    return Number.isFinite(v) && v >= MIN_TARGET && v <= MAX_TARGET;
+  };
+  const validateTarget = () => {
+    const ok = validTarget();
+    targetInp.setAttribute('aria-invalid', ok ? 'false' : 'true');
+    targetErr.hidden = ok;
+    if (ok) syncFactors();
+  };
+  const syncMode = () => {
+    const smooth = smoothChk.checked;
+    engraveSel.disabled = smooth;
+    cutSel.disabled = smooth;
+    targetInp.disabled = !smooth;
+    if (smooth) validateTarget();
+    else {
+      targetInp.setAttribute('aria-invalid', 'false');
+      targetErr.hidden = true;
+      syncFactors();
+    }
+  };
+  engraveSel.addEventListener('change', syncFactors);
+  cutSel.addEventListener('change', syncFactors);
+  smoothChk.addEventListener('change', syncMode);
+  targetInp.addEventListener('input', validateTarget);
+  syncMode();
   const rapidChk = h('input', { type: 'checkbox', checked: true }) as HTMLInputElement;
   const shadeChk = h('input', { type: 'checkbox', checked: true }) as HTMLInputElement;
-  const stat = (k: string, v: string) => [h('dt', {}, k), h('dd', {}, v)];
   const b = job.bounds!;
   const info = h('dl', { class: 'preview-stats' },
     ...stat(t('Geschätzte Dauer'), formatDuration(est.total)),
-    ...stat(t('Laserweg'), `${(est.cutLength / 1000).toFixed(2)} m`),
-    ...stat(t('Leerweg'), `${(est.rapidLength / 1000).toFixed(2)} m`),
-    ...stat(t('Bereich'), `${(b.x1 - b.x0).toFixed(1)} × ${(b.y1 - b.y0).toFixed(1)} mm`),
+    ...stat(t('Laserweg'), `${dec((est.cutLength / 1000).toFixed(2))} m`),
+    ...stat(t('Leerweg'), `${dec((est.rapidLength / 1000).toFixed(2))} m`),
+    ...stat(t('Bereich'), `${dec((b.x1 - b.x0).toFixed(1))} × ${dec((b.y1 - b.y0).toFixed(1))} mm`),
     ...stat(t('Bewegungen'), mv.n.toLocaleString(locale)),
-    ...(rotaryOn(device) ? stat(t('Drehachse'), t('Achse {axis}, Umfang {c} mm', { axis: device.rotary.axis, c: (Math.PI * device.rotary.objectDiam).toFixed(1) })) : []),
+    ...(rotaryOn(device) ? stat(t('Drehachse'), t('Achse {axis}, Umfang {c} mm', { axis: device.rotary.axis, c: dec((Math.PI * device.rotary.objectDiam).toFixed(1)) })) : []),
     ...((job.dedup?.length
-      ? stat(t('Doppelte Linien'), t('{len} mm zusammengefasst', { len: job.dedup.reduce((s, d) => s + d.len, 0).toFixed(1) }))
+      ? stat(t('Doppelte Linien'), t('{len} mm zusammengefasst', { len: dec(job.dedup.reduce((s, d) => s + d.len, 0).toFixed(1)) }))
       : [])),
   );
   const warn = h('div', { class: 'note' }, ...job.warnings.map((w) => h('div', {}, w)));
-  const dlg = h('dialog', { class: 'preview-dialog' },
+  const dlg = h('dialog', { class: 'preview-dialog', 'data-dialog-resize': 'true', 'data-dialog-min-width': '480', 'data-dialog-min-height': '360' },
     h('h3', {}, t('Vorschau')),
     h('div', { class: 'preview-main' },
       cv,
       h('div', { class: 'preview-side' },
         info,
+        breakdown,
+        energyPreview(estimateEnergy(mv, est, job.air, energyDraft(device.energy)), parseEnergyNumber(electricityTariffText())),
         h('label', { class: 'check' }, rapidChk, t('Leerwege zeigen')),
         h('label', { class: 'check' }, shadeChk, t('Nach Leistung schattieren')),
         warn,
         h('div', { class: 'note' }, t('Mausrad zoomt, Ziehen verschiebt, Doppelklick passt ein. Die Zeit ist eine Schätzung aus Eilgang und Beschleunigung in den Geräteeinstellungen.')),
         h('div', { class: 'dialog-buttons' },
-          h('button', { class: 'btn', onclick: () => saveGCode(ed, src) }, t('G-Code speichern')),
+          h('button', { class: 'btn', onclick: () => saveGCode(ed, src) }, device.fw === 'ruida' ? t('.rd speichern') : t('G-Code speichern')),
           h('button', { class: 'btn primary', onclick: () => dlg.close() }, t('Schließen')),
         ),
       ),
     ),
-    h('div', { class: 'preview-bar' }, playBtn, slider, timeTxt, speedSel, hereBtn),
+    h('div', { class: 'preview-bar' },
+      playBtn,
+      timeline,
+      ...(layerJump ? [layerJump] : []),
+      timeTxt,
+      hereBtn,
+      h('div', { class: 'preview-process' },
+        h('label', {}, t('Gravieren'), engraveSel),
+        h('label', {}, t('Schneiden'), cutSel),
+        h('label', { class: 'check' }, pauseChk, t('Bei Prozesswechsel pausieren')),
+        h('label', { class: 'check' }, smoothChk, t('Prozessarten angleichen')),
+        h('label', {}, t('Ziel pro Prozessart (s)'), targetInp),
+        factorTxt,
+        targetErr,
+      ),
+      status,
+    ),
   );
+  const main = dlg.querySelector<HTMLElement>('.preview-main')!;
+  const side = dlg.querySelector<HTMLElement>('.preview-side')!;
+  main.insertBefore(previewSplitter(main, side, t('Breite der Vorschauinformationen')), side);
   document.body.append(dlg);
   dlg.addEventListener('keydown', (e) => e.stopPropagation());
   dlg.showModal();
@@ -1663,9 +1973,15 @@ export async function openPreview(ed: Editor, src?: JobSource) {
     last = 0;
   const step = (now: number) => {
     if (!playing || !dlg.open) return;
-    time = Math.min(est.total, time + ((now - last) / 1000) * Number(speedSel.value));
+    const next = advancePlayback(mv, est, analysis, time, (now - last) / 1000, pauseChk.checked);
+    time = next.time;
     last = now;
     render();
+    if (next.paused) {
+      setPlaying(false);
+      status.textContent = t('Bei Prozesswechsel pausiert');
+      return;
+    }
     if (time >= est.total) return setPlaying(false);
     requestAnimationFrame(step);
   };
@@ -1673,6 +1989,7 @@ export async function openPreview(ed: Editor, src?: JobSource) {
     playing = p;
     setIcon(playBtn, p ? 'pause' : 'play');
     if (p) {
+      status.textContent = '';
       if (time >= est.total) time = 0;
       last = performance.now();
       requestAnimationFrame(step);
@@ -1680,6 +1997,7 @@ export async function openPreview(ed: Editor, src?: JobSource) {
   };
   playBtn.addEventListener('click', () => setPlaying(!playing));
   slider.addEventListener('input', () => {
+    status.textContent = '';
     time = (Number(slider.value) / 1000) * est.total;
     render();
   });

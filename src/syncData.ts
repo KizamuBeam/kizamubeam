@@ -8,7 +8,7 @@ const PRE = 'kizamubeam.';
 export const SETTINGS_KEYS = [
   'theme', 'lang', 'snap', 'grid', 'boolean', 'updateChannel', 'updateAuto', 'fontFavorites', 'fontAutoInstall', 'imagePresets', 'check',
   'nest', 'joints', 'hinges', 'slots', 'qr', 'barcode', 'printcut', 'jigfill', 'focustest', 'materialtest', 'warp', 'calib', 'view3d',
-  'workpieces', 'overlap-picker', 'rightPan', 'patternfill',
+  'workpieces', 'overlap-picker', 'rightPan', 'patternfill', 'uiTypography', 'electricityTariff', 'electricityCurrency',
 ].map((k) => PRE + k);
 /** Schlüssel mit diesem Anfang zählen auch zu den Einstellungen (letzte Werte der Generatoren und der Werkzeuge aus Erweiterungen) */
 export const SETTINGS_PREFIXES = [PRE + 'gen.', PRE + 'tool.'];
@@ -25,7 +25,7 @@ const PACKS_STORE = PRE + 'packs';
  * Sicherungen der FluidNC-Konfiguration, altes Einzelgerät, Abgleich selbst, Dialogpositionen und -größen (hängen am Bildschirm), ausgeschaltete und geprüfte Erweiterungen und ihre Netzwerk-Freigaben (je Rechner). Jeder Schlüssel im Code muss in
  * einer dieser Listen stehen (npm run test:sync prüft das).
  */
-export const LOCAL_KEYS = ['autosave', 'tabs', 'updateLastCheck', 'setupOffered', 'fluidBackups', 'materialtest.last', 'device', 'sync', 'syncKnown', 'syncFp', 'syncExport', 'dialogPos', 'dialogSize', 'packs.disabled', 'packs.verified', 'pluginNet', 'pluginNetOff'].map(
+export const LOCAL_KEYS = ['autosave', 'tabs', 'updateLastCheck', 'setupOffered', 'fluidBackups', 'materialtest.last', 'device', 'sync', 'syncKnown', 'syncFp', 'syncExport', 'dialogPos', 'dialogSize', 'previewSidebarWidth', 'packs.disabled', 'packs.verified', 'pluginNet', 'pluginNetOff'].map(
   (k) => PRE + k,
 );
 export const BROWSER_STORES = [TEMPLATES_STORE, PACKS_STORE];
@@ -151,7 +151,7 @@ const materialsAdapter: Adapter = {
         else list.push(e);
       }
     }
-    setItem(MATERIALS_KEY, JSON.stringify({ format: 'kizamubeam-materials', version: 1, entries: list }));
+    setItem(MATERIALS_KEY, JSON.stringify({ format: 'kizamubeam-materials', version: 2, entries: list }));
   },
 };
 

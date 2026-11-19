@@ -164,7 +164,12 @@ export type Style = 'normal' | 'muted' | 'accent' | 'warn';
 export type Item =
   | { type: 'line'; pts: [number, number][]; closed?: boolean; style?: Style; width?: number; dash?: boolean; alpha?: number; id?: string }
   | { type: 'handle'; x: number; y: number; id: string; style?: Style; size?: number }
-  | { type: 'text'; x: number; y: number; text: Text; style?: Style };
+  /**
+   * angle: degrees, counter-clockwise (90 = read from bottom to top); align: "start" (default) = 6 px after and above
+   * the point, "center" = centred on it in both directions; both follow the angle (#412); bubble: a rounded, half
+   * see-through patch of the background colour under the text, so it stays readable over lines
+   */
+  | { type: 'text'; x: number; y: number; text: Text; style?: Style; angle?: number; align?: 'start' | 'center'; bubble?: boolean };
 /**
  * A region map on the surface: width × height cells over frame (mm), one byte per cell as base64 (0 = none,
  * n = region n − 1), filled with colors[n − 1] ("#rrggbb"). A click on a region arrives as hit "<layer key>:<region>";
@@ -188,12 +193,23 @@ export interface Drawing {
   frame: { x0: number; y0: number; x1: number; y1: number };
   layers?: { key: string; tris?: number[]; items?: Item[]; alpha?: number; regions?: Regions }[];
   items: Item[];
-  /** Send pointer moves without a pressed button (e.g. while drawing a line) */
+  /** Send pointer moves without a pressed button (e.g. while drawing a line), also when a modifier key changes */
   track?: boolean;
+  /** Cursor over the whole surface, also over shapes with an id (newer apps); without it, move over those, normal elsewhere */
+  cursor?: 'default' | 'crosshair';
+  /** Escape to the plugin (true) or closing the dialog (false); without it, to the plugin while track is on (newer apps) */
+  escape?: boolean;
+  /**
+   * Number fields in the right column of the dialog, e.g. the measures of the selected shape (mm; newer apps). A typed
+   * value arrives as a "field" event with the field's id and the value.
+   */
+  fields?: { id: string; label: Text; value: number; min?: number; max?: number; readonly?: boolean; title?: Text }[];
+  /** Parts of the preview to mark, by index in generate's parts: the whole part, or only subs in its coordinates (newer apps) */
+  highlight?: { part: number; subs?: SubPath[] }[];
 }
-/** A pointer or key event on the surface; select: a row of a selectable list was clicked */
+/** A pointer or key event on the surface; select: a row of a selectable list was clicked; field: a value typed into a field of the drawing */
 export interface Pointer {
-  type: 'down' | 'move' | 'up' | 'dblclick' | 'context' | 'key' | 'select';
+  type: 'down' | 'move' | 'up' | 'dblclick' | 'context' | 'key' | 'select' | 'field';
   x: number;
   y: number;
   hit?: string;
@@ -202,6 +218,8 @@ export interface Pointer {
   key?: string;
   list?: string;
   row?: number;
+  field?: string;
+  value?: number;
   /** Modifier keys held during the event (only present when held); ctrl is Cmd on macOS */
   shift?: true;
   alt?: true;
@@ -226,8 +244,11 @@ export interface Plugin<P extends Params = Params> {
    * inputs holds what the action declares, surface the drawing surface if the dialog has one
    */
   onEvent?(input: { action: string; params: P; inputs: EventInputs; row?: number; surface?: Surface }): EventResult | null;
-  /** Optional (dialog version 3, dialog.surface): what the drawing surface shows; have = layer keys the app keeps */
-  draw?(input: Surface & { have: string[]; params: P }): Drawing;
+  /**
+   * Optional (dialog version 3, dialog.surface): what the drawing surface shows; have = layer keys the app keeps, size =
+   * the surface in screen pixels (newer apps; draw is called again when it changes)
+   */
+  draw?(input: Surface & { have: string[]; size?: { width: number; height: number }; params: P }): Drawing;
   /** Optional: a pointer or key event on the drawing surface */
   onSurface?(input: { event: Pointer; surface: Surface; params: P }): EventResult | null;
   /** Optional: a dialog with the plugin opened (a session); do expensive work once and keep it for the following calls */
@@ -308,16 +329,19 @@ export interface Host {
    * joints on its edges top, right, bottom, left (A starts with a finger, B with a gap, flat = none), like the box
    * generators. edge: a joint of the Joint tool on one or two straight edges (segment seg of sub-path sub) of the
    * outlines in parts; answers the changed outlines, added parts (wedges, hinge knuckles), info codes and, when the
-   * joint does not fit, an error code instead. v is the version of the joint geometry (1): the same input and version
-   * always give the same shapes. Info and error codes (joint-…) have their texts in the app: pass them on as issue
+   * joint does not fit, an error code instead. v is the version of the joint geometry: the same input and version
+   * always give the same shapes. In 2 the clearance is the total play of the joint (#402); 1, the default, takes it
+   * per side along fingers and tenons (see docs/plugins.md). Info and error codes (joint-…) have their texts in the app: pass them on as issue
    * codes or info texts with their values.
    */
-  joints(input: { op: 'panel'; v?: 1; width: number; height: number; thickness: number; finger: number; clearance?: number; kerf?: number; edges: [JointPattern, JointPattern, JointPattern, JointPattern]; corners?: boolean }): { v: 1; outline: SubPath };
-  joints(input: { op: 'edge'; v?: 1; options: JointOptions; parts: Record<string, SubPath[]>; edges: { part: string; sub?: number; seg: number }[] }): JointAnswer;
+  joints(input: { op: 'panel'; v?: JointVersion; width: number; height: number; thickness: number; finger: number; clearance?: number; kerf?: number; edges: [JointPattern, JointPattern, JointPattern, JointPattern]; corners?: boolean }): { v: JointVersion; outline: SubPath };
+  joints(input: { op: 'edge'; v?: JointVersion; options: JointOptions; parts: Record<string, SubPath[]>; edges: { part: string; sub?: number; seg: number }[] }): JointAnswer;
   /** Report progress 0 … 1 of a long computation, optionally with a short text */
   progress(done: number, text?: string): void;
 }
 export type JointPattern = 'A' | 'B' | 'flat';
+/** Version of the joint geometry: 2 = clearance is the total play of the joint; 1 (default) = per side along fingers and tenons */
+export type JointVersion = 1 | 2;
 /** Options of a joint, as in the Joint tool (mm unless noted); only kind is required */
 export interface JointOptions {
   kind: 'finger' | 'tenon' | 'lap' | 'snap' | 'hook' | 'wedge' | 'tslot' | 'lidhinge';
@@ -357,15 +381,19 @@ export interface JointMessage {
   values?: Record<string, number | string>;
 }
 export type JointAnswer =
-  | { v: 1; parts: Record<string, SubPath[]>; added: SubPath[]; info: JointMessage[]; error?: undefined }
-  | { v: 1; error: JointMessage };
+  | { v: JointVersion; parts: Record<string, SubPath[]>; added: SubPath[]; info: JointMessage[]; error?: undefined }
+  | { v: JointVersion; error: JointMessage };
 /** host.context("material"): values from the material library entry on the layer, each null when unknown (mm) */
 export interface MaterialContext {
   name: string | null;
   thickness: number | null;
-  /** Calibrated kerf width, play per side for two parts fitted together, slot width over the thickness */
+  /** Calibrated kerf width */
   kerf: number | null;
+  /** Calibrated play per side for two parts fitted together. Deprecated: use pairPlayTotal (the play is the total play of the joint since #402) */
   pairPlay: number | null;
+  /** Calibrated total play (both sides together) for two parts fitted together, the meaning of `clearance` in `host.joints` with `"v": 2` */
+  pairPlayTotal: number | null;
+  /** Calibrated slot width over the thickness */
   slotPlay: number | null;
 }
 /** host.context("workArea"): the machine's work area in mm */

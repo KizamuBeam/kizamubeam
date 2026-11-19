@@ -24,6 +24,8 @@ import { openFontManager } from '../fontManager';
 import { agentLevels, agentSettings, configureAgent, openAgentDialog } from '../agentui';
 import { configureHost, hostSettings, openRemoteHostDialog } from '../remoteHost';
 import { registerSettingsSection } from './registry';
+import { typographySettingsFields } from './typography';
+import { electricityCurrencyField, electricityTariffField } from '../energyUi';
 
 export type ThemeMode = 'system' | 'light' | 'dark';
 
@@ -46,6 +48,8 @@ export function registerCoreSettings(ed: Editor, hooks: CoreSettingsHooks) {
     order: 10,
     note: appNote,
     fields: [
+      electricityTariffField(),
+      electricityCurrencyField(),
       {
         kind: 'select', id: 'general.lang', label: t('Sprache'), keywords: 'language lingua idioma português portuguese', late: true, def: 'system',
         options: () => [['system', t('Wie System|Sprache')], ...LANGUAGES],
@@ -86,6 +90,7 @@ export function registerCoreSettings(ed: Editor, hooks: CoreSettingsHooks) {
         get: () => hooks.theme(),
         set: (v) => hooks.setTheme(v as ThemeMode),
       },
+      ...typographySettingsFields(),
       {
         kind: 'select', id: 'appearance.toolbarIconSize', label: t('Symbolgröße'), def: 'm',
         options: () => [['s', t('Klein|Symbole')], ['m', t('Normal|Symbole')], ['l', t('Groß|Symbole')]],
