@@ -405,6 +405,7 @@ export class EditorPointer {
     const { sx, sy } = this.evPt(e);
     const wp = this.toWorld(sx, sy);
     this.cursor = wp;
+    this.cursorOnCanvas = true;
     const d = this.drag;
     this.emit('view');
     if (!d && this.outlinePreview) {

@@ -26,7 +26,7 @@ import { EditorNodes } from './editor/nodes';
 import { EditorObjects } from './editor/objects';
 import { EditorPaths } from './editor/paths';
 import { EditorPointer, loadRightPan, loadZoomInverted } from './editor/pointer';
-import { EditorRender } from './editor/render';
+import { EditorRender, loadBedCenterCross, loadCanvasDark, loadHandleSize, loadShowCrosshair } from './editor/render';
 import { EditorShapeOps } from './editor/shapeops';
 import { EditorSnapping, loadSnapTolerance, type SnapTolerance } from './editor/snapping';
 import { EditorToolOptions, loadRememberToolOptions, loadSelectAfterDraw } from './editor/toolOptions';
@@ -170,6 +170,18 @@ export class Editor {
   suppressContextMenu = false;
   /** Drag with the right mouse button pans the view (opt-in, Edit → Settings → Mouse and keyboard) */
   rightPan = loadRightPan();
+  /** Eigenes Dunkel für die Arbeitsfläche, unabhängig vom UI-Design (opt-in, Default: Design folgen) */
+  canvasDark = loadCanvasDark();
+  /** Vom UI-Design vorgegebener Dunkel-Wert; wirksam ist canvasDark || themeDark */
+  themeDark = false;
+  /** Griff- und Knotengröße in px (Default 8 = heutiges Aussehen) */
+  handleSize = loadHandleSize();
+  /** Vollbild-Fadenkreuz an der Zeigerposition (opt-in) */
+  showCrosshair = loadShowCrosshair();
+  /** Kreuz in der Bettmitte (opt-in) */
+  bedCenterCross = loadBedCenterCross();
+  /** Zeiger auf der Fläche (für das Fadenkreuz; pointerleave setzt zurück) */
+  cursorOnCanvas = false;
   /** Inverted mouse-wheel zoom direction (opt-in, Edit → Settings → Mouse and keyboard) */
   zoomInverted = loadZoomInverted();
   /** Werkzeugschalter über Neustarts merken (Opt-in, Edit → Settings → Maus und Tastatur) */
@@ -355,7 +367,12 @@ export class Editor {
     canvas.addEventListener('pointercancel', (e) => this.cancelPointerDrag(e));
     canvas.addEventListener('lostpointercapture', (e) => this.cancelPointerDrag(e));
     canvas.addEventListener('pointerleave', () => {
-      if (this.drag || (!this.nodeHover && !this.segHover && !this.snapHit && !this.alignGuides.length)) return;
+      const hideCrosshair = this.cursorOnCanvas && this.showCrosshair;
+      this.cursorOnCanvas = false;
+      if (this.drag || (!this.nodeHover && !this.segHover && !this.snapHit && !this.alignGuides.length)) {
+        if (hideCrosshair) this.redraw();
+        return;
+      }
       this.nodeHover = this.segHover = null;
       this.clearSnap();
       this.redraw();
@@ -551,9 +568,10 @@ export class Editor {
     const b = this.selBounds();
     if (!b) return -1;
     const hs = this.handlePoints(b);
+    const tol = Math.max(5, this.handleSize / 2 + 1);
     for (let i = 0; i < 8; i++) {
       if (this.rotateMode && i % 2 === 1) continue;
-      if (Math.abs(hs[i].x - sx) <= 5 && Math.abs(hs[i].y - sy) <= 5) return i;
+      if (Math.abs(hs[i].x - sx) <= tol && Math.abs(hs[i].y - sy) <= tol) return i;
     }
     return -1;
   }

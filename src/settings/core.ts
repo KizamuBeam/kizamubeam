@@ -108,6 +108,29 @@ export function registerCoreSettings(ed: Editor, hooks: CoreSettingsHooks) {
         set: (v) => setAllToolbarIconSizes(v as 's' | 'm' | 'l'),
       },
       {
+        kind: 'toggle', id: 'appearance.canvasDark', group: t('Arbeitsfläche'), label: t('Dunkle Arbeitsfläche'), def: false,
+        keywords: t('Hintergrund dunkel Canvas Design'),
+        hint: t('Dunkler Hintergrund unabhängig vom Design. Aus folgen Oberfläche und Design-Einstellung.'),
+        get: () => ed.canvasDark, set: (v) => ed.setCanvasDark(v),
+      },
+      {
+        kind: 'number', id: 'appearance.handleSize', group: t('Arbeitsfläche'), label: t('Griffgröße (px)'), unit: 'px', integer: true, min: 4, max: 16, def: 8,
+        keywords: t('Griffe Knoten Anfasser Größe'),
+        get: () => ed.handleSize, set: (v) => ed.setHandleSize(v),
+      },
+      {
+        kind: 'toggle', id: 'appearance.crosshair', group: t('Arbeitsfläche'), label: t('Vollbild-Fadenkreuz'), def: false,
+        keywords: t('Fadenkreuz Cursor Linien'),
+        hint: t('Linien über die ganze Fläche an der Zeigerposition.'),
+        get: () => ed.showCrosshair, set: (v) => ed.setShowCrosshair(v),
+      },
+      {
+        kind: 'toggle', id: 'appearance.bedCenterCross', group: t('Arbeitsfläche'), label: t('Bettmittel-Kreuz'), def: false,
+        keywords: t('Mitte Zentrum Bett Kreuz'),
+        hint: t('Kleines Kreuz in der Mitte des Arbeitsbereichs.'),
+        get: () => ed.bedCenterCross, set: (v) => ed.setBedCenterCross(v),
+      },
+      {
         kind: 'action', id: 'appearance.toolbars', group: t('Fenster und Leisten'), label: t('Funktionsleisten'), hint: t('Knöpfe und Reihenfolge der Leisten wählen.'),
         button: t('Anpassen …'), run: () => openToolbarDialog(),
       },

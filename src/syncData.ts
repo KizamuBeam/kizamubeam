@@ -9,7 +9,8 @@ export const SETTINGS_KEYS = [
   'theme', 'lang', 'snap', 'grid', 'boolean', 'updateChannel', 'updateAuto', 'fontFavorites', 'fontAutoInstall', 'imagePresets', 'check',
   'nest', 'joints', 'hinges', 'slots', 'qr', 'barcode', 'printcut', 'jigfill', 'focustest', 'materialtest', 'warp', 'calib', 'view3d',
   'workpieces', 'overlap-picker', 'rightPan', 'zoomInverted', 'rememberToolOptions', 'toolOptions',
-  'selectAfterDraw', 'textDefaults', 'nudgeSteps', 'clickTolerance', 'snapTolerance', 'patternfill', 'uiTypography', 'electricityTariff', 'electricityCurrency',
+  'selectAfterDraw', 'textDefaults', 'nudgeSteps', 'clickTolerance', 'snapTolerance', 'canvasDark', 'handleSize',
+  'crosshair', 'bedCenterCross', 'patternfill', 'uiTypography', 'electricityTariff', 'electricityCurrency',
 ].map((k) => PRE + k);
 /** Schlüssel mit diesem Anfang zählen auch zu den Einstellungen (letzte Werte der Generatoren und der Werkzeuge aus Erweiterungen) */
 export const SETTINGS_PREFIXES = [PRE + 'gen.', PRE + 'tool.'];
