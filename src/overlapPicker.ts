@@ -52,7 +52,7 @@ export function saveOverlapSettings(v: OverlapSettings): boolean {
 export function overlapCandidates(ed: Editor, point: Pt): Obj[] {
   return [...ed.doc.objs].reverse().filter(top=>ed.selectable(top) && [...visibleLeaves([top])].some(([leaf,m])=>{
     const layer=ed.layer(leaf.layer);
-    return layer.show && !layer.locked && !leaf.locked && hitLeaf(leaf,m,point,ed.clickTolerance/ed.view.zoom,ed.filled && layer.mode==='fill');
+    return layer.show && !layer.locked && !leaf.locked && hitLeaf(leaf,m,point,(ed.clickTolerance ?? DEFAULT_CLICK_TOLERANCE_PX)/ed.view.zoom,ed.filled && layer.mode==='fill');
   }));
 }
 

@@ -31,7 +31,7 @@ import { EditorShapeOps } from './editor/shapeops';
 import { EditorSnapping, loadSnapTolerance, type SnapTolerance } from './editor/snapping';
 import { EditorToolOptions, loadRememberToolOptions, loadSelectAfterDraw } from './editor/toolOptions';
 import { EditorGuides } from './editor/guides';
-import { EditorText } from './editor/text';
+import { DEFAULT_TEXT_DEFAULTS, EditorText } from './editor/text';
 import { EditorGenerators } from './editor/generators';
 import { EditorParams } from './editor/params';
 import { EditorNest } from './editor/nest';
@@ -45,7 +45,7 @@ import { EditorRelations, RelPick } from './editor/relations';
 import { EditorSketch, SketchSession } from './editor/sketch';
 import type { RelMode } from './relations';
 import { t } from './i18n';
-import { installOverlapPicker, loadClickTolerance, saveClickTolerance } from './overlapPicker';
+import { installOverlapPicker, loadClickTolerance, saveClickTolerance, DEFAULT_CLICK_TOLERANCE_PX } from './overlapPicker';
 import { EditorFreehand } from './editor/freehand';
 import type { FreehandMode } from './freehandEdit';
 import { EditorSelection } from './editor/selection';
@@ -129,9 +129,7 @@ export class Editor {
   polySides = 6;
   polyStar = false;
   rectRadius = 0;
-  textDefaults: Omit<TextShape, 'kind' | 'text'> = {
-    font: 'Arial', size: 10, bold: false, italic: false, upper: false, align: 'left', hSpace: 0, vSpace: 0,
-  };
+  textDefaults: Omit<TextShape, 'kind' | 'text'> = { ...DEFAULT_TEXT_DEFAULTS };
   cursor: Pt = { x: 0, y: 0 };
   /** Linienwerkzeug: Pfad im Entstehen (Weltkoordinaten) */
   draft: SubPath | null = null;
@@ -543,7 +541,7 @@ export class Editor {
   }
   /** Oberstes Objekt der Ebene 0 unter dem Weltpunkt. */
   hitTest(p: Pt): Obj | null {
-    const tol = this.clickTolerance / this.view.zoom;
+    const tol = (this.clickTolerance ?? DEFAULT_CLICK_TOLERANCE_PX) / this.view.zoom;
     for (let i = this.doc.objs.length - 1; i >= 0; i--) {
       const top = this.doc.objs[i];
       if (!this.selectable(top)) continue;

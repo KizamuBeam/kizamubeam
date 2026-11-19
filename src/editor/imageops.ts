@@ -212,7 +212,7 @@ export class EditorImages {
     this.snapshot(t('Objekt hinzufügen'));
     before?.();
     this.doc.objs.push(o);
-    if (opts?.select ?? this.importAutoSelect) {
+    if (opts?.select ?? this.importAutoSelect ?? true) {
       this.setTool('select');
       this.setSel([o]);
     }
@@ -317,7 +317,7 @@ export class EditorImages {
     });
     this.clearPageState();
     this.doc.page = start;
-    if (this.importAutoSelect) {
+    if (this.importAutoSelect ?? true) {
       this.setTool('select');
       this.setSel(groups[0] ? [groups[0]] : []);
     }

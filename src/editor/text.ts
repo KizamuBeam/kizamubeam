@@ -9,6 +9,11 @@ import { t } from '../i18n';
 import type { Editor } from '../editor';
 import { RULER } from './shared';
 
+/** Standardwerte des Textwerkzeugs (Schrift, Größe, Stil); auch Rückfall für Tests ohne Konstruktor */
+export const DEFAULT_TEXT_DEFAULTS = {
+  font: 'Arial', size: 10, bold: false, italic: false, upper: false, align: 'left', hSpace: 0, vSpace: 0,
+} as const;
+
 /** Längste Kontur einer Form (z. B. die äußere bei mehreren) als Kurve für Text auf Pfad */
 function linkCurve(s: Shape): SubPath | null {
   const subs = shapeSubs(s).filter((sp) => sp.nodes.length > 1);
@@ -140,7 +145,7 @@ export class EditorText {
    */
   createText(this: Editor, at: Pt, frameW = 0) {
     this.snapshot(frameW ? t('Textrahmen erstellen') : t('Text erstellen'));
-    const shape: TextShape = { kind: 'text', text: '', ...this.textDefaults };
+    const shape: TextShape = { kind: 'text', text: '', ...(this.textDefaults ?? DEFAULT_TEXT_DEFAULTS) };
     let p = at;
     if (frameW) {
       Object.assign(shape, { fit: 'wrap', maxW: frameW });
@@ -172,6 +177,7 @@ export class EditorText {
     this.emit('sel');
   }
   updateTexts(this: Editor, patch: Partial<TextShape>) {
+    this.textDefaults ??= { ...DEFAULT_TEXT_DEFAULTS };
     Object.assign(this.textDefaults, Object.fromEntries(Object.entries(patch).filter(([k]) => k !== 'text' && k !== 'path' && k !== 'vt' && k !== 'maxW' && k !== 'maxH' && k !== 'fit')));
     this.saveTextDefaults();
     const ts = this.selTexts();

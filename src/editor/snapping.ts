@@ -44,6 +44,10 @@ export function saveSnapTolerance(v: SnapTolerance): boolean {
 type Mods = { altKey: boolean; ctrlKey: boolean; metaKey: boolean };
 
 export class EditorSnapping {
+  /** Fangdistanzen mit Rückfall auf die Standardwerte (Tests ohne Konstruktor) */
+  snapTol(this: Editor): SnapTolerance {
+    return this.snapTolerance ?? DEFAULT_SNAP_TOLERANCE;
+  }
   /** Fangdistanzen ändern und merken */
   setSnapTolerance(this: Editor, patch: { normal?: number; alt?: number }) {
     const next = { ...this.snapTolerance, ...patch };
@@ -132,7 +136,7 @@ export class EditorSnapping {
     const md = this.snapModes(e, opt.toggle ?? true);
     if (md.obj) {
       const set = opt.set ?? this.hoverSnapSet();
-      const tol = (md.alt ? this.snapTolerance.alt : this.snapTolerance.normal) / this.view.zoom;
+      const tol = (md.alt ? this.snapTol().alt : this.snapTol().normal) / this.view.zoom;
       const hit = findSnap(set, p, tol, opt.extra);
       if (hit) {
         this.snapHit = hit;
@@ -152,7 +156,7 @@ export class EditorSnapping {
   snapMove(this: Editor, d: Extract<Drag, { type: 'move' }>, dx: number, dy: number, e: Mods): [number, number] {
     this.clearSnap();
     const md = this.snapModes(e, true);
-    const tol = (md.alt ? this.snapTolerance.alt : this.snapTolerance.normal) / this.view.zoom;
+    const tol = (md.alt ? this.snapTol().alt : this.snapTol().normal) / this.view.zoom;
     if (md.obj) {
       const b = d.box;
       const own = d.anchor
@@ -201,7 +205,7 @@ export class EditorSnapping {
     const md = this.snapModes(e, true);
     const ax = d.axis;
     if (md.obj) {
-      const tol = (md.alt ? this.snapTolerance.alt : this.snapTolerance.normal) / this.view.zoom;
+      const tol = (md.alt ? this.snapTol().alt : this.snapTol().normal) / this.view.zoom;
       let best: (typeof d.snapSet.pts)[number] | null = null;
       for (const q of d.snapSet.pts) if (Math.abs(q[ax] - wp[ax]) <= tol && (!best || Math.abs(q[ax] - wp[ax]) < Math.abs(best[ax] - wp[ax]))) best = q;
       if (best) {

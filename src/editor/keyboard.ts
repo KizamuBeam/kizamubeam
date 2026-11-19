@@ -6,8 +6,7 @@ import { t } from '../i18n';
 /** Schrittweiten der Pfeiltasten in mm (normal, mit Umschalt, mit Alt); frei belegbar, Default wie bisher */
 export interface NudgeSteps { normal: number; shift: number; alt: number }
 const NUDGE_STEPS_KEY = 'kizamubeam.nudgeSteps';
-const DEFAULT_NUDGE_STEPS: NudgeSteps = { normal: 1, shift: 10, alt: 0.1 };
-const NUDGE_MIN = 0.001, NUDGE_MAX = 1000;
+const DEFAULT_NUDGE_STEPS: NudgeSteps = { normal: 1, shift: 10, alt: 0.1 };const NUDGE_MIN = 0.001, NUDGE_MAX = 1000;
 const validStep = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v >= NUDGE_MIN && v <= NUDGE_MAX;
 export function loadNudgeSteps(): NudgeSteps {
   try {
@@ -36,6 +35,10 @@ export function saveNudgeSteps(v: NudgeSteps): boolean {
 }
 
 export class EditorKeyboard {
+  /** Pfeiltasten-Schrittweiten mit Rückfall auf die Standardwerte (Tests ohne Konstruktor) */
+  nudgeSt(this: Editor): NudgeSteps {
+    return this.nudgeSteps ?? DEFAULT_NUDGE_STEPS;
+  }
   /** Pfeiltasten-Schrittweiten ändern und merken */
   setNudgeSteps(this: Editor, patch: Partial<NudgeSteps>) {
     const next = { ...this.nudgeSteps, ...patch };
@@ -148,7 +151,7 @@ export class EditorKeyboard {
       if (k === 's') return run(() => this.setNodeType(true));
       if (k === 'b') return run(() => this.breakAtNodeKey());
       if (k === 't') return run(() => this.trimNodeSegment());
-      const nst = this.nudgeSteps;
+      const nst = this.nudgeSt();
       const st = e.shiftKey ? nst.shift : nst.normal;
       const arrows: Record<string, [number, number]> = { arrowleft: [-st, 0], arrowright: [st, 0], arrowup: [0, -st], arrowdown: [0, st] };
       if (arrows[k] && (this.selectedNodes().length || this.nodeTargets().some((o) => this.segmentSelection(o).size))) return run(() => this.nudgeNodes(...arrows[k]));
@@ -159,7 +162,7 @@ export class EditorKeyboard {
       if (k === 'delete' || k === 'backspace') return run(() => {});
     }
     if (k === 'delete' || k === 'backspace') return run(() => this.deleteSel());
-    const steps = this.nudgeSteps;
+    const steps = this.nudgeSt();
     const step = e.shiftKey ? steps.shift : e.altKey ? steps.alt : steps.normal;
     if (k === 'arrowleft') return run(() => this.nudge(-step, 0));
     if (k === 'arrowright') return run(() => this.nudge(step, 0));

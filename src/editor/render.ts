@@ -146,7 +146,7 @@ export class EditorRender {
 
   /** Griff- und Knotengröße als Faktor (Standard 8 px); Fadenkreuz und Bettmitte s. unten */
   handleScale(this: Editor): number {
-    return this.handleSize / DEFAULT_HANDLE_SIZE;
+    return (this.handleSize ?? DEFAULT_HANDLE_SIZE) / DEFAULT_HANDLE_SIZE;
   }
 
   /** Dunkle Arbeitsfläche unabhängig vom UI-Design (Edit → Settings → Darstellung → Arbeitsfläche) */
@@ -658,7 +658,7 @@ export class EditorRender {
         ctx.fillStyle = T.handleFill;
         ctx.strokeStyle = T.sel;
         ctx.lineWidth = 1;
-        const hz = this.handleSize, hh = hz / 2;
+        const hz = this.handleSize ?? DEFAULT_HANDLE_SIZE, hh = hz / 2;
         ctx.fillRect(h.x - hh, h.y - hh, hz, hz);
         ctx.strokeRect(h.x - hh + 0.5, h.y - hh + 0.5, hz - 1, hz - 1);
       });

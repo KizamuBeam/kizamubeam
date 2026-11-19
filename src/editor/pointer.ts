@@ -155,7 +155,7 @@ export class EditorPointer {
           }
           if (!this.sel.includes(o)) return;
           // Wird an einem Fangpunkt der Auswahl gegriffen, fängt genau dieser Punkt
-          const own = findSnap(buildSnapSet(this.sel, (l) => this.layer(l.layer).show), wp, this.snapTolerance.normal / this.view.zoom);
+          const own = findSnap(buildSnapSet(this.sel, (l) => this.layer(l.layer).show), wp, this.snapTol().normal / this.view.zoom);
           this.drag = {
             type: 'move', start: wp, orig: this.sel.map((x) => x.m), moved: false,
             toggleRotate: was && !e.shiftKey && !ctrl, sx, sy,
@@ -866,7 +866,7 @@ export class EditorPointer {
         this.hint = '';
         if (d.obj) {
           this.emit('doc');
-          if (this.selectAfterDraw) this.setTool('select');
+          if (this.selectAfterDraw ?? true) this.setTool('select');
           this.setSel([d.obj]);
         }
         return;
@@ -1111,7 +1111,7 @@ export class EditorPointer {
     const o: Obj = { id: newId(), m: IDENT, layer: this.currentLayer, shape: { kind: 'path', subs: [{ nodes: sub.nodes, closed: false }] } };
     this.doc.objs.push(o);
     this.emit('doc');
-    if (this.selectAfterDraw) this.setTool('select');
+    if (this.selectAfterDraw ?? true) this.setTool('select');
     this.setSel([o]);
     return true;
   }
@@ -1133,7 +1133,7 @@ export class EditorPointer {
     const o: Obj = { id: newId(), m: IDENT, layer: this.currentLayer, shape: { kind: 'path', subs: [d] } };
     this.doc.objs.push(o);
     this.emit('doc');
-    if (this.selectAfterDraw) this.setTool('select');
+    if (this.selectAfterDraw ?? true) this.setTool('select');
     this.setSel([o]);
   }
 
