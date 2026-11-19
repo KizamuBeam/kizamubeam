@@ -79,7 +79,8 @@ export class FireSession {
     try { await this.io.stop(); } catch { /* State stays unknown; operator must check at the device. */ }
   }
 
-  async stop() {
+  /** Teardown must cancel native activation and close before resolving, not merely enqueue close. */
+  async stop(teardown?: () => Promise<void>) {
     if (!this.locked) return;
     ++this.generation;
     this.cancel?.();
@@ -87,7 +88,7 @@ export class FireSession {
     this.state = 'unknown';
     this.pending++;
     this.io.changed();
-    try { await this.attemptStop(); }
+    try { if (teardown) await teardown(); else await this.attemptStop(); }
     finally { this.pending--; this.io.changed(); }
   }
 

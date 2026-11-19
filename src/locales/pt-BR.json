@@ -1,4 +1,7 @@
 {
+  "Testfeuer nicht gestartet: Sicherheitsstatus konnte nicht gespeichert werden. Lokalen Speicher freigeben und erneut versuchen.": "Teste de disparo não iniciado: não foi possível salvar o estado de segurança. Libere o armazenamento local e tente novamente.",
+  "Testfeuer blockiert: Laser-Override muss als 100 % bestätigt sein. Laser-Override auf 100 % setzen und aktuelle Statusmeldung abwarten.": "Teste de disparo bloqueado: o ajuste de potência do laser deve ser confirmado em 100%. Defina o ajuste em 100% e aguarde um relatório de status atualizado.",
+  "Testfeuer nicht unterstützt": "Teste de disparo não compatível",
   "Laserstatus unbekannt – direkt am Gerät abschalten": "Estado do laser desconhecido: desligue diretamente no dispositivo",
   "Der Laser feuert im Stand. Brand- und Verletzungsgefahr. Nur unter Aufsicht verwenden. Bei App- oder Verbindungsfehlern kann die automatische Abschaltung ausfallen. Ausschalter am Gerät bereithalten.": "O laser dispara parado. Risco de incêndio e ferimentos. Use somente sob supervisão. Falhas do aplicativo ou da conexão podem impedir o desligamento automático. Mantenha o interruptor de desligamento do dispositivo à mão.",
   "Software-Stopp nicht verfügbar: keine lokale Verbindung. Direkt am Gerät abschalten.": "Parada por software indisponível: sem conexão local. Desligue diretamente no dispositivo.",

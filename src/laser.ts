@@ -689,7 +689,7 @@ function laserTab(ed: Editor): HTMLElement {
     dot.className = `dot ${cls}`;
     const p = machine.connected ? machine.status.wpos : null;
     posTxt.textContent = p ? `X ${dec(p[0].toFixed(2))}  Y ${dec(p[1].toFixed(2))}` : '';
-    devSel.disabled = machine.connected || machine.connecting;
+    devSel.disabled = machine.connected || machine.connecting || machine.fire.locked;
     const on = machine.connected,
       busy = machine.running || !!uploading || machine.fire.locked;
     connBtn.textContent = on ? t('Trennen') : machine.connecting ? t('Verbinde …') : t('Verbinden');

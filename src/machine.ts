@@ -131,8 +131,9 @@ export function parseStatus(line: string, prev: MachineStatus, wco: WorkOffset):
       st.feed = p[0] || 0;
       st.power = p[1] || 0;
     } else if (k === 'Ov') {
-      const p = v.split(',').map(Number);
-      st.ov = [p[0] || 100, p[1] || 100, p[2] || 100];
+      const p = f.slice(3).split(',').map(Number);
+      // Unknown telemetry must never become evidence of a safe 100% spindle override.
+      st.ov = p.length === 3 && p.every((n) => Number.isFinite(n) && n > 0) ? [p[0], p[1], p[2]] : null;
     } else if (k === 'Pn') st.pins = v;
     else if (k === 'A') st.acc = v;
     else if (k === 'Bf') {
@@ -181,7 +182,7 @@ export function homesZ(fw: Firmware, line: string): boolean {
  */
 export function losesPosition(line: string): boolean {
   const t = line.trim();
-  return /^ALARM/i.test(t) || /^Grbl\s+[\w.]+/i.test(t) || /^FluidNC\s+v?[\w.\-]+/i.test(t) || /^start$/i.test(t);
+  return /^ALARM/i.test(t) || /^Grbl(?:HAL)?\s+[\w.]+/i.test(t) || /^FluidNC\s+v?[\w.\-]+/i.test(t) || /^Smoothie(?:\s|$)/i.test(t) || /^start$/i.test(t);
 }
 
 type Unlisten = () => void;
@@ -217,11 +218,13 @@ class Machine {
   private connectedDevice = '';
   private fireConnection = -1;
   private fireFirmware: Firmware = 'grbl';
+  private fireSession = 0;
+  fireStartError = '';
   readonly fire = new FireSession({
     now: () => performance.now(),
     schedule: (fn, ms) => { const timer = setTimeout(fn, ms); return () => clearTimeout(timer); },
     send: (line) => this.fireCall('machine_send', { line }, true),
-    stop: () => this.fireFirmware === 'smoothie' ? this.fireCall('machine_send', { line: 'fire off' }) : this.fireCall('machine_stop'),
+    stop: () => this.fireCall('machine_stop', { fireSmoothie: this.fireFirmware === 'smoothie' }),
     changed: () => {
       // Keep uncertainty across reload/restart, but never synchronize it to another computer.
       try {
@@ -240,16 +243,35 @@ class Machine {
     const generation = this.fireConnection;
     const { invoke } = await import('@tauri-apps/api/core');
     if (!this.connected || this.remote || generation !== this.connectionGeneration) throw new Error('Fire connection changed');
-    if (activation && (this.fire.state !== 'starting' || this.fire.remaining <= 0)) throw new Error('Fire start cancelled');
-    await invoke(cmd, args);
+    if (activation && (this.fire.state !== 'starting' || this.fire.remaining <= 0 || !this.fireOverrideSafe())) throw new Error('Fire start cancelled');
+    await invoke(cmd, { ...args, fireSession: this.fireSession });
+  }
+
+  private fireOverrideSafe() {
+    // These controllers multiply S by the spindle override. Never silently reset it.
+    return !['grbl', 'grblhal', 'fluidnc'].includes(this.fwId) || this.status.ov?.[2] === 100;
+  }
+
+  /** Pure eligibility check shared by the panel and the dispatch boundary. */
+  canStartFire(d: Device): boolean {
+    return !!fireRequest(d, d.fireMaxPower, d.fireMaxSeconds) && isTauri() && this.connected && !this.remote && !this.running &&
+      !this.fire.locked && this.connectedDevice === d.id && this.fwId === d.fw && this.status.state === 'Idle' && this.fireOverrideSafe();
   }
 
   async startFire(d: Device, power: number, seconds: number, event: Event) {
+    this.fireStartError = '';
     const request = fireRequest(d, power, seconds);
-    if (!event.isTrusted || !request || !isTauri() || !this.connected || this.remote || this.running ||
-        this.fire.locked || this.connectedDevice !== d.id || this.fwId !== d.fw || this.status.state !== 'Idle') return false;
+    if (!event.isTrusted || !request || !this.canStartFire(d)) return false;
+    // A reload must retain uncertainty. Failure here must precede every activation dispatch.
+    try { localStorage.setItem('kizamubeam.firePending', '1'); }
+    catch {
+      this.fireStartError = t('Testfeuer nicht gestartet: Sicherheitsstatus konnte nicht gespeichert werden. Lokalen Speicher freigeben und erneut versuchen.');
+      this.log(this.fireStartError, 'error');
+      return false;
+    }
     this.fireConnection = this.connectionGeneration;
     this.fireFirmware = d.fw;
+    this.fireSession = Math.max(Date.now(), this.fireSession + 1);
     await this.fire.start(request);
     return true;
   }
@@ -412,21 +434,22 @@ class Machine {
     }
     if (line.startsWith('<')) {
       this.status = parseStatus(line, this.status, this.wco);
-      if (this.fire.locked && this.fire.state !== 'unknown' && this.status.state !== 'Idle') void this.fire.stop();
+      if (this.fire.locked && this.fire.state !== 'unknown' && (this.status.state !== 'Idle' || !this.fireOverrideSafe())) void this.fire.stop();
       // Alarm heißt Positionsverlust (auch nach $X-Entsperrung neu referenzieren)
       if (this.status.state.startsWith('Alarm')) this.homed = false;
       this.trackStoredJob();
       this.emit({ type: 'status' });
       return;
     }
-    if (this.capture) {
-      this.capture.fn(line);
-      if (this.capture.quiet) return;
-    }
     const isErr = /^(error|alarm)/i.test(line);
     if ((isErr || losesPosition(line)) && this.fire.locked && this.fire.state !== 'unknown') void this.fire.stop();
     // Alarm oder Controller-Neustart: Referenz ist verloren (wird beim nächsten Homing neu gesetzt)
     if (losesPosition(line)) this.homed = false;
+    if (this.capture) {
+      const capture = this.capture;
+      capture.fn(line);
+      if (capture.quiet) return;
+    }
     const why = explain(line);
     this.log(why ? `${line}  (${why})` : line, isErr ? 'error' : 'in');
   }
@@ -501,11 +524,18 @@ class Machine {
   }
 
   async disconnect() {
-    if (this.fire.locked) await this.fire.stop();
-    ++this.connectionGeneration;
-    if (!isTauri()) return;
-    const { invoke } = await import('@tauri-apps/api/core');
-    await invoke(this.remote ? 'remote_disconnect' : 'machine_disconnect');
+    const fireLocked = this.fire.locked;
+    const close = async () => {
+      ++this.connectionGeneration;
+      if (!isTauri()) return;
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke(this.remote ? 'remote_disconnect' : 'machine_disconnect', fireLocked && !this.remote ?
+        { fireSession: this.fireSession, fireSmoothie: this.fireFirmware === 'smoothie' } : {});
+    };
+    // Native teardown cancels the queue and attempts off, without needing an off ACK.
+    // Keep confirmation pending until that irreversible no-further-writes barrier resolves.
+    if (fireLocked) await this.fire.stop(close);
+    else await close();
   }
 
   /** Werkstück-Nullpunkt (X, Y) in Maschinenkoordinaten, wie ihn die Steuerung zuletzt gemeldet hat; null = unbekannt */

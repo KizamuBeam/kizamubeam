@@ -1,10 +1,20 @@
 // Source-boundary audit, not a claim of a native authorization lock.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { runInNewContext } from 'node:vm';
 const read = (file) => readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
 let passed = 0;
 const check = (name, fn) => { fn(); console.log(`ok route ${++passed} ${name}`); };
 const laser = read('src/laser.ts');
+check('device selector stays disabled after disconnect until physical-off confirmation', () => {
+  const expression = laser.match(/devSel\.disabled = ([^;]+);/)[1];
+  for (const connected of [false, true]) for (const connecting of [false, true]) {
+    for (const locked of [false, true]) {
+      const disabled = runInNewContext(expression, { machine: { connected, connecting, fire: { locked } } });
+      assert.equal(disabled, connected || connecting || locked, JSON.stringify({ connected, connecting, locked }));
+    }
+  }
+});
 check('device editing entry points reject unresolved Fire before any mutation', () => {
   for (const name of ['selectDevice', 'patchDevice', 'addDevice', 'openDeviceDialog', 'openRotaryDialog', 'openDevicesDialog'])
     assert.match(laser, new RegExp(`export function ${name}\\([^\\n]*\\) \\{\\s*if \\(deviceEditBlocked\\(\\)\\) return;`), name);

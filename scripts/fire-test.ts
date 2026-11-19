@@ -97,6 +97,7 @@ const trusted = { isTrusted: true } as Event;
 const connected = (d = device()) => {
   Object.assign(machine, { connected: true, connectedDevice: d.id, fwId: d.fw, remote: null, progress: null });
   machine.status.state = 'Idle';
+  machine.status.ov = [100, 100, 100];
   return d;
 };
 await test('real machine boundary rejects untrusted, remote, busy, non-Idle and mismatched profiles', async () => {
@@ -173,8 +174,9 @@ await test('Smoothieware uses percent fire and explicit fire off, not M3/M5 or n
   assert.equal(await machine.startFire(d, 20, 5, trusted), true);
   assert.deepEqual(calls.map((c) => c.args.line), ['fire 20']);
   await machine.stop();
-  assert.equal(calls.at(-1)!.cmd, 'machine_send');
-  assert.equal(calls.at(-1)!.args.line, 'fire off');
+  assert.equal(calls.at(-1)!.cmd, 'machine_stop');
+  assert.equal(calls.at(-1)!.args.fireSmoothie, true);
+  assert.equal(calls.at(-1)!.args.fireSession, calls[0].args.fireSession);
   assert.equal(machine.fire.state, 'unknown');
   assert.equal(machine.fire.confirmOff(), true);
 });
@@ -212,3 +214,4 @@ await test('restart restores uncertainty and blocks reconnect until physical-off
   assert.equal(storage.has('kizamubeam.firePending'), false);
 });
 console.log(`${passed} fire tests passed`);
+await import('./fire-backend-test');
