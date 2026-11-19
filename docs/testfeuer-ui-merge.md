@@ -1,5 +1,11 @@
 # Testfeuer: Sichtbarer Bereich, Dezimalwerte und deutlichere Aus-Bestätigung
 
+> Historischer Übergabestand der UI-Variante, veröffentlicht in `d504f10e`.
+> Die unten genannten Windows-/Portable-/Praxistests sind Anwenderberichte für
+> diesen früheren Stand, kein Nachweis für spätere Sicherheitskorrekturen.
+> Deren native Tests und aktueller Windows-Build sind weiterhin gesondert zu prüfen;
+> maßgeblich ist der aktuelle Prüfstatus von PR #440.
+
 **Vorschlag für den PR-Titel:** Testfeuer-Bedienfeld sichtbarer machen und Dezimalwerte akzeptieren
 
 ## Was sich für Anwender ändert
