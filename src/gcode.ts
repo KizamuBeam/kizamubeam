@@ -207,7 +207,7 @@ export interface Device {
   fireEnabled: boolean;
   /** Maximale Laserleistung für das Testfeuer in % (0 … 100) */
   fireMaxPower: number;
-  /** Maximale Laufzeit für das Testfeuer in Sekunden (1 … 600); 0 = keine automatische Abschaltung */
+  /** Maximale Software-Laufzeit für das Testfeuer in Sekunden (größer 0 … 600); 0 ist ungültig */
   fireMaxSeconds: number;
   /** Befehl für Air Assist an (aus immer mit M9): M8 = Flood, M7 = Mist */
   airCmd: 'M8' | 'M7';
@@ -2144,9 +2144,9 @@ export function formatDuration(sec: number): string {
 // ---------- G-Code ----------
 
 /** S-Wert für Leistung 0 … 1; bei kleiner Skala (Smoothieware 0 … 1) mit mehr Nachkommastellen */
-const sValue = (p: number, d: Device) => {
+const sValue = (p: number, d: Device, round = Math.round) => {
   const k = d.sMax > 100 ? 10 : 1000;
-  return Math.round(p * d.sMax * k) / k;
+  return round(p * d.sMax * k) / k;
 };
 
 const num = (v: number) => {
@@ -2521,8 +2521,10 @@ export function pointerGCode(d: Device, on: boolean, percent: number): string[] 
 
 /** Testfeuer im Bewegen-Fenster: Leistung in % (0 … 100, Aufrufer muss auf fireMaxPower begrenzen). */
 export function fireLines(d: Device, percent: number): string[] {
-  if (d.fw === 'smoothie') return [`fire ${num(Math.max(0, Math.min(1, percent / 100)))}`];
-  const s = sValue(percent / 100, d);
+  // Smoothieware's manual fire command takes percent, unlike its G-code S scale (0 … 1).
+  if (d.fw === 'smoothie') return [`fire ${num(Math.floor(Math.max(0, Math.min(100, percent)) * 1000) / 1000)}`];
+  // Rounding up could exceed the device's Fire power cap (e.g. 1% of Marlin S255).
+  const s = sValue(percent / 100, d, Math.floor);
   if (d.fw === 'marlin') return [`M3 S${s}`];
   return ['G1 F1000', `M3 S${s}`];
 }
