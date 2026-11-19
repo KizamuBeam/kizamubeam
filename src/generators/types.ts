@@ -38,6 +38,11 @@ interface SpecBase {
   section?: string;
   /** New objects always start with def instead of the last-used value (layout choices of saved objects) */
   resetOnNew?: boolean;
+  /**
+   * The value is the total play of a joint, and was the play per side before #402: a last-used value remembered
+   * before that is doubled once (generators/dialog.ts)
+   */
+  playTotal?: boolean;
   /** Feld nur zeigen (und beachten), wenn diese Bedingung gilt */
   showIf?: Rule;
 }
@@ -270,7 +275,8 @@ export type GenTextAlign = 'start' | 'center';
 export type GenItem =
   | { type: 'line'; pts: [number, number][]; closed?: boolean; style?: GenStyle; width?: number; dash?: boolean; alpha?: number; id?: string }
   | { type: 'handle'; x: number; y: number; id: string; style?: GenStyle; size?: number }
-  | { type: 'text'; x: number; y: number; text: string; style?: GenStyle; angle?: number; align?: GenTextAlign };
+  /** bubble: a rounded, half see-through patch of the background colour under the text, so it stays readable over lines */
+  | { type: 'text'; x: number; y: number; text: string; style?: GenStyle; angle?: number; align?: GenTextAlign; bubble?: boolean };
 
 /**
  * A layer that rarely changes (the silhouette of a model, the outlines of the parts): the app keeps it as a
@@ -460,7 +466,7 @@ export interface Generator {
   /** Texts for issue codes that generate() may throw (Error.message = code); buildGen translates them */
   texts?: Record<string, () => string>;
   /** Plug-in joints: kind of fit and the parameter that holds the play (design check, material calibration) */
-  fit?: { kind: 'pair' | 'slot'; play: string };
+  fit?: { kind: 'pair' | 'slot'; play: string; total?: boolean };
   /** Position of every part in space (3D view, assembly check); th = material thickness of the view as fallback */
   poses?(p: Params, th: number): AsmPoses | null;
   /** The parts form one connected assembly that the assembly check examines */
