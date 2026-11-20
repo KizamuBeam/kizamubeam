@@ -15,6 +15,7 @@ const IMPORT_CENTER_IN_BED_KEY = 'kizamubeam.importCenterInBed';
 const IMPORT_SKIPPED_NOTE_KEY = 'kizamubeam.importSkippedNote';
 const IMPORT_AUTO_GROUP_KEY = 'kizamubeam.importAutoGroup';
 const IMPORT_CLOSE_TOLERANCE_KEY = 'kizamubeam.importCloseTolerance';
+const IMPORT_HIDDEN_LAYERS_KEY = 'kizamubeam.importHiddenLayers';
 const SVG_DPI_KEY = 'kizamubeam.svgDpi';
 const DXF_FALLBACK_UNIT_KEY = 'kizamubeam.dxfFallbackUnit';
 
@@ -77,6 +78,14 @@ export function loadImportCloseTolerance(): number {
     return Number.isFinite(v) && v >= 0 && v <= 10 ? v : DEFAULT_CLOSE_TOLERANCE;
   } catch {
     return DEFAULT_CLOSE_TOLERANCE;
+  }
+}
+/** Versteckte Ebenen/Elemente mit importieren: an, bis in den Einstellungen abgewählt (Opt-out; Default true = heutiges Verhalten) */
+export function loadImportHiddenLayers(): boolean {
+  try {
+    return JSON.parse(localStorage.getItem(IMPORT_HIDDEN_LAYERS_KEY) ?? 'true') !== false;
+  } catch {
+    return true;
   }
 }
 function saveImportFlag(key: string, on: boolean) {
@@ -297,6 +306,10 @@ export class EditorImages {
     if (!Number.isFinite(mm) || mm < 0 || mm > 10) throw new Error(t('Einstellung konnte nicht gespeichert werden.'));
     this.importCloseToleranceMm = mm;
     saveImportValue(IMPORT_CLOSE_TOLERANCE_KEY, mm);
+  }
+  setImportHiddenLayers(this: Editor, on: boolean) {
+    this.importHiddenLayers = on;
+    saveImportFlag(IMPORT_HIDDEN_LAYERS_KEY, on);
   }
 
   /**

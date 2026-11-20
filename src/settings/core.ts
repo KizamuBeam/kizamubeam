@@ -281,6 +281,12 @@ export function registerCoreSettings(ed: Editor, hooks: CoreSettingsHooks) {
         get: () => ed.importCloseToleranceMm, set: (v) => ed.setImportCloseTolerance(v),
       },
       {
+        kind: 'toggle', id: 'workspace.importHiddenLayers', group: t('Import'), label: t('Versteckte Ebenen importieren'), def: true,
+        keywords: t('Import versteckt unsichtbar Ebenen Layer'),
+        hint: t('Versteckte Inhalte werden wie bisher mit importiert; ausgeschaltet werden unsichtbare SVG-Teile und abgeschaltete/gefrorene DXF-Ebenen übersprungen. Komplett ausgeblendete SVG-Elemente bleiben immer außen vor.'),
+        get: () => ed.importHiddenLayers, set: (v) => ed.setImportHiddenLayers(v),
+      },
+      {
         kind: 'toggle', id: 'workspace.cutSelectedDefault', group: t('Auftrag'), label: t('Standard: nur Auswahl lasern'), def: false,
         keywords: t('Nur Auswahl Standard Vorgabe Datei'),
         hint: t('Neue Dateien starten mit „Nur Auswahl“. Der Stand wird pro Datei gespeichert und beim Öffnen übernommen.'),

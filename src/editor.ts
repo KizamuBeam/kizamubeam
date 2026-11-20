@@ -19,7 +19,7 @@ import { EditorCommands } from './editor/commands';
 import { EditorDocument, restartAutosaveTimer } from './editor/document';
 import { EditorHinges } from './editor/hinges';
 import { EditorPattern } from './editor/pattern';
-import { EditorImages, loadDxfFallbackUnit, loadImportAutoGroup, loadImportAutoSelect, loadImportCenterInBed, loadImportCloseTolerance, loadImportSkippedNote, loadSvgDpi, type SvgDpi } from './editor/imageops';
+import { EditorImages, loadDxfFallbackUnit, loadImportAutoGroup, loadImportAutoSelect, loadImportCenterInBed, loadImportCloseTolerance, loadImportHiddenLayers, loadImportSkippedNote, loadSvgDpi, type SvgDpi } from './editor/imageops';
 import { EditorImageHandles } from './editor/imageHandles';
 import { EditorJoints } from './editor/joints';
 import { EditorKeyboard, loadNudgeSteps, type NudgeSteps } from './editor/keyboard';
@@ -209,6 +209,8 @@ export class Editor {
   dxfFallbackUnitMm = loadDxfFallbackUnit();
   /** Auto-Close-Toleranz in mm beim Import (Opt-out, 0.005; 0 = nur exakt schließen) */
   importCloseToleranceMm = loadImportCloseTolerance();
+  /** Versteckte Ebenen/Formen importieren (Opt-out, an = heutiges Verhalten) */
+  importHiddenLayers = loadImportHiddenLayers();
   /** Klick-Toleranz ändern und merken */
   setClickTolerance(v: number) {
     if (!saveClickTolerance(v)) throw new Error(t('Einstellung konnte nicht gespeichert werden.'));
