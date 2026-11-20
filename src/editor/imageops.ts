@@ -236,18 +236,22 @@ export class EditorImages {
   /** Objekte als ein Element einfügen (rückgängig machbar); before läuft nach dem Undo-Zwischenstand, z. B. für Layer */
   placeNew(this: Editor, objs: Obj[], label: string, before?: () => void, opts?: { select?: boolean }) {
     if (!objs.length) return;
-    let o: Obj = objs[0];
-    if (objs.length > 1 && (this.importAutoGroup ?? true)) o = { id: newId(), m: IDENT, layer: objs[0].layer, shape: { kind: 'group', children: objs } };
-    const b = boundsOf([o]);
+    const placed: Obj[] =
+      objs.length > 1 && (this.importAutoGroup ?? true)
+        ? [{ id: newId(), m: IDENT, layer: objs[0].layer, shape: { kind: 'group', children: objs } }]
+        : objs;
+    const b = boundsOf(placed);
     const bed = this.doc.bed;
-    if (b && (this.importCenterInBed || b.x < -1e-6 || b.y < -1e-6 || b.x + b.w > bed.w + 1e-6 || b.y + b.h > bed.h + 1e-6))
-      o.m = mul(translate(bed.w / 2 - (b.x + b.w / 2), bed.h / 2 - (b.y + b.h / 2)), o.m);
+    if (b && (this.importCenterInBed || b.x < -1e-6 || b.y < -1e-6 || b.x + b.w > bed.w + 1e-6 || b.y + b.h > bed.h + 1e-6)) {
+      const shift = translate(bed.w / 2 - (b.x + b.w / 2), bed.h / 2 - (b.y + b.h / 2));
+      for (const o of placed) o.m = mul(shift, o.m);
+    }
     this.snapshot(t('Objekt hinzufügen'));
     before?.();
-    this.doc.objs.push(o);
+    this.doc.objs.push(...placed);
     if (opts?.select ?? this.importAutoSelect ?? true) {
       this.setTool('select');
-      this.setSel([o]);
+      this.setSel(placed);
     }
     this.hint = label;
     this.emit('doc');

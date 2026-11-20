@@ -1605,6 +1605,7 @@
   "Ursprung Standard Vorgabe Datei Position": "origem padrão arquivo posição",
   "Startpunkt neuer Dateien (Zeilen von oben nach unten, je links nach rechts). Der Stand wird pro Datei gespeichert und beim Öffnen übernommen.": "Ponto inicial de arquivos novos (linhas de cima para baixo, cada uma da esquerda para a direita). O estado é salvo por arquivo e aplicado ao abrir.",
   "Job-Ursprung muss zwischen 0 und 8 liegen.": "A origem deve estar entre 0 e 8.",
+  "Vom Gerät behalten": "Manter do dispositivo",
   "Oben Mitte": "Superior central",
   "Mitte links": "Centro à esquerda",
   "Mitte rechts": "Centro à direita",

@@ -72,6 +72,7 @@ export function registerCoreSettings(ed: Editor, hooks: CoreSettingsHooks) {
         get: () => updateAutoCheck(),
         set: (v) => setUpdateAutoCheck(v),
       },
+      { kind: 'action', id: 'general.updateNow', group: t('Updates'), label: t('Jetzt nach Updates suchen'), button: t('Jetzt suchen …'), run: () => openUpdateDialog() },
       {
         kind: 'number', id: 'general.autosaveInterval', group: t('Speichern'), label: t('Automatisches Sichern alle'), unit: t('Minuten'), integer: true, min: 0, max: 1440, def: 0,
         keywords: t('Auto-save Sicherung Intervall Minuten'),
@@ -79,7 +80,6 @@ export function registerCoreSettings(ed: Editor, hooks: CoreSettingsHooks) {
         get: () => loadAutosaveInterval(),
         set: (v) => setAutosaveInterval(ed, v),
       },
-      { kind: 'action', id: 'general.updateNow', group: t('Updates'), label: t('Jetzt nach Updates suchen'), button: t('Jetzt suchen …'), run: () => openUpdateDialog() },
       {
         kind: 'action', id: 'general.sync', label: t('Einstellungen übertragen'), keywords: t('Export Import Sync Ordner'),
         hint: t('Einstellungen, Geräte, Materialien und mehr als Datei sichern oder über einen Ordner zwischen Rechnern abgleichen.'),
@@ -158,7 +158,7 @@ export function registerCoreSettings(ed: Editor, hooks: CoreSettingsHooks) {
         options: () => [['coarse', t('Grob (schnell)')], ['balanced', t('Ausgewogen')], ['fine', t('Fein (genau)')]],
         keywords: t('Kurven Qualität Tempo Genauigkeit'),
         hint: t('Abtastung von Kurven für Rahmen und Treffertest: grob ist schneller, fein genauer.'),
-        get: () => loadCurveQuality(), set: (v) => saveCurveQuality(v as CurveQuality),
+        get: () => loadCurveQuality(), set: (v) => (saveCurveQuality(v as CurveQuality), ed.redraw()),
       },
       {
         kind: 'action', id: 'appearance.toolbars', group: t('Fenster und Leisten'), label: t('Funktionsleisten'), hint: t('Knöpfe und Reihenfolge der Leisten wählen.'),
@@ -281,15 +281,17 @@ export function registerCoreSettings(ed: Editor, hooks: CoreSettingsHooks) {
         get: () => loadCutSelectedDefault(), set: (v) => saveCutSelectedDefault(v),
       },
       {
-        kind: 'select', id: 'workspace.jobOriginDefault', group: t('Auftrag'), label: t('Standard-Job-Ursprung'), def: '0',
+        kind: 'select', id: 'workspace.jobOriginDefault', group: t('Auftrag'), label: t('Standard-Job-Ursprung'), def: '',
         keywords: t('Ursprung Standard Vorgabe Datei Position'),
         hint: t('Startpunkt neuer Dateien (Zeilen von oben nach unten, je links nach rechts). Der Stand wird pro Datei gespeichert und beim Öffnen übernommen.'),
         options: () => [
+          ['', t('Vom Gerät behalten')],
           ['0', t('Oben links')], ['1', t('Oben Mitte')], ['2', t('Oben rechts')],
           ['3', t('Mitte links')], ['4', t('Mitte')], ['5', t('Mitte rechts')],
           ['6', t('Unten links')], ['7', t('Unten Mitte')], ['8', t('Unten rechts')],
         ],
-        get: () => String(loadJobOriginDefault()), set: (v) => saveJobOriginDefault(Number(v)),
+        get: () => { const v = loadJobOriginDefault(); return v === null ? '' : String(v); },
+        set: (v) => saveJobOriginDefault(v === '' ? null : Number(v)),
       },
     ],
   });

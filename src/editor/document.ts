@@ -69,21 +69,24 @@ export function saveCutSelectedDefault(v: boolean) {
   }
 }
 
-/** Standard-Job-Ursprung für neue Dateien (Default 0 = oben links) */
-export function loadJobOriginDefault(): number {
+/** Standard-Job-Ursprung für neue Dateien (null = Geräteeinstellung behalten, Default) */
+export function loadJobOriginDefault(): number | null {
   try {
-    const v = Math.floor(Number(localStorage.getItem(JOB_ORIGIN_DEFAULT_KEY)));
-    return Number.isInteger(v) && v >= 0 && v <= 8 ? v : 0;
+    const raw = localStorage.getItem(JOB_ORIGIN_DEFAULT_KEY);
+    if (raw === null || raw === '') return null;
+    const v = Number(raw);
+    return Number.isInteger(v) && v >= 0 && v <= 8 ? v : null;
   } catch {
-    return 0;
+    return null;
   }
 }
 
-/** Standard-Job-Ursprung für neue Dateien merken; wirft bei ungültigem Wert */
-export function saveJobOriginDefault(v: number) {
-  if (!Number.isInteger(v) || v < 0 || v > 8) throw new Error(t('Job-Ursprung muss zwischen 0 und 8 liegen.'));
+/** Standard-Job-Ursprung für neue Dateien merken (null = Geräteeinstellung behalten); wirft bei ungültigem Wert */
+export function saveJobOriginDefault(v: number | null) {
+  if (v !== null && (!Number.isInteger(v) || v < 0 || v > 8)) throw new Error(t('Job-Ursprung muss zwischen 0 und 8 liegen.'));
   try {
-    localStorage.setItem(JOB_ORIGIN_DEFAULT_KEY, String(v));
+    if (v === null) localStorage.removeItem(JOB_ORIGIN_DEFAULT_KEY);
+    else localStorage.setItem(JOB_ORIGIN_DEFAULT_KEY, String(v));
   } catch {
     /* Speicher nicht verfügbar */
   }

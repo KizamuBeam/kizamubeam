@@ -1601,6 +1601,7 @@
   "Ursprung Standard Vorgabe Datei Position": "origin default file position",
   "Startpunkt neuer Dateien (Zeilen von oben nach unten, je links nach rechts). Der Stand wird pro Datei gespeichert und beim Öffnen übernommen.": "Start point of new files (rows top to bottom, each left to right). The state is stored per file and applied when opening.",
   "Job-Ursprung muss zwischen 0 und 8 liegen.": "Job origin must be between 0 and 8.",
+  "Vom Gerät behalten": "Keep from device",
   "Oben Mitte": "Top center",
   "Mitte links": "Center left",
   "Mitte rechts": "Center right",

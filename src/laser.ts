@@ -131,6 +131,7 @@ export function patchDevice(ed: Editor, patch: Partial<Device>) {
  * Stand aus dem geöffneten Dokument). Fehlt der Wert (alte Datei), bleibt das Gerät.
  */
 export function applyDocJobSettings(ed: Editor) {
+  if (deviceEditBlocked()) return;
   const d = ed.doc;
   let touched = false;
   if (typeof d.cutSelected === 'boolean' && device.cutSelected !== d.cutSelected) { device.cutSelected = d.cutSelected; touched = true; }
@@ -144,11 +145,10 @@ export function applyDocJobSettings(ed: Editor) {
 export function applyNewDocDefaults() {
   if (deviceEditBlocked()) return;
   const cut = loadCutSelectedDefault(), origin = loadJobOriginDefault();
-  if (device.cutSelected !== cut || device.jobOrigin !== origin) {
-    device.cutSelected = cut;
-    device.jobOrigin = origin;
-    deviceChanged();
-  }
+  let touched = false;
+  if (device.cutSelected !== cut) { device.cutSelected = cut; touched = true; }
+  if (origin !== null && device.jobOrigin !== origin) { device.jobOrigin = origin; touched = true; }
+  if (touched) deviceChanged();
 }
 
 /** Neues Gerät anlegen und auswählen */

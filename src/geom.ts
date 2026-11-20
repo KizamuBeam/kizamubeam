@@ -422,13 +422,11 @@ export function drawText(ctx: CanvasRenderingContext2D, t: TextShape, m: Mat, mo
       continue;
     }
     let x = lx;
-    const step = (ch: string) => {
+    for (const ch of ln.text) {
       if (mode === 'fill') ctx.fillText(ch, x, ln.y);
       else ctx.strokeText(ch, x, ln.y);
       x += (t.rtl ? -1 : 1) * (ctx.measureText(ch).width + lay.spacing);
-    };
-    if (t.rtl) [...ln.text].reverse().forEach(step);
-    else for (const ch of ln.text) step(ch);
+    }
   }
   ctx.direction = 'ltr';
   ctx.textAlign = 'start';

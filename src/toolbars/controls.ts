@@ -219,7 +219,7 @@ export function createEditorToolbarControls(ed: Editor, refresh: () => void): {
     const bBold = tog(t('F'), 'bold', t('Fett')); bBold.style.fontWeight = '700';
     const bItal = tog(t('K'), 'italic', t('Kursiv')); bItal.style.fontStyle = 'italic';
     const bUp = tog('AB', 'upper', t('Großbuchstaben'));
-  const bRtl = tog(t('RTL'), 'rtl', t('Schreibrichtung rechts-nach-links (Hebräisch/Arabisch, Best-Effort)'));
+    const bRtl = tog(t('RTL'), 'rtl', t('Schreibrichtung rechts-nach-links (Hebräisch/Arabisch, Best-Effort)'));
     const alignBtns = (['left', 'center', 'right'] as const).map((a) => {
       const b = iconBtn(a === 'left' ? 'alignTextL' : a === 'center' ? 'alignTextC' : 'alignTextR', a === 'left' ? t('Ausrichtung links') : a === 'center' ? t('Ausrichtung mittig') : t('Ausrichtung rechts'), () => ed.updateTexts({ align: a }));
       b.classList.add('toolbar-text-align'); b.dataset.align = a; return b;

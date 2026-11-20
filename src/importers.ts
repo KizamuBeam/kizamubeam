@@ -456,7 +456,7 @@ export function importSvg(text: string, opts?: ImportParseOptions): ImportResult
 
   // Seitenmaßstab: Benutzereinheiten → mm. Illustrator speichert 72 DPI, sonst 96.
   const dpi = opts?.svgDpi ?? '96';
-  const pxMm = dpi === '72' ? 25.4 / 72 : dpi === 'auto' && isIllustratorSvg(root, safeText) ? 25.4 / 72 : 25.4 / 96;
+  const pxMm = dpi === '72' ? 25.4 / 72 : dpi === 'auto' && isIllustratorSvg(root, text) ? 25.4 / 72 : 25.4 / 96;
   const vb = nums(root.getAttribute('viewBox'));
   const wmm = lengthMm(root.getAttribute('width'), pxMm),
     hmm = lengthMm(root.getAttribute('height'), pxMm);
