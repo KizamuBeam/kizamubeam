@@ -434,6 +434,9 @@ function sanitizeSvgText(input: string): string {
 
 export type SvgDpi = '96' | '72' | 'auto';
 
+/** Standard-Auto-Close-Toleranz beim Import in mm (bisheriges Verhalten, falls nichts eingestellt) */
+export const DEFAULT_CLOSE_TOLERANCE = 0.005;
+
 export interface ImportParseOptions {
   /** Hinweise zu übersprungenen Inhalten (z. B. Texte) in notes aufnehmen; Formen werden so oder so übersprungen */
   reportSkipped?: boolean;
@@ -441,6 +444,8 @@ export interface ImportParseOptions {
   svgDpi?: SvgDpi;
   /** DXF-Einheit in mm pro Einheit, wenn $INSUNITS fehlt oder unbekannt ist (Default 1 = mm) */
   dxfFallbackUnit?: number;
+  /** Auto-Close-Toleranz in mm beim Zusammenfügen offener Linienzüge (Default 0.005); 0 = nur exakt schließen */
+  closeTolerance?: number;
 }
 
 export function importSvg(text: string, opts?: ImportParseOptions): ImportResult {
@@ -811,7 +816,8 @@ export function importDxf(text: string, opts?: ImportParseOptions): ImportResult
   // Einheit anwenden, y bleibt nach oben (der Aufrufer spiegelt am Bett)
   for (const e of entities) emit(e, [unit, 0, 0, unit, 0, 0], null, null, 0);
   if (skipped.size && reportSkipped) notes.push(t('Übersprungen: {list}.', { list: [...skipped].map(([what, n]) => `${n}× ${what}`).join(', ') }));
-  return { items: joinPaths(items), notes, yUp: true };
+  const closeTol = opts?.closeTolerance ?? DEFAULT_CLOSE_TOLERANCE;
+  return { items: joinPaths(items, closeTol > 0 ? closeTol : 1e-9), notes, yUp: true };
 }
 
 function polyBulge(pb: PathBuilder, vs: { x: number; y: number; b: number }[], closed: boolean) {

@@ -275,6 +275,12 @@ export function registerCoreSettings(ed: Editor, hooks: CoreSettingsHooks) {
         get: () => ed.svgDpi, set: (v) => ed.setSvgDpi(v as SvgDpi),
       },
       {
+        kind: 'number', id: 'workspace.importCloseTolerance', group: t('Import'), label: t('Auto-Close-Toleranz beim Import (mm)'), def: 0.005, min: 0, max: 10,
+        keywords: t('Import schließen Toleranz Lücke Pfad'),
+        hint: t('Offene Linienzüge werden wie bisher ab 0,005 mm Abstand geschlossen; 0 schließt nur exakt.'),
+        get: () => ed.importCloseToleranceMm, set: (v) => ed.setImportCloseTolerance(v),
+      },
+      {
         kind: 'toggle', id: 'workspace.cutSelectedDefault', group: t('Auftrag'), label: t('Standard: nur Auswahl lasern'), def: false,
         keywords: t('Nur Auswahl Standard Vorgabe Datei'),
         hint: t('Neue Dateien starten mit „Nur Auswahl“. Der Stand wird pro Datei gespeichert und beim Öffnen übernommen.'),
