@@ -4379,6 +4379,8 @@
   "Pfadinseln: bearbeitbare Pfade auswählen; Gruppen auflösen und parametrische Formen ausdrücklich umwandeln.": "Isole di tracciato: selezionare tracciati modificabili; sciogliere i gruppi e convertire esplicitamente le forme parametriche.",
   "Keine getrennten Pfadinseln gefunden.": "Nessuna isola di tracciato separata trovata.",
   "Pfadinseln trennen": "Separa isole di tracciato",
+  "Pfadinseln": "Isole di tracciato",
+  "Bild bearb.": "Modifica immagine",
   "Pfadinseln: ungültige Abstandseinstellungen oder Transformation.": "Isole di tracciato: impostazioni di distanza o trasformazione non valide.",
   "Pfadinseln: nur geschlossene, nicht entartete Teilpfade (höchstens 256).": "Isole di tracciato: solo sottotracciati chiusi e non degeneri (max 256).",
   "Pfadinseln: ungültige oder zu große Koordinaten.": "Isole di tracciato: coordinate non valide o troppo grandi.",

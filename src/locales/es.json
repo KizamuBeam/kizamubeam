@@ -4253,6 +4253,8 @@
   "Pfadinseln: bearbeitbare Pfade auswählen; Gruppen auflösen und parametrische Formen ausdrücklich umwandeln.": "Islas de trazado: seleccionar trazados editables; desagrupar grupos y convertir expresamente formas paramétricas.",
   "Keine getrennten Pfadinseln gefunden.": "No se encontraron islas de trazado separadas.",
   "Pfadinseln trennen": "Separar islas de trazado",
+  "Pfadinseln": "Islas de trazado",
+  "Bild bearb.": "Editar imagen",
   "Pfadinseln: ungültige Abstandseinstellungen oder Transformation.": "Islas de trazado: ajustes de distancia o transformación no válidos.",
   "Pfadinseln: nur geschlossene, nicht entartete Teilpfade (höchstens 256).": "Islas de trazado: solo subtrayectos cerrados y no degenerados (máximo 256).",
   "Pfadinseln: ungültige oder zu große Koordinaten.": "Islas de trazado: coordenadas no válidas o demasiado grandes.",

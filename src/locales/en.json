@@ -187,6 +187,8 @@
   "Pfadinseln: bearbeitbare Pfade auswählen; Gruppen auflösen und parametrische Formen ausdrücklich umwandeln.": "Path islands: select editable paths; ungroup groups and explicitly convert parametric shapes first.",
   "Keine getrennten Pfadinseln gefunden.": "No separate path islands found.",
   "Pfadinseln trennen": "Separate path islands",
+  "Pfadinseln": "Path islands",
+  "Bild bearb.": "Edit image",
   "Pfadinseln: ungültige Abstandseinstellungen oder Transformation.": "Path islands: invalid distance settings or transform.",
   "Pfadinseln: nur geschlossene, nicht entartete Teilpfade (höchstens 256).": "Path islands: only closed, nondegenerate subpaths (at most 256).",
   "Pfadinseln: ungültige oder zu große Koordinaten.": "Path islands: invalid or excessively large coordinates.",

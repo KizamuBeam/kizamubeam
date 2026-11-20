@@ -191,6 +191,8 @@
   "Pfadinseln: bearbeitbare Pfade auswählen; Gruppen auflösen und parametrische Formen ausdrücklich umwandeln.": "Ilhas de caminho: selecione caminhos editáveis; desagrupe grupos e converta formas paramétricas explicitamente antes.",
   "Keine getrennten Pfadinseln gefunden.": "Nenhuma ilha de caminho separada encontrada.",
   "Pfadinseln trennen": "Separar ilhas de caminho",
+  "Pfadinseln": "Ilhas de caminho",
+  "Bild bearb.": "Editar imagem",
   "Pfadinseln: ungültige Abstandseinstellungen oder Transformation.": "Ilhas de caminho: configurações de distância ou transformação inválidas.",
   "Pfadinseln: nur geschlossene, nicht entartete Teilpfade (höchstens 256).": "Ilhas de caminho: somente subcaminhos fechados e não degenerados (no máximo 256).",
   "Pfadinseln: ungültige oder zu große Koordinaten.": "Ilhas de caminho: coordenadas inválidas ou excessivamente grandes.",
