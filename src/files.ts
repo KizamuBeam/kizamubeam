@@ -14,7 +14,7 @@ import { importDxf, importSvg, ImportResult, ImportParseOptions, PathBuilder, tr
 import { buildDxf, buildPdf, ExportItem, ExportPage, LayerInfo } from './vecexport';
 import { FallbackResolver, importPdfPages, isPdf } from './pdfimport';
 import { importRuida, isRuidaFile } from './ruida';
-import { device } from './laser';
+import { applyDocJobSettings, device } from './laser';
 import { t, tn } from './i18n';
 import { tabNameFromPath } from './editor/tabs';
 import { installNativeFileDrop, installDomFileDrop, dispatchNativeFiles } from './nativeFileDrop';
@@ -63,7 +63,7 @@ export async function openText(filterName: string, extensions: string[]): Promis
 /** Projekt des aktiven Tabs speichern; der Tab übernimmt den Dateinamen */
 export async function saveProject(ed: Editor) {
   const tab = ed.tab;
-  const contents = ed.serialize();
+  const contents = ed.serialize({ cutSelected: device.cutSelected, jobOrigin: device.jobOrigin });
   const saved = ed.tabKey();
   const path = await saveTextAs(`${tab.name ?? t('projekt')}.kzb`, t('KizamuBeam-Projekt'), 'kzb', 'application/json', contents);
   if (path === null) return;
@@ -114,6 +114,8 @@ export async function openProject(ed: Editor) {
         return;
       }
       ed.openInTab(text, tabNameFromPath(name));
+      // Dateiwerte für Nur-Auswahl/Ursprung aufs Gerät (fehlen sie, bleibt das Gerät)
+      applyDocJobSettings(ed);
       // Fehlende Schriften von Google Fonts nachladen (mit Rückfrage)
       void import('./fontManager').then((m) => m.checkProjectFonts(ed));
     } catch (e) {

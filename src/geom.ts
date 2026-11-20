@@ -406,23 +406,32 @@ export function drawText(ctx: CanvasRenderingContext2D, t: TextShape, m: Mat, mo
   ctx.scale(lay.k, lay.k);
   ctx.font = lay.font;
   ctx.textBaseline = 'alphabetic';
+  // Schrift noch nicht geladen: Browser formt mit (arabische Verbindung inklusive);
+  // Zeile rechtsbündig an ihrer rechten Kante ausrichten
+  if (t.rtl) ctx.direction = 'rtl';
+  ctx.textAlign = t.rtl ? 'right' : 'left';
   if (mode === 'stroke') {
     const s = Math.sqrt(Math.abs(m[0] * m[3] - m[1] * m[2])) * lay.k;
     ctx.lineWidth = px / s;
   }
   for (const ln of lay.lines) {
+    const lx = t.rtl ? ln.x + ln.w : ln.x;
     if (!lay.spacing) {
-      if (mode === 'fill') ctx.fillText(ln.text, ln.x, ln.y);
-      else ctx.strokeText(ln.text, ln.x, ln.y);
+      if (mode === 'fill') ctx.fillText(ln.text, lx, ln.y);
+      else ctx.strokeText(ln.text, lx, ln.y);
       continue;
     }
-    let x = ln.x;
-    for (const ch of ln.text) {
+    let x = lx;
+    const step = (ch: string) => {
       if (mode === 'fill') ctx.fillText(ch, x, ln.y);
       else ctx.strokeText(ch, x, ln.y);
-      x += ctx.measureText(ch).width + lay.spacing;
-    }
+      x += (t.rtl ? -1 : 1) * (ctx.measureText(ch).width + lay.spacing);
+    };
+    if (t.rtl) [...ln.text].reverse().forEach(step);
+    else for (const ch of ln.text) step(ch);
   }
+  ctx.direction = 'ltr';
+  ctx.textAlign = 'start';
   ctx.restore();
 }
 

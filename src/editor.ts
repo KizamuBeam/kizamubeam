@@ -16,7 +16,7 @@ import { AlignGuide, SnapHit, SnapSet } from './snap';
 import { History } from './history';
 import { Tool, RULER, CANVAS_THEMES, HANDLE_OFF, Drag, NodeHover, SegHover, TOOL_HINTS } from './editor/shared';
 import { EditorCommands } from './editor/commands';
-import { EditorDocument } from './editor/document';
+import { EditorDocument, restartAutosaveTimer } from './editor/document';
 import { EditorHinges } from './editor/hinges';
 import { EditorPattern } from './editor/pattern';
 import { EditorImages, loadDxfFallbackUnit, loadImportAutoGroup, loadImportAutoSelect, loadImportCenterInBed, loadImportSkippedNote, loadSvgDpi, type SvgDpi } from './editor/imageops';
@@ -234,6 +234,8 @@ export class Editor {
   dpr = 1;
   private listeners = new Set<(what: 'doc' | 'sel' | 'view' | 'tool') => void>();
   saveTimer = 0;
+  /** Intervall-Timer für Auto-save (0 = aus); Neustart über setAutosaveInterval */
+  autoSaveTimer = 0;
   textEditor: ((o: Obj, isNew: boolean) => void) | null = null;
   /** Einfügen aus der System-Zwischenablage (Bilder, SVG); true = verarbeitet */
   externalPaste: ((data: DataTransfer) => Promise<boolean>) | null = null;
@@ -363,6 +365,7 @@ export class Editor {
     this.loadBoolSettings();
     this.loadToolOptions();
     this.loadTextDefaults();
+    restartAutosaveTimer(this);
     // Texte werden mit den Schriftkonturen gezeichnet; nach dem Laden einer Schrift neu zeichnen
     onFontLoaded(() => this.emit('sel'));
     onImageReady(() => this.redraw());

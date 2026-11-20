@@ -12,6 +12,7 @@ import { loadCheckSettings, saveCheckSettings } from '../check';
 import { type CurveQuality, loadCurveQuality, saveCurveQuality } from '../geom';
 import { autoInstallFonts, setAutoInstallFonts } from '../fontCatalog';
 import { loadOverlapSettings, OVERLAP_HOLD_MS, OverlapSettings, saveOverlapSettings } from '../overlapPicker';
+import { loadAutosaveInterval, loadCutSelectedDefault, loadJobOriginDefault, saveCutSelectedDefault, saveJobOriginDefault, setAutosaveInterval } from '../editor/document';
 import { defaultUpdateChannel, openUpdateDialog, setUpdateAutoCheck, setUpdateChannel, updateAutoCheck, updateChannel } from '../updateDialog';
 import type { Channel } from '../updates';
 import { resetDialogPositions } from '../dialogDrag';
@@ -70,6 +71,13 @@ export function registerCoreSettings(ed: Editor, hooks: CoreSettingsHooks) {
         kind: 'toggle', id: 'general.updateAuto', group: t('Updates'), label: t('Beim Start einmal am Tag nach Updates suchen'), def: true,
         get: () => updateAutoCheck(),
         set: (v) => setUpdateAutoCheck(v),
+      },
+      {
+        kind: 'number', id: 'general.autosaveInterval', group: t('Speichern'), label: t('Automatisches Sichern alle'), unit: t('Minuten'), integer: true, min: 0, max: 1440, def: 0,
+        keywords: t('Auto-save Sicherung Intervall Minuten'),
+        hint: t('Sichert das Projekt alle paar Minuten im Zwischenspeicher dieses Rechners. 0 = aus (nur kurze Verzögerung nach Änderungen).'),
+        get: () => loadAutosaveInterval(),
+        set: (v) => setAutosaveInterval(ed, v),
       },
       { kind: 'action', id: 'general.updateNow', group: t('Updates'), label: t('Jetzt nach Updates suchen'), button: t('Jetzt suchen …'), run: () => openUpdateDialog() },
       {
@@ -266,6 +274,23 @@ export function registerCoreSettings(ed: Editor, hooks: CoreSettingsHooks) {
         options: () => [['96', t('96 DPI')], ['72', t('72 DPI')], ['auto', t('Automatisch (Illustrator 72, sonst 96)')]],
         get: () => ed.svgDpi, set: (v) => ed.setSvgDpi(v as SvgDpi),
       },
+      {
+        kind: 'toggle', id: 'workspace.cutSelectedDefault', group: t('Auftrag'), label: t('Standard: nur Auswahl lasern'), def: false,
+        keywords: t('Nur Auswahl Standard Vorgabe Datei'),
+        hint: t('Neue Dateien starten mit „Nur Auswahl“. Der Stand wird pro Datei gespeichert und beim Öffnen übernommen.'),
+        get: () => loadCutSelectedDefault(), set: (v) => saveCutSelectedDefault(v),
+      },
+      {
+        kind: 'select', id: 'workspace.jobOriginDefault', group: t('Auftrag'), label: t('Standard-Job-Ursprung'), def: '0',
+        keywords: t('Ursprung Standard Vorgabe Datei Position'),
+        hint: t('Startpunkt neuer Dateien (Zeilen von oben nach unten, je links nach rechts). Der Stand wird pro Datei gespeichert und beim Öffnen übernommen.'),
+        options: () => [
+          ['0', t('Oben links')], ['1', t('Oben Mitte')], ['2', t('Oben rechts')],
+          ['3', t('Mitte links')], ['4', t('Mitte')], ['5', t('Mitte rechts')],
+          ['6', t('Unten links')], ['7', t('Unten Mitte')], ['8', t('Unten rechts')],
+        ],
+        get: () => String(loadJobOriginDefault()), set: (v) => saveJobOriginDefault(Number(v)),
+      },
     ],
   });
 
@@ -379,6 +404,12 @@ export function registerCoreSettings(ed: Editor, hooks: CoreSettingsHooks) {
         kind: 'toggle', id: 'machines.checkBeforeLaser', group: t('Laser'), label: t('Vor dem Lasern prüfen und bei Problemen nachfragen'), def: true, keywords: t('Konstruktion prüfen'),
         get: () => loadCheckSettings().beforeLaser,
         set: (v) => saveCheckSettings({ ...loadCheckSettings(), beforeLaser: v }),
+      },
+      {
+        kind: 'toggle', id: 'machines.ignoreOutOfBounds', group: t('Laser'), label: t('Formen außerhalb ignorieren'), def: false, keywords: t('Arbeitsbereich außerhalb Bett Prüfung'),
+        hint: t('Formen außerhalb des Arbeitsbereichs werden in der Konstruktionsprüfung kommentarlos ignoriert statt gemeldet. Der Laser-Start prüft weiter.'),
+        get: () => loadCheckSettings().ignoreOutOfBounds === true,
+        set: (v) => saveCheckSettings({ ...loadCheckSettings(), ignoreOutOfBounds: v }),
       },
       { kind: 'action', id: 'machines.devices', group: t('Laser'), label: t('Geräte'), hint: t('Laser anlegen, wechseln, importieren und exportieren.'), button: t('Geräte …'), run: () => openDevicesDialog(ed) },
       { kind: 'action', id: 'machines.device', group: t('Laser'), label: t('Geräteeinstellungen'), hint: t('Anschluss, Arbeitsbereich, Firmware und Job-Vorgaben des aktuellen Geräts.'), button: t('Öffnen …'), run: () => openDeviceDialog(ed) },

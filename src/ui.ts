@@ -41,7 +41,7 @@ import { maybeOfferSetup, openSetupWizard } from './setupWizard';
 import { maybeCheckForUpdates, nightlyBuild, nightlyWarning, openUpdateDialog } from './updateDialog';
 import { openPacksDialog } from './packsDialog';
 import { openGridDialog } from './gridDialog';
-import { buildLaser, frameJob, isPositionPick, openDeviceDialog, openDevicesDialog, openPreview, openRotaryDialog, saveGCode, startJob, togglePositionPick } from './laser';
+import { applyNewDocDefaults, buildLaser, frameJob, isPositionPick, openDeviceDialog, openDevicesDialog, openPreview, openRotaryDialog, saveGCode, startJob, togglePositionPick } from './laser';
 import { openLayerDialog, setAdjustOpener } from './layerdialog';
 import { imageLayerFields, liveLayerRaster } from './imageLayerFields';
 import { openMaterialTestDialog } from './materialtest';
@@ -231,7 +231,7 @@ type MenuItem = [label: string, key: string, action: () => void, checked?: () =>
 function buildMenu(ed: Editor) {
   const menus: [string, MenuItem[]][] = [
     [t('Datei'), [
-      [t('Neu'), 'Ctrl+N', () => ed.newTab()],
+      [t('Neu'), 'Ctrl+N', () => (ed.newTab(), applyNewDocDefaults())],
       [t('Neu aus Vorlage …'), '', () => openTemplateLibrary(ed)],
       [t('Öffnen …'), 'Ctrl+O', () => openProject(ed)],
       [t('Speichern …'), 'Ctrl+S', () => saveProject(ed)],
@@ -633,7 +633,7 @@ function buildBars(ed: Editor) {
     L = t('Laser');
   const tool = (id: Tool, icon: string, label: string): Action => ({ id: `tool:${id}`, cat: W, icon, label, run: () => ed.setTool(id), on: () => ed.tool === id });
   const list: Action[] = [
-    { id: 'new', cat: F, icon: 'new', label: t('Neues Projekt in neuem Tab (Ctrl+N)'), run: () => ed.newTab() },
+    { id: 'new', cat: F, icon: 'new', label: t('Neues Projekt in neuem Tab (Ctrl+N)'), run: () => (ed.newTab(), applyNewDocDefaults()) },
     { id: 'open', cat: F, icon: 'open', label: t('Öffnen'), run: () => openProject(ed) },
     { id: 'save', cat: F, icon: 'save', label: t('Speichern'), run: () => saveProject(ed) },
     { id: 'import', cat: F, icon: 'import', label: t('Importieren: Bilder, SVG, DXF, PDF, AI, LightBurn, 3D-Modelle (Ctrl+I)'), run: () => importFile(ed) },

@@ -15,6 +15,80 @@ import { docKey, makeTab } from './tabs';
 /** Ids in the image store (hashId in images.ts) */
 const ASSET_ID = /^[0-9a-f]{16,32}$/;
 
+/** Auto-save-Intervall in Minuten (0 = aus); LOCAL-Key, wird nie übertragen */
+const AUTOSAVE_INTERVAL_KEY = 'kizamubeam.autosaveInterval';
+/** Standard „Nur Auswahl“ für neue Dateien */
+const CUT_SELECTED_DEFAULT_KEY = 'kizamubeam.cutSelectedDefault';
+/** Standard-Job-Ursprung 0 … 8 für neue Dateien */
+const JOB_ORIGIN_DEFAULT_KEY = 'kizamubeam.jobOriginDefault';
+
+/** Minuten zwischen automatischen Sicherungen (0 = aus, Default heutiges Verhalten) */
+export function loadAutosaveInterval(): number {
+  try {
+    const v = Math.floor(Number(localStorage.getItem(AUTOSAVE_INTERVAL_KEY)));
+    return Number.isFinite(v) && v > 0 ? Math.min(1440, v) : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/** Intervall setzen und Timer neu starten (0 schaltet ab); wirft bei ungültigem Wert */
+export function setAutosaveInterval(ed: Editor, minutes: number) {
+  if (!Number.isFinite(minutes) || minutes < 0 || minutes > 1440) throw new Error(t('Intervall muss zwischen 0 und 1440 Minuten liegen.'));
+  const v = Math.floor(minutes);
+  try {
+    localStorage.setItem(AUTOSAVE_INTERVAL_KEY, String(v));
+  } catch {
+    /* Speicher nicht verfügbar */
+  }
+  restartAutosaveTimer(ed);
+}
+
+/** Minuten-Timer neu starten (frisst den alten); beim Editor-Start und bei jeder Änderung */
+export function restartAutosaveTimer(ed: Editor) {
+  window.clearInterval(ed.autoSaveTimer);
+  const min = loadAutosaveInterval();
+  ed.autoSaveTimer = min > 0 ? window.setInterval(() => ed.saveNow(), min * 60_000) : 0;
+}
+
+/** Standard „Nur Auswahl“ für neue Dateien (Default aus) */
+export function loadCutSelectedDefault(): boolean {
+  try {
+    return localStorage.getItem(CUT_SELECTED_DEFAULT_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+/** Standard „Nur Auswahl“ für neue Dateien merken */
+export function saveCutSelectedDefault(v: boolean) {
+  try {
+    localStorage.setItem(CUT_SELECTED_DEFAULT_KEY, JSON.stringify(v));
+  } catch {
+    /* Speicher nicht verfügbar */
+  }
+}
+
+/** Standard-Job-Ursprung für neue Dateien (Default 0 = oben links) */
+export function loadJobOriginDefault(): number {
+  try {
+    const v = Math.floor(Number(localStorage.getItem(JOB_ORIGIN_DEFAULT_KEY)));
+    return Number.isInteger(v) && v >= 0 && v <= 8 ? v : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/** Standard-Job-Ursprung für neue Dateien merken; wirft bei ungültigem Wert */
+export function saveJobOriginDefault(v: number) {
+  if (!Number.isInteger(v) || v < 0 || v > 8) throw new Error(t('Job-Ursprung muss zwischen 0 und 8 liegen.'));
+  try {
+    localStorage.setItem(JOB_ORIGIN_DEFAULT_KEY, String(v));
+  } catch {
+    /* Speicher nicht verfügbar */
+  }
+}
+
 const STORAGE_KEY = 'kizamubeam.autosave';
 
 /** Parameter parametrischer Bauteile aus älteren Generator-Versionen anpassen (Geometrie bleibt) */
@@ -183,7 +257,7 @@ export class EditorDocument {
     return [...ids];
   }
   /** Projektdatei: Dokument samt Bilddaten und 3D-Modellen */
-  serialize(this: Editor) {
+  serialize(this: Editor, job?: { cutSelected: boolean; jobOrigin: number }) {
     const assets: Record<string, string> = {};
     for (const id of this.assetIds()) {
       const url = assetUrl(id);
@@ -197,7 +271,8 @@ export class EditorDocument {
     const extra: Record<string, unknown> = {};
     if (Object.keys(assets).length) extra.assets = assets;
     if (Object.keys(meshes).length) extra.meshes = meshes;
-    return JSON.stringify(Object.keys(extra).length ? { ...this.doc, ...extra } : this.doc, null, 1);
+    // Nur-Auswahl/Ursprung pro Datei speichern (wird beim Öffnen aufs Gerät übernommen)
+    return JSON.stringify({ ...this.doc, ...(job ? { cutSelected: job.cutSelected, jobOrigin: job.jobOrigin } : null), ...extra }, null, 1);
   }
   /** Projektdatei lesen: Bilddaten anmelden, IDs und alte Generator-Parameter anpassen */
   parseProject(this: Editor, json: string): Doc {
