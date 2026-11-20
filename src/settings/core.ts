@@ -25,6 +25,7 @@ import { openFontManager } from '../fontManager';
 import { agentLevels, agentSettings, configureAgent, openAgentDialog } from '../agentui';
 import { configureHost, hostSettings, openRemoteHostDialog } from '../remoteHost';
 import { registerSettingsSection } from './registry';
+import type { SvgDpi } from '../importers';
 import { typographySettingsFields } from './typography';
 import { electricityCurrencyField, electricityTariffField } from '../energyUi';
 
@@ -224,6 +225,26 @@ export function registerCoreSettings(ed: Editor, hooks: CoreSettingsHooks) {
         keywords: t('Import Hinweis übersprungen Text DXF SVG'),
         hint: t('Nicht übernommene Inhalte (z. B. Texte, vorher in Pfade umwandeln) werden als Hinweis gemeldet; ausgeschaltet werden sie still ignoriert.'),
         get: () => ed.importSkippedNote, set: (v) => ed.setImportSkippedNote(v),
+      },
+      {
+        kind: 'toggle', id: 'workspace.importAutoGroup', group: t('Import'), label: t('Importiertes automatisch gruppieren'), def: true,
+        keywords: t('Import Gruppe gruppieren'),
+        hint: t('Neu importierte Objekte werden wie bisher zu einer Gruppe zusammengefasst; ausgeschaltet bleiben sie einzeln.'),
+        get: () => ed.importAutoGroup, set: (v) => ed.setImportAutoGroup(v),
+      },
+      {
+        kind: 'select', id: 'workspace.dxfFallbackUnit', group: t('Import'), label: t('DXF-Einheit bei fehlender Angabe'), def: '1',
+        keywords: t('DXF Einheit Fallback Import INSUNITS'),
+        hint: t('Wird verwendet, wenn die DXF-Datei keine gültige Einheit enthält; entspricht dem bisherigen Millimeter-Verhalten.'),
+        options: () => [['1', t('Millimeter')], ['10', t('Zentimeter')], ['25.4', t('Zoll')], ['0.001', t('Mikrometer')]],
+        get: () => String(ed.dxfFallbackUnitMm), set: (v) => ed.setDxfFallbackUnit(Number(v)),
+      },
+      {
+        kind: 'select', id: 'workspace.svgDpi', group: t('Import'), label: t('SVG-Auflösung für einheitenlose Maße'), def: '96',
+        keywords: t('SVG DPI Auflösung Illustrator Import'),
+        hint: t('Einheitenlose und px-Maße werden wie bisher mit 96 DPI gelesen; Illustrator-Dateien erkennt die Automatik an 72 DPI.'),
+        options: () => [['96', t('96 DPI')], ['72', t('72 DPI')], ['auto', t('Automatisch (Illustrator 72, sonst 96)')]],
+        get: () => ed.svgDpi, set: (v) => ed.setSvgDpi(v as SvgDpi),
       },
     ],
   });

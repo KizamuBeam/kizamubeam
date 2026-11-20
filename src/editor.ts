@@ -19,7 +19,7 @@ import { EditorCommands } from './editor/commands';
 import { EditorDocument } from './editor/document';
 import { EditorHinges } from './editor/hinges';
 import { EditorPattern } from './editor/pattern';
-import { EditorImages, loadImportAutoSelect, loadImportCenterInBed, loadImportSkippedNote } from './editor/imageops';
+import { EditorImages, loadDxfFallbackUnit, loadImportAutoGroup, loadImportAutoSelect, loadImportCenterInBed, loadImportSkippedNote, loadSvgDpi, type SvgDpi } from './editor/imageops';
 import { EditorImageHandles } from './editor/imageHandles';
 import { EditorJoints } from './editor/joints';
 import { EditorKeyboard, loadNudgeSteps, type NudgeSteps } from './editor/keyboard';
@@ -199,6 +199,12 @@ export class Editor {
   importCenterInBed = loadImportCenterInBed();
   /** Hinweise zu übersprungenen Inhalten anzeigen (Opt-out, an) */
   importSkippedNote = loadImportSkippedNote();
+  /** Importiertes automatisch gruppieren (Opt-out, an) */
+  importAutoGroup = loadImportAutoGroup();
+  /** SVG-Auflösung für einheitenlose/px-Maße (Opt-out, 96 DPI) */
+  svgDpi: SvgDpi = loadSvgDpi();
+  /** DXF-Einheit als Fallback in mm (Opt-out, 1 = mm) */
+  dxfFallbackUnitMm = loadDxfFallbackUnit();
   /** Klick-Toleranz ändern und merken */
   setClickTolerance(v: number) {
     if (!saveClickTolerance(v)) throw new Error(t('Einstellung konnte nicht gespeichert werden.'));
