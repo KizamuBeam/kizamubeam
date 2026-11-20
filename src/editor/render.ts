@@ -847,6 +847,19 @@ export class EditorRender {
         ctx.stroke();
       }
     }
+    // Shaper-Nachbearbeitung: Punkte der letzten Geste als ziehbare Griffe
+    const se = this.shaperEdit;
+    if (se && this.shaperEditValid() && se.op !== 'union' && se.op !== 'subtract') {
+      const hz = this.handleSize ?? DEFAULT_HANDLE_SIZE, hh = hz / 2;
+      ctx.fillStyle = T.handleFill;
+      ctx.strokeStyle = T.sel;
+      ctx.lineWidth = 1;
+      for (const p of se.points) {
+        const q = this.toScreen(p);
+        ctx.fillRect(q.x - hh, q.y - hh, hz, hz);
+        ctx.strokeRect(q.x - hh + 0.5, q.y - hh + 0.5, hz - 1, hz - 1);
+      }
+    }
     // Winkelanzeige beim Drehen
     const d = this.drag;
     if (d && d.type === 'rotate') {

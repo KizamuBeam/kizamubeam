@@ -11,6 +11,7 @@ import { MAX_VECTOR_SAMPLES } from '../vectorFit';
 import { closureOf } from '../shaper';
 import { genLeaves, isMarkGroup } from './generators';
 import { HINGE_HINT_FIRST, HINGE_HINT_SECOND, LASSO_TOUCH_HINT, RULER, TOOL_HINTS } from './shared';
+import { DEFAULT_HANDLE_SIZE } from './render';
 import { ARC_MIN_RADIUS, arcPoint, arcSpec, arcSubPath, newArcDraft, snapAngle, type ArcDraft, type ArcMode } from './arc';
 import { OVERLAP_MOVE_PX } from '../overlapPicker';
 import { hitImageCropHandle, pointerCropTo } from '../imageCropUi';
@@ -239,6 +240,20 @@ export class EditorPointer {
       }
       case 'shaper':
         e.preventDefault();
+        // Nachbearbeitung: Punkt der letzten Geste ziehen statt neue Geste beginnen
+        // (nur erkennen/freihand; union/subtract nutzen inputs, keine Punkte).
+        if (this.shaperEditValid()) {
+          const se = this.shaperEdit!;
+          if (se.op !== 'union' && se.op !== 'subtract') {
+            const stol = Math.max(5, (this.handleSize ?? DEFAULT_HANDLE_SIZE) / 2 + 1) / this.view.zoom;
+            const sidx = se.points.findIndex((p) => Math.hypot(p.x - wp.x, p.y - wp.y) <= stol);
+            if (sidx >= 0) {
+              this.drag = { type: 'shaper-point', index: sidx, pointerId: e.pointerId, moved: false };
+              this.redraw();
+              return;
+            }
+          }
+        }
         this.clearSnap();
         this.shaperCloseHint = null;
         this.drag = { type: 'shaper', points: [wp], pointerId: e.pointerId, overflow: false };
@@ -508,6 +523,16 @@ export class EditorPointer {
             : t('Kontur offen: Ende zurück in den Ring am Startpunkt ziehen.');
           this.emit('tool');
         }
+        this.redraw(); return;
+      }
+      case 'shaper-point': {
+        if (e.pointerId !== d.pointerId) return;
+        const se = this.shaperEdit;
+        if (!this.shaperEditValid() || !se || se.op === 'union' || se.op === 'subtract') { this.drag = null; this.redraw(); return; }
+        if (!Number.isFinite(wp.x) || !Number.isFinite(wp.y)) return;
+        se.points[d.index] = { x: wp.x, y: wp.y };
+        d.moved = true;
+        this.shaperRebuild();
         this.redraw(); return;
       }
       case 'pencil': {
