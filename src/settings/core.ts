@@ -9,6 +9,7 @@ import { isTauri } from '../machine';
 import { DEFAULT_GRID, GridSettings } from '../grid';
 import type { BoolBase } from '../ops';
 import { loadCheckSettings, saveCheckSettings } from '../check';
+import { type CurveQuality, loadCurveQuality, saveCurveQuality } from '../geom';
 import { autoInstallFonts, setAutoInstallFonts } from '../fontCatalog';
 import { loadOverlapSettings, OVERLAP_HOLD_MS, OverlapSettings, saveOverlapSettings } from '../overlapPicker';
 import { defaultUpdateChannel, openUpdateDialog, setUpdateAutoCheck, setUpdateChannel, updateAutoCheck, updateChannel } from '../updateDialog';
@@ -131,6 +132,25 @@ export function registerCoreSettings(ed: Editor, hooks: CoreSettingsHooks) {
         keywords: t('Mitte Zentrum Bett Kreuz'),
         hint: t('Kleines Kreuz in der Mitte des Arbeitsbereichs.'),
         get: () => ed.bedCenterCross, set: (v) => ed.setBedCenterCross(v),
+      },
+      {
+        kind: 'toggle', id: 'appearance.canvasFilled', group: t('Arbeitsfläche'), label: t('Füll-Layer gefüllt anzeigen'), def: true,
+        keywords: t('Füllung Drahtgitter Alt W'),
+        hint: t('Aus zeigt Füll-Layer nur als Linien (wie Alt+W und die Werkzeugleiste).'),
+        get: () => ed.filled, set: (v) => ed.setFilled(v),
+      },
+      {
+        kind: 'toggle', id: 'appearance.imageSmoothing', group: t('Arbeitsfläche'), label: t('Kantenglättung beim Zoomen'), def: true,
+        keywords: t('Glättung Bilder Zoomen weich'),
+        hint: t('Bilder verkleinert glätten. Vektorlinien sind immer kantengeglättet.'),
+        get: () => ed.imageSmoothing, set: (v) => ed.setImageSmoothing(v),
+      },
+      {
+        kind: 'select', id: 'appearance.curveQuality', group: t('Arbeitsfläche'), label: t('Kurvenqualität'), def: 'balanced',
+        options: () => [['coarse', t('Grob (schnell)')], ['balanced', t('Ausgewogen')], ['fine', t('Fein (genau)')]],
+        keywords: t('Kurven Qualität Tempo Genauigkeit'),
+        hint: t('Abtastung von Kurven für Rahmen und Treffertest: grob ist schneller, fein genauer.'),
+        get: () => loadCurveQuality(), set: (v) => saveCurveQuality(v as CurveQuality),
       },
       {
         kind: 'action', id: 'appearance.toolbars', group: t('Fenster und Leisten'), label: t('Funktionsleisten'), hint: t('Knöpfe und Reihenfolge der Leisten wählen.'),

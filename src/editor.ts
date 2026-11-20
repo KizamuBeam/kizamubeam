@@ -27,7 +27,7 @@ import { EditorNodes } from './editor/nodes';
 import { EditorObjects } from './editor/objects';
 import { EditorPaths } from './editor/paths';
 import { EditorPointer, loadRightPan, loadZoomInverted } from './editor/pointer';
-import { EditorRender, loadBedCenterCross, loadCanvasDark, loadHandleSize, loadShowCrosshair } from './editor/render';
+import { EditorRender, loadBedCenterCross, loadCanvasDark, loadCanvasFilled, loadHandleSize, loadImageSmoothing, loadShowCrosshair } from './editor/render';
 import { EditorShapeOps } from './editor/shapeops';
 import { EditorSnapping, loadSnapTolerance, type SnapTolerance } from './editor/snapping';
 import { EditorToolOptions, loadRememberToolOptions, loadSelectAfterDraw } from './editor/toolOptions';
@@ -84,7 +84,9 @@ export class Editor {
   /** Frei gesetzter Drehpunkt im Drehmodus */
   pivot: Pt | null = null;
   view = { zoom: 2, ox: 60, oy: 40 };
-  filled = true;
+  filled = loadCanvasFilled();
+  /** Kantenglättung beim Bild-Zoomen (abschaltbar, Default an = heutiges Verhalten) */
+  imageSmoothing = loadImageSmoothing();
   /** Dunkles Design der Arbeitsfläche */
   dark = false;
   /** Aufgelöste Schriftfaktoren je Gruppe (Arbeitsfläche); live über Typografie-Änderungen aktualisiert */
