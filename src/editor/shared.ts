@@ -69,8 +69,8 @@ export type Drag =
       handles: {obj:Obj;sub:number;idx:number;which:'cin'|'cout';orig:Node}[];
     }
   | { type: 'nodebox'; start: Pt; end: Pt; obj: Obj; base: Map<Obj, Set<string>>; mode: 'set' | 'add' | 'toggle'; onTarget: boolean }
-  /** Shaper-Nachbearbeitung: einzelnen Punkt der letzten Geste ziehen (nur erkennen/freihand) */
-  | { type: 'shaper-point'; index: number; pointerId: number; moved: boolean };
+  /** Shaper-Nachbearbeitung: Bézieranker/Tangente samt zugrunde liegender Mausspur. */
+  | { type: 'shaper-point'; index: number; which: 'p' | 'cin' | 'cout'; pointerId: number; moved: boolean; original: import('./shaper').ShaperSession; shape: Shape; mat: Mat; snapSet: SnapSet };
 
 export interface NodeHover {
   obj?: Obj;

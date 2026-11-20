@@ -629,11 +629,13 @@ export class Editor {
   // ---------- Werkzeuge ----------
 
   setTool(t: Tool) {
+    // Re-selecting Shaper must not discard its active editing session.
+    if (t === 'shaper' && this.tool === 'shaper' && this.shaperEdit) return;
     if (t !== 'builder') this.builderSession = null;
-    // Eine neue Werkzeugwahl beendet die Nachbearbeitung der letzten Shaper-Operation
+    if (this.drag) this.cancelDrag();
+    // Erst das Verlassen des Werkzeugs beendet die Shaper-Nachbearbeitung.
     this.shaperEdit = null;
     this.shaperCloseHint = null;
-    if (this.drag) this.cancelDrag();
     if (this.draft) this.finishDraft();
     // Werkzeugwechsel verwirft einen laufenden Bogen (Esc bleibt die bewusste Abbruchtaste).
     this.arcDraft = null;
