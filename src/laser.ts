@@ -5,17 +5,18 @@ import { escapeXml, h, numInput, setIcon, setTrustedSvg } from './dom';
 import { saveBinary, saveText } from './files';
 import { native } from './native';
 import {
-  anchorOf, BedCheck, Box, buildJob, burns, checkBed, DEFAULT_ROTARY, Device, estimate, Firmware, FinishMode, FIRMWARES, liveStatus, formatDuration, frameGCode, Job, jogHoldLines, jogHoldSupported, jogLines, jogToLines, LASER_TYPES, moveLines, LaserModule, LaserType, loadDevices, Moves, newDevice,
+  anchorOf, BedCheck, Box, buildJob, burns, checkBed, DEFAULT_DEVICE, DEFAULT_ROTARY, Device, DirOrder, effOrderOf, estimate, Firmware, FinishMode, FIRMWARES, liveStatus, formatDuration, frameGCode, isManualOrder, Job, jogHoldLines, jogHoldSupported, jogLines, jogToLines, LASER_TYPES, moveLines, LaserModule, LaserType, loadDevices, Moves, newDevice, OrderOpts, OrderOverride,
   posShift, prepareGCode, Rotary, RotaryAxis, rotaryCirc, rotaryOn, rotaryTestLines, RuidaLaser, RuidaMagic, RuidaOrigin, sameMoves, sanitizeRuidaFilename, saveDevices, StartFrom, startHere, zJogLines,
 } from './gcode';
 import { isTauri, machine, PortInfo } from './machine';
 import type { PreparedGCode } from './gcode';
 import { airProblem, digitalOutputs, FluidFs, listCmd, outputCmd, OVERRIDE, parseFileList, pinNames, RAPID_OVERRIDE, TOGGLE_FLOOD, TOGGLE_MIST } from './fluidnc';
 import type { Doc, ImageLayer, Layer, Obj } from './model';
+import { cutOrderGroupOverride } from './lbrn';
 import { forgetHost, openHostDiscovery, openPairDialog, pairedHost, remoteFrame, remoteJob } from './remote';
 import { materialTab } from './materialui';
 import { cameraTab } from './cameraui';
-import { dockWindow, windowBody } from './dock';
+import { dockWindow, isShown, windowBody } from './dock';
 import { loadCheckSettings } from './check';
 import { loadCutSelectedDefault, loadJobOriginDefault } from './editor/document';
 import { openCheck } from './checkPanel';
@@ -44,6 +45,27 @@ export function deviceChanged() {
 }
 /** Wird bei jedem Geräte- oder Einstellungswechsel aufgerufen; liefert eine Abmeldefunktion */
 export const onDeviceChange = (f: () => void) => (deviceListeners.add(f), () => deviceListeners.delete(f));
+/** Job-Overrides der Schnittreihenfolge (V3, #153): null = Geräte-Preset; sitzungsweit pro Job, nicht gespeichert */
+const jobOrder: OrderOverride = { innerFirst: null, travel: null, group: null, cornerStart: null };
+/** Effektive Schalter: Override oder Geräte-Preset — eine Stelle für Job, Prüfung (manualOrder) und Anzeige */
+export const effOrder = (): OrderOpts => effOrderOf(device, jobOrder);
+/** Overrides verwerfen: die nächsten Jobs folgen wieder dem Geräte-Preset */
+export const resetJobOrder = () => {
+  jobOrder.innerFirst = jobOrder.travel = jobOrder.group = jobOrder.cornerStart = null;
+  deviceChanged();
+};
+/**
+ * CutOrder aus einer LightBurn-Datei für diesen Job übernehmen (#153-Nr.3): nur der
+ * Gruppen-Schalter ist mappbar (Ebenen laufen ohnehin in Prioritäts-Reihenfolge). Null-if-equal
+ * wie die Checkboxen (Preset-gleich → kein Override, kein Reset-Button). Panel-Refresh über
+ * deviceChanged; Rückgängig per resetJobOrder („Zurück zum Preset“). Sitzungsweit (V3-Semantik):
+ * ein früherer Import überlebt bis zum nächsten Override/Reset.
+ */
+export function applyImportedCutOrder(co: { byGroup?: number } | undefined) {
+  const g = cutOrderGroupOverride(co);
+  jobOrder.group = g === null || g === device.optGroup ? null : g;
+  deviceChanged();
+}
 const fw = () => FIRMWARES[device.fw];
 const sendAll = (lines: string[]) => {
   for (const l of lines) machine.send(l);
@@ -189,6 +211,7 @@ export async function makeJob(ed: Editor, forPreview: boolean, src?: JobSource):
     layer: src?.layer ?? ((i) => ed.layer(i)),
     imgLayer: src?.imgLayer ?? ((i) => ed.imgLayer(i)),
     device,
+    order: effOrder(),
     only: src ? (src.only ?? null) : device.cutSelected ? ed.sel : null,
     position: pos ? { x: pos[0], y: pos[1] } : null,
     forPreview,
@@ -490,6 +513,8 @@ export function buildLaser(ed: Editor) {
   applyBed(ed);
   // Die Lage auf dem Bett zählt nur, wenn absolut gelasert wird und keine Drehachse läuft
   ed.checkBedApplies = () => device.startFrom === 'absolute' && !rotaryOn(device);
+  // Manuell ist die Reihenfolge nur, wenn kein Optimierer umsortiert (#153: dann warnt die Prüfung vor innen-vor-außen)
+  ed.manualOrder = () => isManualOrder(effOrder());
   // Jeder Bereich ist ein eigenes Fenster (andockbar, als Reiter stapelbar, siehe dock.ts)
   const wins: [string, string, HTMLElement, (() => void)?][] = [
     ['laser', t('Laser'), laserTab(ed)],
@@ -555,6 +580,169 @@ function buildFrameViewRow() {
   deviceListeners.add(update);
   update();
   return { row, pointerB, toolB };
+}
+
+/**
+ * Schnittreihenfolge für diesen Job (V3, #153; V4: plus Ecke-Start): vier Override-Checkboxen mit den gleichen Texten wie das
+ * Geräte-Preset; ein gesetzter Haken gilt nur für die nächsten Jobs (sitzungsweit, nicht gespeichert),
+ * ein Wert gleich dem Preset folgt wieder dem Preset. Zurücksetzen verwirft alle Overrides.
+ */
+function jobOrderBox(ed: Editor, check: (label: string, title: string, get: () => boolean, set: (v: boolean) => void) => HTMLElement): HTMLElement {
+  const preset = { innerFirst: () => device.optInnerFirst, travel: () => device.optTravel, group: () => device.optGroup, cornerStart: () => device.optCornerStart };
+  const box = (key: keyof typeof preset, label: string, title: string) =>
+    check(label, title, () => jobOrder[key] ?? preset[key](), (v) => {
+      jobOrder[key] = v === preset[key]() ? null : v;
+      if (isShown('check')) ed.runCheck();
+    });
+  const reset = h('button', { class: 'btn small', onclick: () => { resetJobOrder(); if (isShown('check')) ed.runCheck(); } }, t('Zurück zum Preset')) as HTMLButtonElement;
+  const refresh = () => {
+    reset.hidden = jobOrder.innerFirst === null && jobOrder.travel === null && jobOrder.group === null && jobOrder.cornerStart === null;
+  };
+  deviceListeners.add(refresh);
+  refresh();
+  return h('details', { class: 'job-order' },
+    h('summary', { title: t('Abweichend vom Geräte-Preset nur für die nächsten Jobs (wird nicht gespeichert).') }, t('Schnittreihenfolge für diesen Job')),
+    box('innerFirst', t('Innere Formen zuerst'), t('Löcher und Innenkonturen vor ihrer Außenkontur schneiden')),
+    box('travel', t('Leerwege verkürzen'), t('Nächstgelegene Form als nächste schneiden (Alternative zur manuellen Reihenfolge)')),
+    box('group', t('Gruppen zusammenhalten'), t('Formen eines Objekts bzw. einer Gruppe bevorzugt nacheinander schneiden')),
+    box('cornerStart', t('In Ecken beginnen'), t('Geschlossene Konturen an der schärfsten Ecke beginnen (Einstich unauffällig)')),
+    reset,
+  );
+}
+
+
+/**
+ * Optimierung der Schnittreihenfolge als eigener Dialog (Geräte-Preset, wie bei anderen Lösungen am Markt üblich): acht Umsortier-Schalter in drei Gruppen als Entwurf,
+ * der erst bei Übernehmen ins Geräte-Preset geschrieben wird (Abbrechen verwirft). Job-Overrides
+ * („Schnittreihenfolge für diesen Job") und CutOrder-Import wirken auf die vier ursprünglichen
+ * Schalter und gehen dort vor; für die vier neuen Schalter (Richtung, Start, Vorgaben) gilt
+ * stets das Geräte-Preset.
+ * „Persönliche Vorgaben" speichert/lädt den Entwurf als JSON unter 'kizamu.optDefaults'
+ * (localStorage, nur dieses Gerät-Rechners) und schreibt nie direkt ins Gerät.
+ */
+export function openOptimizeDialog() {
+  if (deviceEditBlocked()) return;
+  // Acht Opt-Felder direkt aus dem Geräte-Modell (Engine führt sie seit Schritt 3).
+  type OptDraft = Pick<Device,
+    'optInnerFirst' | 'optTravel' | 'optGroup' | 'optCornerStart' |
+    'optDirOrder' | 'optBestStart' | 'optBestDirection' | 'optLessTurns'>;
+  type BoolKey = 'optInnerFirst' | 'optTravel' | 'optGroup' | 'optCornerStart' | 'optBestStart' | 'optBestDirection' | 'optLessTurns';
+  const OPT_STORE = 'kizamu.optDefaults';
+  const DIRS: DirOrder[] = ['none', 'ltr', 'rtl', 'ttb', 'btt'];
+  // Werksvorgabe aus dem Geräte-Modell
+  const factoryBase: OptDraft = {
+    optInnerFirst: DEFAULT_DEVICE.optInnerFirst,
+    optTravel: DEFAULT_DEVICE.optTravel,
+    optGroup: DEFAULT_DEVICE.optGroup,
+    optCornerStart: DEFAULT_DEVICE.optCornerStart,
+    optDirOrder: DEFAULT_DEVICE.optDirOrder,
+    optBestStart: DEFAULT_DEVICE.optBestStart,
+    optBestDirection: DEFAULT_DEVICE.optBestDirection,
+    optLessTurns: DEFAULT_DEVICE.optLessTurns,
+  };
+  // Persönliche Vorgabe: nur bekannte Felder mit passendem Typ übernehmen
+  const loadStored = (): Partial<OptDraft> | null => {
+    try {
+      const raw = localStorage.getItem(OPT_STORE);
+      if (!raw) return null;
+      const p = JSON.parse(raw) as Partial<OptDraft>;
+      if (!p || typeof p !== 'object') return null;
+      const out: Partial<OptDraft> = {};
+      (['optInnerFirst', 'optTravel', 'optGroup', 'optCornerStart', 'optBestStart', 'optBestDirection', 'optLessTurns'] as BoolKey[])
+        .forEach((k) => { if (typeof p[k] === 'boolean') out[k] = p[k]; });
+      if (DIRS.includes(p.optDirOrder as DirOrder)) out.optDirOrder = p.optDirOrder;
+      return out;
+    } catch {
+      return null;
+    }
+  };
+  const d: OptDraft = {
+    optInnerFirst: device.optInnerFirst,
+    optTravel: device.optTravel,
+    optGroup: device.optGroup,
+    optCornerStart: device.optCornerStart,
+    optDirOrder: device.optDirOrder,
+    optBestStart: device.optBestStart,
+    optBestDirection: device.optBestDirection,
+    optLessTurns: device.optLessTurns,
+    ...loadStored(),
+  };
+  const inputs = new Map<BoolKey, HTMLInputElement>();
+  const box = (key: BoolKey, label: string, title: string) => {
+    const c = h('input', { type: 'checkbox', onchange: (e: Event) => (d[key] = (e.target as HTMLInputElement).checked) }) as HTMLInputElement;
+    c.checked = d[key];
+    inputs.set(key, c);
+    return h('label', { class: 'check', title }, c, label);
+  };
+  const dirSel = h('select', { onchange: (e: Event) => (d.optDirOrder = (e.target as HTMLSelectElement).value as DirOrder) }) as HTMLSelectElement;
+  ([
+    ['none', t('Aus')],
+    ['ltr', t('Links nach rechts')],
+    ['rtl', t('Rechts nach links')],
+    ['ttb', t('Oben nach unten')],
+    ['btt', t('Unten nach oben')],
+  ] as [DirOrder, string][]).forEach(([v, label]) => dirSel.append(h('option', { value: v }, label)));
+  dirSel.value = d.optDirOrder;
+  const sync = () => {
+    inputs.forEach((c, k) => (c.checked = d[k]));
+    dirSel.value = d.optDirOrder;
+  };
+  const group = (legend: string, ...body: HTMLElement[]) =>
+    h('fieldset', {}, h('legend', {}, legend), h('div', { class: 'form' }, ...body));
+  const dlg = h('dialog', { class: 'device-dialog' },
+    h('h3', {}, t('Optimierung der Schnittreihenfolge')),
+    group(t('Reihenfolge'),
+      box('optInnerFirst', t('Innere Formen zuerst'), t('Löcher und Innenkonturen vor ihrer Außenkontur schneiden')),
+      box('optTravel', t('Leerwege verkürzen'), t('Nächstgelegene Form als nächste schneiden (Alternative zur manuellen Reihenfolge)')),
+      box('optGroup', t('Gruppen zusammenhalten'), t('Formen eines Objekts bzw. einer Gruppe bevorzugt nacheinander schneiden')),
+      h('label', {}, t('Richtungsreihenfolge')), dirSel,
+      box('optLessTurns', t('Richtungswechsel reduzieren'), t('Bevorzugt Bahnen in aktueller Fahrtrichtung (kein Backlash-Ausgleich)')),
+    ),
+    group(t('Startpunkt & Richtung'),
+      box('optCornerStart', t('In Ecken beginnen'), t('Geschlossene Konturen an der schärfsten Ecke beginnen (Einstich unauffällig)')),
+      box('optBestStart', t('Besten Startpunkt wählen'), t('Geschlossene Konturen: Start am nächsten Eckpunkt, ohne Umsortierung')),
+      box('optBestDirection', t('Beste Richtung wählen'), t('Offene Konturen ab dem näheren Ende; geschlossene werden nie umgedreht')),
+    ),
+    group(t('Persönliche Vorgaben'),
+      h('button', {
+        class: 'btn', title: t('Entwurf auf die persönliche Vorgabe zurücksetzen (sonst Werksvorgabe)'),
+        onclick: () => {
+          Object.assign(d, loadStored() ?? factoryBase);
+          sync();
+        },
+      }, t('Auf Standard zurücksetzen')),
+      h('button', {
+        class: 'btn', title: t('Aktuellen Entwurf als persönliche Vorgabe speichern'),
+        onclick: () => {
+          try {
+            localStorage.setItem(OPT_STORE, JSON.stringify(d));
+          } catch {
+            notify(t('Einstellung konnte nicht gespeichert werden.'), true);
+          }
+        },
+      }, t('Als Vorgabe speichern')),
+    ),
+    h('div', { class: 'note' }, t('Geräte-Preset: gilt für alle Jobs dieses Geräts. Abweichungen nur für diesen Job unter „Schnittreihenfolge für diesen Job“.')),
+    h('div', { class: 'dialog-buttons' },
+      h('button', { class: 'btn', onclick: () => done() }, t('Abbrechen')),
+      h('button', {
+        class: 'btn primary',
+        onclick: () => {
+          (document.activeElement as HTMLElement | null)?.blur();
+          Object.assign(device, d);
+          deviceChanged();
+          done();
+        },
+      }, t('Übernehmen')),
+    ),
+  );
+  // Explizit entfernen: Der close-Listener räumt Esc ab, die Buttons räumen selbst ab
+  // (nicht jede Umgebung stellt das close-Event zuverlässig zu).
+  const done = () => { dlg.close(); dlg.remove(); };
+  dlg.addEventListener('close', () => dlg.remove());
+  dlg.addEventListener('keydown', (e) => e.stopPropagation());
+  document.body.append(dlg);
+  dlg.showModal();
 }
 
 function laserTab(ed: Editor): HTMLElement {
@@ -673,13 +861,12 @@ function laserTab(ed: Editor): HTMLElement {
     ),
     h('div', { class: 'checks' },
       check(t('Nur Auswahl'), t('Nur die ausgewählten Objekte lasern'), () => device.cutSelected, (v) => (device.cutSelected = v)),
-      check(t('Innere Formen zuerst'), t('Löcher und Innenkonturen vor ihrer Außenkontur schneiden'), () => device.optInnerFirst, (v) => (device.optInnerFirst = v)),
-      check(t('Leerwege verkürzen'), t('Nächstgelegene Form als nächste schneiden (Alternative zur manuellen Reihenfolge)'), () => device.optTravel, (v) => (device.optTravel = v)),
-      check(t('Gruppen zusammenhalten'), t('Formen eines Objekts bzw. einer Gruppe bevorzugt nacheinander schneiden'), () => device.optGroup, (v) => (device.optGroup = v)),
       check(t('Drehachse'), t('Rotary einschalten: Y wird zur Umfangsrichtung des Objekts'), () => device.rotary.enabled, (v) => (device.rotary = { ...device.rotary, enabled: v })),
       h('button', { class: 'btn small', title: t('Drehachse (Rotary) einrichten'), onclick: () => openRotaryDialog() }, t('Drehachse …')),
     ),
+    jobOrderBox(ed, check),
     h('div', { class: 'conn-row' },
+      h('button', { class: 'btn', title: t('Umsortier-Schalter des Geräte-Presets einstellen (Innen zuerst, Leerwege, Gruppen, Ecken)'), onclick: () => openOptimizeDialog() }, t('Optimierung …')),
       h('button', { class: 'btn', onclick: () => openDeviceDialog(ed) }, h('span', { icon: 'settings' }), t('Geräteeinstellungen')),
       h('button', { class: 'btn', title: t('Schritt für Schritt von der Verbindung bis zum ersten Testauftrag'), onclick: () => import('./setupWizard').then((m) => m.openSetupWizard(ed)) }, t('Laser einrichten …')),
     ),
