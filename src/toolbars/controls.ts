@@ -150,7 +150,7 @@ export function createEditorToolbarControls(ed: Editor, refresh: () => void): {
     }) as HTMLButtonElement;
     setIcon(magnet, 'snap');
     const toggle = h('button', {
-      class: 'toggle', title: t('Fangziele'), 'aria-label': t('Fangziele'), 'aria-haspopup': 'dialog', 'aria-expanded': 'false',
+      class: 'ib-more', title: t('Fangziele'), 'aria-label': t('Fangziele'), 'aria-haspopup': 'dialog', 'aria-expanded': 'false',
       onclick: (e: Event) => {
         e.stopPropagation();
         open = !open;
@@ -195,7 +195,7 @@ export function createEditorToolbarControls(ed: Editor, refresh: () => void): {
       h('label', { class: 'check' }, gridBox, t('Raster')),
       h('label', { class: 'check' }, guideBox, t('Hilfslinien')),
       h('hr', {}), resetBtn);
-    const el = h('span', { class: 'field snap-options-wrap' }, magnet, toggle);
+    const el = h('span', { class: 'ib-group snap-options-wrap', role: 'group', 'aria-label': t('Fangziele') }, magnet, toggle);
     const positionPop = () => {
       const anchor = toggle.getBoundingClientRect();
       const { width, height } = pop.getBoundingClientRect();
@@ -672,7 +672,7 @@ export function createEditorToolbarControls(ed: Editor, refresh: () => void): {
     } };
   });
   const groups = controls.map((control) => ({ id: control.id.replace('control:', 'options:'), label: control.label, kind: 'section' as const, items: [{ kind: 'control' as const, id: control.id }] }));
-  const names = ['snap-options', 'geometry', 'pencil', 'arc', 'shaper', 'nodes', 'image', 'barcode', 'generator', 'rectangle', 'polygon'];
+  const names = ['geometry', 'pencil', 'arc', 'shaper', 'nodes', 'image', 'barcode', 'generator', 'rectangle', 'polygon'];
   const bar = (id: string, label: string, lane: number, features: string[]) => ({
     id, label, items: features.map((name) => ({ kind: 'group' as const, id: `options:${name}` })),
     layout: { placement: { kind: 'dock' as const, edge: 'top' as const, lane, order: 0 }, orientation: 'horizontal' as const, rows: 1, columns: 1 },

@@ -445,6 +445,12 @@ select:focus {
   padding: 8px;
   border-radius: 6px;
 }
+.toolbar-popup.snap-targets-pop {
+  position: fixed;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 6px;
+}
 .toolbar-popup.toolbar-menu {
   min-width: 220px;
   width: max-content;
