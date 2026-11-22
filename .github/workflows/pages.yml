@@ -45,11 +45,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -161,5 +158,16 @@ jobs:
         with:
           path: _site
 
+  # Deploying in a job of its own: right after upload-pages-artifact in the same
+  # job, deploy-pages sometimes does not see the artifact yet ("No artifacts
+  # named github-pages were found", actions/deploy-pages#451). Once the build
+  # job has finished, the artifact is always listed.
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - id: deployment
         uses: actions/deploy-pages@v4
