@@ -16,6 +16,7 @@ import { deformGesture, gestureSpline, hitSpline } from '../shaperSpline';
 import { ARC_MIN_RADIUS, arcPoint, arcSpec, arcSubPath, newArcDraft, snapAngle, type ArcDraft, type ArcMode } from './arc';
 import { OVERLAP_MOVE_PX } from '../overlapPicker';
 import { hitImageCropHandle, pointerCropTo } from '../imageCropUi';
+import { rectRadiusFromLocal } from '../radiusDrag';
 
 const RIGHT_PAN_KEY = 'kizamubeam.rightPan';
 /** Right-drag panning is opt-in: off unless switched on in the settings */
@@ -125,11 +126,19 @@ export class EditorPointer {
         return;
       case 'select': {
         // Bild-Entwurf (Zuschnitt/Perspektive) fängt seine Griffe vor Auswahl/Skalierung ab.
-        const ih = this.imageDraft?.() ? hitImageCropHandle(this, sx, sy) : null;
+        const ih = this.imageDraft?.() ? hitImageCropHandle(this, sx, sy, { all: e.shiftKey }) : null;
         if (ih) {
           this.drag = ih.mode === 'crop'
             ? { type: 'image-crop', mode: 'crop', handle: ih.handle }
-            : { type: 'image-crop', mode: 'perspective', handle: ih.index };
+            : ih.mode === 'perspective'
+              ? { type: 'image-crop', mode: 'perspective', handle: ih.index }
+              : { type: 'image-crop', mode: 'rounding', handle: ih.index };
+          return;
+        }
+        if (this.hitRectRadius(sx, sy)) {
+          const o = this.rectRadiusTarget()!;
+          if (o.shape.kind !== 'rect') return;
+          this.drag = { type: 'rect-radius', obj: o, radius: o.shape.r, moved: false, redo: this.history.saveRedo() };
           return;
         }
         if (this.hitPivot(sx, sy)) {
@@ -478,7 +487,9 @@ export class EditorPointer {
       if (hadSnap) this.redraw();
       if (this.tool === 'select') {
         const h = this.hitHandle(sx, sy);
-        this.canvas.style.cursor = this.hitPivot(sx, sy)
+        this.canvas.style.cursor = this.hitRectRadius(sx, sy)
+          ? 'pointer'
+          : this.hitPivot(sx, sy)
           ? 'move'
           : h >= 0
             ? this.rotateMode
@@ -657,6 +668,32 @@ export class EditorPointer {
         if (!draft || !target || target.shape.kind !== 'image') { this.drag = null; return; }
         const err = pointerCropTo(this, sx, sy, { aspectLock: e.shiftKey, event: e });
         if (err) { this.hint = err; this.emit('tool'); }
+        return;
+      }
+      case 'rect-radius': {
+        const o = this.rectRadiusTarget();
+        if (!o || o.shape.kind !== 'rect') { this.drag = null; return; }
+        const inverse = inv(o.m);
+        const corner = apply(inverse, wp.x, wp.y);
+        // Roundoff bound in local mm for screen unprojection + inverse affine.
+        // Scale with the actual operands, not a fixed movement/pixel threshold.
+        const screenScale = Math.max(1, Math.abs(e.clientX), Math.abs(e.clientY), Math.abs(sx), Math.abs(sy),
+          Math.abs(this.view.ox), Math.abs(this.view.oy)) / this.view.zoom;
+        const tolerance = 16 * Number.EPSILON * Math.max(1,
+          Math.abs(inverse[0] * wp.x) + Math.abs(inverse[2] * wp.y) + Math.abs(inverse[4]),
+          Math.abs(inverse[1] * wp.x) + Math.abs(inverse[3] * wp.y) + Math.abs(inverse[5]),
+          screenScale * Math.max(Math.abs(inverse[0]) + Math.abs(inverse[2]), Math.abs(inverse[1]) + Math.abs(inverse[3])));
+        let r = rectRadiusFromLocal(corner.x, corner.y, o.shape.w, o.shape.h);
+        if (Math.abs(r - d.radius) <= tolerance) r = d.radius;
+        else if (Math.abs(r - o.shape.r) <= tolerance) r = o.shape.r;
+        if (r !== o.shape.r) {
+          if (!d.moved) this.snapshot(t('Form-Eigenschaften'));
+          o.shape.r = r;
+          this.touch(o.shape);
+          d.moved = true;
+          this.hint = `${t('Eckenradius')}: ${r.toFixed(1)} mm`;
+          this.emit('doc');
+        }
         return;
       }
       case 'rotate': {
@@ -914,6 +951,15 @@ export class EditorPointer {
       case 'scale':
       case 'rotate':
         if (this.sel.every((o, i) => o.m === d.orig[i])) this.dropSnapshot();
+        this.hint = '';
+        this.emit('sel');
+        return;
+      case 'rect-radius':
+        // onMove snaps roundoff-close backtracking to the exact original value.
+        if (d.moved && d.obj.shape.kind === 'rect' && d.obj.shape.r === d.radius) {
+          this.dropSnapshot();
+          this.history.restoreRedo(d.redo);
+        }
         this.hint = '';
         this.emit('sel');
         return;
@@ -1241,6 +1287,13 @@ export class EditorPointer {
         this.touch(result.shape);
         this.emit('doc');
         this.emit('tool');
+      }
+    } else if (d.type === 'rect-radius') {
+      if (d.moved && d.obj.shape.kind === 'rect') {
+        d.obj.shape.r = d.radius;
+        this.touch(d.obj.shape);
+        this.dropSnapshot();
+        this.history.restoreRedo(d.redo);
       }
     } else if (d.type === 'move' || d.type === 'scale' || d.type === 'rotate') {
       this.sel.forEach((o, i) => (o.m = d.orig[i]));

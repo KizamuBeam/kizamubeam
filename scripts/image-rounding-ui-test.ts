@@ -41,13 +41,16 @@ await test('rounding draft clones radii; Apply serializes once and Undo restores
   assert.deepEqual((ed.doc.objs[0].shape as any).edit.cornerRadii, requested);
 });
 
-await test('rounding tab never dispatches perspective handles or key nudges', () => {
+await test('rounding tab dispatches radius grips and key nudges without changing perspective', () => {
   const { ed, o } = fixture();
   assert.equal(ui.startImageEditForSel(ed, 'rounding' as any), null);
   const p = ui.perspectiveCornerScreens(ed, o.id)[0].screen;
-  assert.equal(ui.hitImageCropHandle(ed, p.x, p.y), null);
-  assert.equal(ui.handleImageCropKey(ed, { key: 'ArrowLeft' }), false);
+  assert.deepEqual(ui.hitImageCropHandle(ed, p.x, p.y), { mode: 'rounding', index: 0 });
+  assert.equal(ui.handleImageCropKey(ed, { key: 'ArrowLeft' }), true);
+  assert.equal(ui.handleImageCropKey(ed, { key: 'ArrowRight' }), true);
+  assert.equal(ed.imageDraft().cornerRadii[0], .5);
   assert.equal(ui.pointerCropTo(ed, p.x + 10, p.y), null);
+  assert.equal(ed.imageDraft().cornerRadii[0], 5);
   assert.deepEqual(ed.imageDraft().quad[0], { x: 0, y: 0 });
   assert.equal(ui.handleImageCropKey(ed, { key: 'Escape' }), true);
   assert.equal(ed.history.position, 0);
@@ -79,7 +82,7 @@ await test('common radius, individual radius and isolated resets preserve full d
   assert.deepEqual((o.shape as any).edit.cornerRadii, [1, 2, 3, 4, 11, 12, 13, 14]);
 });
 
-await test('number overlay follows final world contour with zoom, offsets, reflection and dpr2', () => {
+await test('number overlay follows final world contour radii with zoom, offsets, reflection and dpr2', () => {
   const { ed, o } = fixture([3, 4, 5, 6]);
   o.m = [-1.4, .3, .6, 1.8, 30, 40];
   ed.startImageEdit(o.id, 'rounding');
@@ -89,8 +92,13 @@ await test('number overlay follows final world contour with zoom, offsets, refle
   ui.renderImageCropOverlay(ed, ctx as any);
   const contour = imageDraftContour(ed, o.id)!;
   assert.ok(contour.ok);
+  const corners = contour.contour.corners;
+  const cx = corners.reduce((sum, c) => sum + c.vertex.x, 0) / corners.length;
+  const cy = corners.reduce((sum, c) => sum + c.vertex.y, 0) / corners.length;
   assert.deepEqual(drawn, contour.contour.corners.map((c, i) => {
-    const p = ed.toScreen(c.vertex); return [String(i + 1), p.x, p.y];
+    const dx = cx - c.vertex.x, dy = cy - c.vertex.y, len = Math.hypot(dx, dy);
+    const p = ed.toScreen({ x: c.vertex.x + dx / len * c.requested, y: c.vertex.y + dy / len * c.requested });
+    return [String(i + 1), p.x, p.y];
   }));
   assert.equal(drawn.length, 4);
   assert.deepEqual((o.shape as any).edit.cornerRadii, [3, 4, 5, 6]);
