@@ -19,6 +19,7 @@ KizamuBeam takes you from the first idea to the finished piece in one app: draw 
 | Find your way around the window | [The user interface](getting-started/interface.md) |
 | Laser something today | [Your first project](getting-started/first-project.md) |
 | Connect your laser | [Connecting a laser](getting-started/connect-laser.md) |
+| Add generators, devices and content | [Extensions](extensions/index.md) |
 | Look up a shortcut | [Keyboard shortcuts](reference/keyboard-shortcuts.md) |
 | Fix a problem | [Troubleshooting](reference/troubleshooting.md) |
 

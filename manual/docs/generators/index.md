@@ -12,23 +12,32 @@ Generators create finished parts from a few dimensions instead of drawing them b
 | [Gears and racks](gears.md) | Gear, gear pair, rack |
 | [Pulleys and cams](pulleys-cams.md) | Timing pulley, disc cam |
 | [Finger-jointed boxes](boxes.md) | Finger Joint Box, Finger Joint Box with Dividers |
+| [Box composer](box-composer.md) | A box with freely placed inner walls (extension) |
 | [Drawers, inserts and shelves](drawers-shelves.md) | Drawer, divider insert, slot-together shelf |
 | [Layered and rib models](models-3d.md) | Layered model and rib model from an STL or OBJ file |
 | [Disc sphere](disc-sphere.md) | A sphere or lamp shade made of interlocking discs |
 | [Multi-layer work](multilayer.md) | Your own shapes stacked into a layered relief |
 
+More generators, such as a jigsaw puzzle, rulers and scales, game boards, layered art and a street map, are [extensions](../extensions/index.md) from the catalogue. Once installed, they appear in the Toolbox under **From extensions** and work like the built-in ones.
+
 Joints between your own shapes, the lid hinge, living hinges and slots are tools rather than generators: see [Joints, hinges and 3D view](../features/construction-3d.md). Jigs are described under [Print and Cut and jigs](../features/print-and-cut.md#jigs), dimensioned sketches under [Snapping, guides and measuring](../features/precision.md#sketches-with-dimensions).
 
 ## Working with generators
 
-### Create and Add
+All generators, the built-in ones included, run as plugins in a separate process. The editor stays usable while a large part is being computed, and a long computation can be cancelled.
 
-Every generator dialog shows a live preview and checks the values as you type; problems appear in red or orange below the fields. Rarely needed settings are under **Advanced**.
+### The generator dialog
+
+Every generator dialog shows a live preview and checks the values as you type; problems appear in red or orange next to the fields. Rarely needed settings are under **Advanced**. The preview can be zoomed with the mouse wheel and panned with the middle mouse button; the dialog can be made larger with the grip in its bottom-right corner, and the preview grows with it. Some generators have several steps, lists or a drawing surface on which you place things with the mouse (the [box composer](box-composer.md), for example). Help, fields and messages are in the right column.
+
+Generators that need the material or the work area take them from the current layer and device: the thickness, kerf and play of a [calibrated](../features/materials-tests.md#calibrate-fit) material, for example. Some can also start from the current selection, such as an image for layered art.
+
+### Create and Add
 
 - **Create** makes the part and closes the dialog.
 - **Add** makes the part and keeps the dialog open, so you can set up the next one with other values. When you edit an existing part, Add creates a new one and leaves the edited part unchanged.
 
-New parts go to the first free spot on the page, starting at the bottom left, 2 mm apart and 3 mm from the edge. Every object on the page is avoided, and an assembly (such as a box) keeps its layout. When the page is full, the part goes onto a new page. A part larger than the work area asks first: **Create anyway** in the centre, go back, or cancel. Each Create or Add is one undo step.
+New parts go to the first free spot on the page, starting at the bottom left, 2 mm apart and 3 mm from the edge. Every object on the page is avoided, and an assembly (such as a box) keeps its layout. When the page is full, the part goes onto a new page. An assembly larger than the work area can spread its parts over several pages and still stays one object that you edit, save and undo in one step. A part larger than the work area asks first: **Create anyway** in the centre, go back, or cancel. Each Create or Add is one undo step.
 
 ### Editing a part later
 

@@ -34,7 +34,11 @@ T1 and T2 are never lasered. Use them for construction lines, the outline of a w
 
 ## Cut settings
 
-Double-click a layer to open its **Cut Settings**. Which fields appear depends on the mode.
+Double-click a layer (in the table or in the palette) to open its **Cut Settings**. The tabs at the top switch between the layer and its [sub-layers](#sub-layers). The settings are grouped into foldable sections: **General** (name, mode, speed, power, passes and output), **Geometry** (kerf offset and focus position), **Line** or **Fill**, **Images**, **Image cut (optional)** and **Appearance in 3D**. Which fields appear depends on the mode.
+
+### Layer type
+
+**Type** says what the layer does to the workpiece: **Cut**, **Engrave** or **Mark**. **Automatic** (the default) decides from the mode and the sub-layers, as before. Engrave and Mark layers never cut through, not even with closed shapes: the [3D view](construction-3d.md#3d-view) engraves them onto the part below, the design check does not treat them as cuts, and [nesting](arranging.md) moves them together with the part they lie on. The G-code does not change. The type is saved in the project and in material library entries.
 
 ### Common to all modes
 
@@ -52,11 +56,12 @@ Double-click a layer to open its **Cut Settings**. Which fields appear depends o
 | Setting | Meaning |
 |---|---|
 | **Kerf Offset (mm)** | Moves the cut outward on outer contours and inward on holes, so parts keep their nominal size. Usually half the kerf width. |
-| **Tabs** | Leaves small bridges uncut so parts do not fall out: count per shape or spacing, tab size, optionally skip inner shapes. |
+| **Tabs** | Leaves small bridges uncut so parts do not fall out: count per shape or spacing, tab size, optionally skip inner shapes. **Max tabs per shape** and **Min tabs per shape** limit the number (0 = unlimited). **Tab power (%)** above 0 cuts the tabs with reduced power instead of leaving the laser off. **Remove tabs** deletes the automatic tabs of this layer. |
 | **Perforation** | Cuts a given length, then leaves a gap, for tear-off edges or fold lines. |
 | **Lead-in / Lead-out** | A straight line at an angle or an arc into and out of the contour, always on the waste side, so the start point leaves no mark on the part. |
 | **Overcut (mm)** | Continues past the start point to make sure the contour is closed. |
 | **Power ramp** | Lowers the power toward corners (from a set change of direction) to avoid burn marks, optionally at the start and end of each cut too. |
+| **Dwell** | **Start pause** and **End pause** (ms) before and after each cut let the head settle. With **Pierce (Cut-Through)** the beam fires during the start pause at the **Pierce power**, so thick material is pierced reliably. Smoothieware only pauses without the beam; Ruida controllers do not pause. |
 | **Duplicate lines** | Removes lines that lie on top of each other before cutting, so nothing is cut twice. |
 
 ### Fill
@@ -71,6 +76,10 @@ Double-click a layer to open its **Cut Settings**. Which fields appear depends o
 | **Fill style** | **Line by line**, or **Offset fill**: rings that follow the outline inward. |
 
 **Defaults** resets the fields to the defaults of the selected mode.
+
+### Images and image cut
+
+When the layer holds images, the **Images** section shows the raster settings of the layer and a button to **Adjust Image …**. Under **Image cut (optional)** the layer can also cut around its images after engraving them, with its own line settings: first all images of the layer are engraved, then all their contours are cut. Each image is cut along its visible boundary, or along a closed shape you assign with **Assign image cut contour** in the context menu (select the image and the shape). See [Images and tracing](images.md#editing-images).
 
 ## Sub-layers
 

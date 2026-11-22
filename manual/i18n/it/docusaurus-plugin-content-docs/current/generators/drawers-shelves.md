@@ -1,5 +1,5 @@
 ---
-sidebar_position: 4
+sidebar_position: 5
 title: Cassetti, inserti e scaffali
 description: Cassetti con mobile e frontale, inserti a scomparti per scatole e cassetti e scaffali a incastro senza colla.
 ---

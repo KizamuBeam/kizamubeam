@@ -10,6 +10,8 @@ description: Bring in SVG, DXF, PDF, Illustrator and LightBurn files, and export
 
 **File → Import …** (Ctrl+I), dragging files onto the workspace, or pasting with Ctrl+V from other programs all work the same way. Colours are mapped to the nearest palette colour, which means the nearest layer, and several objects arrive as a group.
 
+How imports behave can be changed under **Edit → Settings → Workspace and snapping → Import**: whether imported objects are selected and grouped, whether they are placed at the centre of the bed, whether notices about skipped content appear, the DXF unit and SVG resolution used when a file does not specify them, the tolerance for closing nearly closed paths, and whether hidden SVG and DXF layers are imported.
+
 ### SVG
 
 Paths (including arcs), rectangles, circles, ellipses, lines, polygons, `use` references, transforms, CSS classes and embedded images. The size comes from `width`, `height` and `viewBox`. **Text in SVG files is skipped**: convert text to paths in your drawing program before saving.

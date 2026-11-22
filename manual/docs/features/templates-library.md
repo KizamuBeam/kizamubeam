@@ -66,10 +66,10 @@ The library also holds the patterns for [pattern fill](arranging.md).
 
 ## Extensions
 
-**File → Extensions …** installs packs (`.kzp` files) that add device presets, templates, material library entries and library items without a new version of KizamuBeam. A pack contains data only, never program code, and every entry is checked before it is installed.
+**File → Extensions …** installs extensions (`.kzp` files) without a new version of KizamuBeam. They bring content (device presets, templates, material library entries and library items) or plugins (generators, path tools and image filters in the Toolbox under **From extensions**).
 
-- The **catalogue** in the same window lists the official packs: install or update with one click. The catalogue is signed, and every pack is checked against its checksum.
-- **Install …** or dragging a `.kzp` file onto the workspace installs a pack from a file. The dialog lists the content and says whether it is an update.
-- Removing a pack removes its entries again.
+- The **catalogue** in the same window lists the official and community extensions: install or update with one click. The catalogues are signed, and every extension is checked against its checksum.
+- **Install …** or dragging a `.kzp` file onto the workspace installs an extension from a file. The dialog lists the content and says whether it is an update.
+- Installed extensions can be switched off, rolled back to the previous version or removed.
 
-See the [list of extensions](../extensions/index.md) for what is available.
+See [Extensions](../extensions/index.md) for safety, plugins with internet access and the list of what is available.

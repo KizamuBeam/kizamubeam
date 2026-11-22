@@ -1,5 +1,5 @@
 ---
-sidebar_position: 6
+sidebar_position: 7
 title: Scheibenkugel
 description: Eine Kugel oder ein Lampenschirm aus runden Scheiben, die sich über schräge Schlitze gegenseitig halten, ohne Leim.
 ---

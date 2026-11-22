@@ -18,6 +18,7 @@ The **text toolbar** below the numeric edits toolbar holds all text options: fon
 | **Wrap** / **Max width** | Breaks lines at word boundaries at the box width; the box grows downward. Dragging the side handles reflows the text. |
 | **Max. height** | Scales a block that gets too tall down evenly. |
 | **Shrink** | Scales a text that is too wide down instead of condensing it. |
+| **Right to left** | Writes Hebrew or Arabic text from right to left (best effort). |
 
 Text stays editable. **Convert to Path** (Ctrl+Shift+C) turns it into its real font outlines, for example before node editing.
 
@@ -30,7 +31,11 @@ All fonts installed on your computer can be used. **File → Fonts …** (or **M
 - Import your own TTF or OTF files the same way.
 - Star a font to make it a favourite; favourites appear at the top of the font list.
 
-When a project uses a font that is missing on this computer, KizamuBeam offers to download it from Google Fonts.
+When a project uses a font that is missing on this computer, KizamuBeam offers to download it from Google Fonts (or does so by itself, if **Edit → Settings → Extensions and fonts → Load missing fonts automatically** is on). Until the font is there, the text is drawn with Roboto and KizamuBeam says so: a warning in the text toolbar (a click opens the font manager), a marker in the Objects window and an entry in the design check. Texts that are not lasered stay quiet.
+
+In the browser version, Chromium-based browsers can use the fonts installed on your computer after you allow it once; otherwise Roboto is used when converting text to paths.
+
+The default font and size for new texts are set under **Edit → Settings → Appearance → Text tool**.
 
 ## Text on a path
 

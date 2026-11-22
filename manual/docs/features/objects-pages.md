@@ -42,6 +42,8 @@ Several projects can be open at once, as tabs above the workspace. Each tab has 
 - Unsaved changes are marked with •.
 - Copy and paste works between tabs.
 
+By default each project is shown as a coloured group with its pages as sub-tabs: a click on a page tab switches to that project and page, its context menu renames it, and the arrow on the project header expands or collapses it. A right-click on a project header closes it or all others, saves it, opens a new project or sets its **Color …**. **View → Grouped tabs** switches back to one simple tab per project, **View → Pages in tabs** hides the page sub-tabs.
+
 All open tabs are backed up automatically and come back after a restart.
 
 ## Saving

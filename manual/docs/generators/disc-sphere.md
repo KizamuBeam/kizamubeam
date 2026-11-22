@@ -1,5 +1,5 @@
 ---
-sidebar_position: 6
+sidebar_position: 7
 title: Disc sphere
 description: A sphere or lamp shade made of round discs that hold each other through angled slots, without glue.
 ---

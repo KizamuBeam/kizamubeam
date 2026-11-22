@@ -1,5 +1,5 @@
 ---
-sidebar_position: 4
+sidebar_position: 5
 title: Drawers, inserts and shelves
 description: Drawers with carcass and front panel, divider inserts for boxes and drawers, and slot-together shelves without glue.
 ---

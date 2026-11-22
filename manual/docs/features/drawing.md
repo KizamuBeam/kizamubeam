@@ -16,12 +16,15 @@ The drawing tools are on the tools toolbar on the left and in the **Tools** menu
 |---|---|---|
 | **Lines and curves** | Ctrl+L | Click to set corners; click and drag to make a Bézier curve. Clicking the start point closes the shape; double-click, Enter or right-click finishes. |
 | **Arc** | | Set the center, then radius and start angle, then end angle — or click start, through point and end (3-point). Shift snaps angles to 15°, Enter commits, Esc discards the arc. Mode and direction are in the tool options; in center mode the direction picks the complementary arc, in 3-point mode it reverses the node order, so the cut starts at the last point. |
+| **Curved path** | | Click to place a corner, drag to shape a smooth curve. Anchors and handles stay visible while you draw. Clicking near the open end of an existing open path continues that path. Click the start anchor to close the shape, double-click or Enter finishes, Backspace removes the last anchor, Esc discards. |
 | **Freehand / Pencil** | | Drag a stroke; it is fitted to smooth, editable curves when you release the mouse. Tool options set the tolerance and whether the stroke is closed. |
-| **Shaper** | | Drag a gesture: encircling shapes unites them, a line crossing one shape subtracts along the stroke, a closed gesture creates a recognized basic shape (rectangle, rounded rectangle, ellipse, polygon) when recognition is on — otherwise the stroke is fitted like the Pencil. Options: close distance (the ring at the start point shows whether the contour closes on release), smoothing, total cut width and the list of shape suggestions incl. Freehand. The last operation stays adjustable until the next gesture, a tool change or Undo. |
-| **Rectangle** | Ctrl+R | Drag a rectangle. Shift draws a square, Ctrl draws from the centre. Corner radius in the numeric edits toolbar. |
+| **Shaper** | | Drag a gesture: encircling shapes unites them, a line crossing one shape subtracts along the stroke, a closed gesture creates a recognized basic shape (rectangle, rounded rectangle, ellipse, polygon) when recognition is on — otherwise the stroke is fitted like the Pencil. Options: close distance (the ring at the start point shows whether the contour closes on release), smoothing, total cut width and the list of shape suggestions incl. Freehand. The last operation stays adjustable until the next gesture, a tool change or Undo; while it is, the points of the recognized curve can be dragged like a spline. |
+| **Rectangle** | Ctrl+R | Drag a rectangle. Shift draws a square, Ctrl draws from the centre. Corner radius in the numeric edits toolbar; the button next to it sets a separate radius for each corner (or all corners linked). |
 | **Ellipse** | Ctrl+E | Drag an ellipse. Shift draws a circle, Ctrl draws from the centre. |
 | **Polygon** | | Drag from the centre. Number of corners and **Star** in the numeric edits toolbar. |
 | **Text** | Ctrl+T | See [Text and codes](text.md). |
+
+Lines, Pencil, Curved path and Arc share one button group on the tools toolbar. After drawing, KizamuBeam switches back to the selection tool; to keep drawing with the same tool, switch off **Switch to selection after drawing** under **Edit → Settings → Mouse and keyboard**. **Remember tool switches** in the same place keeps the options of each tool for the next start.
 
 Rectangles, ellipses, polygons and text stay editable as such: the corner radius, the number of corners or the text can be changed later. **Convert to Path** (Ctrl+Shift+C) turns them into ordinary paths.
 
@@ -29,7 +32,7 @@ Rectangles, ellipses, polygons and text stay editable as such: the corner radius
 
 - **Click** selects an object, **Shift+click** adds or removes one.
 - **Marquee to the right** selects objects that lie completely inside, **marquee to the left** also those it only crosses.
-- **Lasso selection** (**Tools → Path**): draw around objects to select those you enclose completely. Shift adds, Ctrl toggles.
+- **Lasso selection** (**Tools → Path**, or the button group with the selection arrow): draw around objects to select those you enclose completely. Drawing **counter-clockwise** switches to touch mode, where every object the lasso crosses is selected too; you can change direction while drawing. Shift adds, Ctrl toggles, Shift+Ctrl removes, Esc cancels.
 - **Ctrl+A** selects everything on the current page; **Esc** clears the selection.
 - A right-click opens a context menu with the commands that fit what is under the pointer: shapes, images, nodes or empty canvas.
 
@@ -37,14 +40,14 @@ When many objects lie on top of each other, **Tools → Isolate selection** help
 
 ## Moving, scaling and rotating
 
-- Drag a selection to move it. Arrow keys move it by 1 mm (Shift 10 mm, Alt 0.1 mm).
+- Drag a selection to move it. Arrow keys move it by 1 mm (Shift 10 mm, Alt 0.1 mm); the three step sizes can be changed under **Edit → Settings → Mouse and keyboard**.
 - Drag a handle to scale. Shift switches between proportional and free scaling, Ctrl scales from the centre.
 - **Click the selection a second time** (or drag just outside a corner) to rotate. The pivot can be moved. Shift snaps to 15°, Ctrl to 5°, Esc cancels.
 - `.` and `,` rotate by 90°. **Ctrl+Shift+H** and **Ctrl+Shift+V** mirror.
 
 ### Exact values
 
-The **numeric edits toolbar** at the top shows position, size and rotation of the selection. A 9-point anchor sets which point the values refer to. The fields accept formulas and units, for example `100/3`, `2in` or `25.4*3`, and project parameters such as `{Width}/2` (see [Templates and library](templates-library.md)).
+The **numeric edits toolbar** at the top shows position, size and rotation of the selection. A 9-point anchor sets which point the values refer to. The fields accept formulas and units, for example `100/3`, `2in` or `25.4*3`, and project parameters such as `{Width}/2` (see [Templates and library](templates-library.md)). A comma works as the decimal separator as well as a point, everywhere in the app, and numbers are shown in the format of the app language.
 
 ## Grouping, aligning and arranging
 
@@ -59,7 +62,7 @@ Choose **Edit nodes** (Ctrl+`) to change the shape of paths. With several paths 
 
 | Action | How |
 |---|---|
-| Select nodes | Click, Shift+click, marquee (or **Node lasso**) or Ctrl+A |
+| Select nodes | Click, Shift+click, marquee (or **Node lasso** in the node toolbar, which selects with a freehand outline; with Alt it can also start on top of a node) or Ctrl+A |
 | Move nodes | Drag them, or nudge with the arrow keys |
 | Delete node | D or Delete |
 | Insert node | I, or double-click a segment |

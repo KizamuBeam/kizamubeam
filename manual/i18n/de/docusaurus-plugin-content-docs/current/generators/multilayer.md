@@ -1,5 +1,5 @@
 ---
-sidebar_position: 7
+sidebar_position: 8
 title: Mehrlagenarbeit
 description: Eigene Formen zu einem geschichteten Stück stapeln, etwa einer Shadowbox oder einem Relief, und in 3D ansehen.
 ---
