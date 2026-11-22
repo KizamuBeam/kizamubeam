@@ -366,6 +366,7 @@
   "Formerstellung: Flächen entfernen": "Shape Builder: remover regiões",
   "Formerstellung: Flächen verbinden": "Shape Builder: unir regiões",
   "Formerstellung: Flächen verbinden; Alt entfernt Flächen. Esc beendet.": "Shape Builder: unir regiões; Alt remove regiões. Esc sai.",
+  "Getrennte Formen lassen sich nicht verbinden. Nur überlappende Flächen lassen sich zusammenführen.": "Formas separadas não podem ser unidas. Somente regiões sobrepostas podem ser combinadas.",
   "Formerstellung …": "Construtor de formas…",
   "Formerstellung als lokalen Test starten? Die erste Bearbeitung erstellt unabhängige Pfade und setzt die erhaltenen Originale auf „Nicht lasern“. Parametrische Originale bleiben editierbar; Ergebnisse aktualisieren sich nicht automatisch. Offene Linien und Lückenerkennung sind noch nicht unterstützt.": "Iniciar o protótipo local do Shape Builder? A primeira edição cria caminhos independentes e define os originais preservados como Não laserar. Originais paramétricos continuam editáveis; os resultados não se atualizam automaticamente. Linhas abertas e detecção de lacunas ainda não são suportadas.",
   "Maschinenbedienung zur Kalibrierung": "Controles da máquina para calibração",

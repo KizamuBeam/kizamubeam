@@ -4408,6 +4408,7 @@
   "Formerstellung: Flächen entfernen": "Creación de formas: eliminar regiones",
   "Formerstellung: Flächen verbinden": "Creación de formas: unir regiones",
   "Formerstellung: Flächen verbinden; Alt entfernt Flächen. Esc beendet.": "Creación de formas: unir regiones; Alt elimina regiones. Esc finaliza.",
+  "Getrennte Formen lassen sich nicht verbinden. Nur überlappende Flächen lassen sich zusammenführen.": "Las formas separadas no se pueden unir. Solo las regiones superpuestas se pueden combinar.",
   "Formerstellung …": "Creación de formas …",
   "Formerstellung als lokalen Test starten? Die erste Bearbeitung erstellt unabhängige Pfade und setzt die erhaltenen Originale auf „Nicht lasern“. Parametrische Originale bleiben editierbar; Ergebnisse aktualisieren sich nicht automatisch. Offene Linien und Lückenerkennung sind noch nicht unterstützt.": "¿Iniciar la creación de formas como prueba local? La primera edición crea trazados independientes y pone los originales conservados en «No aplicar láser». Los originales paramétricos siguen siendo editables; los resultados no se actualizan automáticamente. Aún no se admiten líneas abiertas ni detección de huecos.",
   "Ungültige Referenz der Konstruktionslinie.": "Referencia de línea de construcción no válida.",
