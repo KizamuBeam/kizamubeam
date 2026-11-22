@@ -15,8 +15,15 @@ Die Maschinenfenster liegen standardmäßig rechts: **Laser** (Job, Status, Ger�
 **Laser → Vorschau …** (Alt+P) simuliert den Job, bevor sich etwas bewegt:
 
 - Wiedergabe mit Zeitregler, Leerwegen und Schattierung nach Leistung,
-- eine Zeitschätzung, die Beschleunigung und Ecken berücksichtigt,
-- dieselbe Reihenfolge wie der echte Job.
+- eine Zeitschätzung, die Beschleunigung, Ecken und die Pausen der Einstellung [Pause](layers.md#linie) berücksichtigt,
+- dieselbe Reihenfolge wie der echte Job,
+- eine Aufstellung der geschätzten Zeit je Layer, Sub-Layer und Prozessart sowie der Leerfahrzeit ohne Laser.
+
+Gravieren und Schneiden laufen in der Wiedergabe unterschiedlich schnell (Vorgabe 50× und 10×). **Prozessarten angleichen** gibt stattdessen jeder Art dieselbe Wiedergabezeit, damit eine lange Gravur den folgenden Schnitt nicht hetzt. Mit **Bei Prozesswechsel pausieren** hält die Wiedergabe bei jedem Prozesswechsel an. Layerwechsel sind Markierungen auf dem Zeitregler; ein Klick springt dorthin.
+
+### Energie und Kosten {#energy-and-cost}
+
+Unter der Zeitschätzung zeigt die Vorschau **Geschätzte Energie und Kosten** des Jobs. Die Rechnung nutzt die Werte im Tab **Energie** der Geräteeinstellungen (Grundverbrauch der Maschine, elektrische Leistung des Lasers bei 0, 50 und 100 % und zusätzliche Verbraucher wie Air Assist oder eine Absaugung mit eigener Leistung und Betriebsregel). Trage unter **Bearbeiten → Einstellungen → Allgemein** den **Stromtarif** je kWh und die Währung ein, um die Kosten zu sehen. Es ist ein Modell, keine Messung: Skripte, Z-Bewegungen und Pausen sind nicht enthalten. Eine kurze Hilfe in der Vorschau erklärt die Rechnung.
 
 **Hier starten** lasert den Job ab der Position des Zeitreglers, etwa nach einem Abbruch. Der Kopf fährt mit ausgeschaltetem Laser dorthin und macht mit Leistung, Geschwindigkeit und Air Assist dieses Layers weiter.
 
@@ -31,6 +38,7 @@ Die Maschinenfenster liegen standardmäßig rechts: **Laser** (Job, Status, Ger�
 - **Pause** hält die Maschine an, **Weiter** macht weiter.
 - **Stopp** bricht den Job ab und setzt die Steuerung zurück. Die Position bleibt erhalten.
 - **Nur Auswahl** lasert nur die ausgewählten Objekte.
+- **Start sperren** in den Geräteeinstellungen (Tab **Allgemein**) hält die Knöpfe Start und Rahmen gesperrt, bis du die Sperre dort aufhebst, etwa während die Maschine gewartet wird.
 
 Vor jedem Job und jedem Rahmen prüft KizamuBeam, ob alle Bewegungen samt Überfahrweg im Arbeitsbereich der Maschine bleiben. Hat die Steuerung ihren Ursprung noch nicht gemeldet (oder tut das nie, wie Marlin), zeigt eine Warnung die Ausdehnung des Jobs, die du bestätigen musst.
 
@@ -44,7 +52,9 @@ Die Einstellung **Starten ab** im Fenster Laser entscheidet, wo der Job landet:
 | **Benutzer-Ursprung** | Der Job beginnt an einem Ursprung, den du im Fenster Verschieben setzt. |
 | **Aktuelle Position** | Der Job beginnt dort, wo der Kopf gerade steht. |
 
-Bei Benutzer-Ursprung und Aktueller Position legt der **Job-Ursprung** (neun Punkte: Ecken, Kantenmitten, Mitte) fest, welcher Punkt des Jobs an dieser Stelle liegt.
+Bei Benutzer-Ursprung und Aktueller Position legt der **Job-Ursprung** (neun Punkte: Ecken, Kantenmitten, Mitte) fest, welcher Punkt des Jobs an dieser Stelle liegt. Ein Projekt merkt sich seinen Job-Ursprung und den Schalter **Nur Auswahl**; neue Projekte starten mit den Vorgaben aus **Bearbeiten → Einstellungen → Arbeitsfläche und Fangen → Auftrag**.
+
+**Ziel nach dem Job** in den Geräteeinstellungen (Tab **Allgemein**, Abschnitt **Bewegung**) legt fest, wohin der Kopf nach dem Job fährt: zurück zum Laserstart, zum Ursprung (0,0), zu einer eigenen XY-Position, oder er bleibt stehen (**Verweilen**). Das gilt bei Absoluten Koordinaten und Benutzer-Ursprung.
 
 ## Beim Lasern nachsteuern
 
@@ -52,13 +62,18 @@ Bei Benutzer-Ursprung und Aktueller Position legt der **Job-Ursprung** (neun Pun
 
 ## Schnittreihenfolge
 
-Das Fenster Laser hat drei Optionen für die Reihenfolge der Schnitte. Die Layer werden immer in der Reihenfolge der Layer-Tabelle gelasert.
+Die Layer werden immer in der Reihenfolge der Layer-Tabelle gelasert. Innerhalb eines Layers bestimmen diese Schalter die Reihenfolge der Schnitte:
 
 | Option | Wirkung |
 |---|---|
 | **Innere Formen zuerst** | Löcher und Innenkonturen werden vor ihrer Außenkontur geschnitten, damit Teile nicht herausfallen, bevor ihre Löcher geschnitten sind. |
 | **Leerwege verkürzen** | Die nächstgelegene Form wird als nächste geschnitten. Ist die Option aus, gilt die Reihenfolge aus dem Fenster Objekte (manuelle Reihenfolge). |
 | **Gruppen zusammenhalten** | Formen desselben Objekts oder derselben Gruppe werden bevorzugt nacheinander geschnitten. |
+| **In Ecken beginnen** | Geschlossene Konturen beginnen an ihrer schärfsten Ecke, wo die Einstichstelle am wenigsten auffällt. |
+
+Die Schalter gehören zum Gerät. **Optimierung …** im Fenster Laser öffnet sie zusammen mit weiteren Optionen: der **Richtungsreihenfolge** (links nach rechts, rechts nach links, oben nach unten, unten nach oben), **Besten Startpunkt wählen**, **Beste Richtung wählen** für offene Konturen und **Richtungswechsel reduzieren**. **Als Vorgabe speichern** speichert deine Wahl als persönliche Vorgabe; **Auf Standard zurücksetzen** kehrt zu ihr zurück (oder zur Werksvorgabe, wenn du keine hast).
+
+Um nur für einen Job abzuweichen, öffne **Schnittreihenfolge für diesen Job** im Fenster Laser. Diese Werte werden nicht gespeichert; **Zurück zum Preset** kehrt zu den Geräteeinstellungen zurück. Ist alles Umsortieren ausgeschaltet und würde eine innere Form nach ihrer Außenkontur geschnitten, warnt die [Konstruktionsprüfung](construction-3d.md#check-the-design-before-cutting).
 
 Wo ein einzelner Schnitt beginnt und in welche Richtung er läuft, legst du mit dem Startpunkt-Werkzeug fest (siehe [Pfade und Formen](paths.md)).
 
@@ -68,6 +83,17 @@ Das Fenster **Verschieben** verfährt den Kopf in Schritten, setzt und löscht d
 
 - **Laser zur Auswahl** fährt den Kopf zu den ausgewählten Objekten.
 - **Laser zur Klickposition**: Solange die Schaltfläche aktiv ist, fährt jeder Klick auf die Arbeitsfläche den Kopf mit ausgeschaltetem Laser dorthin. Esc beendet den Modus.
+- Bei GRBL, grblHAL, Marlin und FluidNC fährt der Kopf, solange du einen Verfahrknopf **gedrückt hältst**, durchgehend, bis du loslässt; ein Klick fährt einen Schritt.
+- Mit motorisierter Z-Achse verfährt ein Abschnitt **Z** den Fokus mit eigener Schrittweite (Vorgabe 0,1 mm) und Geschwindigkeit. Standardmäßig muss Z einmal referenziert sein; die Geräteeinstellungen können das lockern.
+- Mit Rotpunkt-Zeiger wählt **Positionieren mit**, ob der rote Punkt oder der Laserkopf auf dem Ziel landet.
+
+### Testfeuer {#test-fire}
+
+**Testfeuer** schaltet den Laser bei stehendem Kopf für einige Sekunden mit geringer Leistung ein, etwa um den Fokus zu finden oder den Versatz des Rotpunkt-Zeigers zu prüfen. Es ist **standardmäßig aus** und muss je Gerät unter **Geräteeinstellungen → Rahmen & Zeiger → Testfeuer im Bewegen-Fenster** freigegeben werden, mit Leistung und Dauer (Vorgabe 1 % und 5 s). Die Maschine muss verbunden und im Leerlauf sein. Es funktioniert mit GRBL, grblHAL, FluidNC, Marlin und Smoothieware, nicht mit xTool oder Ruida.
+
+:::danger
+Ein Laser, der auf eine Stelle feuert, kann das Material entzünden und Augen verletzen. Nutze Testfeuer nur, wenn du mit geeignetem Augenschutz an der Maschine stehst und ihren Ausschalter erreichst. Die Zeitgrenze setzt nur die Software durch. Prüfe nach jedem Testfeuer den Laser an der Maschine und bestätige, dass er aus ist, bevor KizamuBeam weitere Befehle annimmt.
+:::
 
 ## Konsole
 
@@ -75,7 +101,7 @@ Die **Konsole** zeigt die Meldungen der Steuerung und lässt dich Befehle senden
 
 ## G-Code speichern
 
-**Laser → G-Code speichern …** schreibt den Job in eine Datei, etwa um ihn von einer SD-Karte oder mit einem anderen Programm auszuführen.
+**Laser → G-Code speichern …** schreibt den Job in eine Datei, etwa um ihn von einer SD-Karte oder mit einem anderen Programm auszuführen. Bei einem Ruida-Gerät schreibt **Laser → .rd speichern …** stattdessen eine Ruida-Jobdatei.
 
 ## Geräte und Geräteeinstellungen
 
@@ -85,12 +111,17 @@ Jeder Laser ist ein **Gerät** mit eigener Verbindung, eigenem Arbeitsbereich un
 
 - Arbeitsbereich, S-Wert für 100 % Leistung, Baudrate, Netzwerkadresse,
 - Eilganggeschwindigkeit und Beschleunigung (**Von der Maschine lesen** holt sie von FluidNC oder GRBL),
-- Größe des Empfangspuffers,
+- Größe des Empfangspuffers und das **DTR-Signal** beim Öffnen der USB-Schnittstelle (Auto lässt es unverändert; manche Steuerungen starten bei DTR neu),
+- **Leerfahrt über Leeres (mm/min)**: eine schnellere Verfahrgeschwindigkeit über leeren Bildbereichen (GRBL, grblHAL, Marlin und FluidNC; leer = Eilgang wie bisher),
+- **Materialhöhe (mm)**: warnt, wenn ein Z-Versatz den Fokus unter das Material fahren würde,
+- **Dateiname für Controller-Uploads**, wahlweise mit **Dateiname hochzählen** (_2, _3 …) statt Überschreiben,
 - Endschalter (mit „Keine“ macht KizamuBeam nie von selbst eine Referenzfahrt und fragt vorher nach),
 - motorisierte Z-Achse (für Z-Versatz je Durchgang und den Fokustest),
 - Befehl für Air Assist (M8 oder M7),
 - **G-Code-Skripte**: Befehle, die vor und nach jedem Job laufen,
 - **Rotpunkt-Zeiger**: der Versatz zwischen Laserstrahl und Zeiger, damit Rahmen und Klickfahrten mit dem roten Punkt zielen können,
+- **Energie**: der elektrische Verbrauch der Maschine für die [Energieschätzung](#energy-and-cost),
+- **Testfeuer** (siehe oben),
 - **FluidNC**-Extras (siehe unten).
 
 ## FluidNC-Extras
@@ -104,7 +135,7 @@ Mit einer FluidNC-Steuerung bietet **Laser → FluidNC**:
 
 ## Steuerungen
 
-KizamuBeam arbeitet mit FluidNC, GRBL 1.1, grblHAL, Marlin und Smoothieware. Die Schaltflächen für Referenzfahrt, Verfahren, Ursprung und Konsole passen sich der Steuerung an. Einzelheiten und getestete Laser stehen unter [Maschinenkompatibilität](../reference/machine-compatibility.md).
+KizamuBeam arbeitet mit FluidNC, GRBL 1.1, grblHAL, Marlin, Smoothieware, der xTool-D1-Familie über USB und Ruida-DSP-Steuerungen. Die Schaltflächen für Referenzfahrt, Verfahren, Ursprung und Konsole passen sich der Steuerung an. Einzelheiten und getestete Laser stehen unter [Maschinenkompatibilität](../reference/machine-compatibility.md).
 
 ## Drehachse und entfernte Laser
 

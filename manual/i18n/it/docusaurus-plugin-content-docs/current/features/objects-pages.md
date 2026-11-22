@@ -42,6 +42,8 @@ Si possono aprire più progetti insieme, come schede sopra l’area di lavoro. O
 - Le modifiche non salvate sono segnate con •.
 - Copia e incolla funziona tra le schede.
 
+Per impostazione predefinita ogni progetto appare come un gruppo colorato con le sue pagine come sottoschede: un clic su una scheda di pagina passa a quel progetto e a quella pagina, il menu contestuale rinomina la pagina e la freccia sull'intestazione del progetto lo espande o lo comprime. Un clic destro sull'intestazione di un progetto lo chiude o chiude tutti gli altri, lo salva, apre un nuovo progetto o ne imposta il **Colore …**. **Visualizza → Schede raggruppate** torna a una semplice scheda per progetto, **Visualizza → Pagine nelle schede** nasconde le sottoschede delle pagine.
+
 Tutte le schede aperte vengono salvate automaticamente e tornano dopo un riavvio.
 
 ## Salvare

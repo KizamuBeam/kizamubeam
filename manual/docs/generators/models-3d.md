@@ -1,5 +1,5 @@
 ---
-sidebar_position: 5
+sidebar_position: 6
 title: Layered and rib models
 description: Turn an STL or OBJ file into stacked layers to glue, or into ribs that slot onto a spine.
 ---

@@ -75,6 +75,7 @@ You can stage several cuts across different edges before you apply them. **Apply
 - Boxes, drawers, inserts, shelves and gear pairs from the generators are put together automatically. The gears of a gear pair can turn.
 - Parts joined with the Joint tool are assembled at the joined edges: one part lies flat, the others stand on it.
 - Other closed shapes on cut layers lie flat with an adjustable thickness; nested shapes become holes.
+- A shape you draw on a cut layer over a generator part (a box panel, for example) becomes a hole in that part, or a notch if it only covers its edge, just as the laser will cut it. The assembly check takes these cuts into account too.
 - Layered, rib and disc models from [3D models](../generators/index.md) are shown assembled.
 
 Turn the view with the mouse, or use the preset views (3D, top, front). The **Explode** slider pulls the parts apart. With nothing selected, the view shows the whole page; a selected part always brings its whole assembly.
@@ -82,6 +83,22 @@ Turn the view with the mouse, or use the preset views (3D, top, front). The **Ex
 **Collisions**: where two parts intersect (for example with a press fit or a slot that is too narrow), the area turns red, and the status line names the parts and the volume.
 
 **Engravings**: with the checkbox **Engravings**, fills, engraved lines, text and processed images appear on the face that was up during lasering, with a slight depth. Engravings that lie on no part are not drawn, and when lasering they would hit the work surface. The status line counts them (“1 engraving without part”); a click on the count selects them on the workspace.
+
+### Render modes
+
+The render mode list in the 3D window changes how the parts are drawn:
+
+| Mode | Shows |
+|---|---|
+| **Material** | The parts in their [material look](#material-look) (default). |
+| **Shaded + Edges** | Shaded parts with their edges drawn as lines. |
+| **Layer colors** | Each part in the colour of its layer. |
+| **X-Ray** | Translucent parts, so inner walls, tenons and engravings behind other parts stay visible. |
+| **Hidden lines** | Visible edges as solid lines, hidden edges dashed. |
+| **Wireframe** | Only the edges. |
+| **Blueprint** | A drawing sheet with four views (3D, front, top, side), hidden edges dashed; **Dimensions** adds the outer dimensions in mm. |
+
+Fill layers and engravings are drawn in every mode.
 
 ### Material look
 

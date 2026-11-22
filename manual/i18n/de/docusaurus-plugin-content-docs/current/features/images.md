@@ -34,6 +34,16 @@ Jedes Bild hat seinen eigenen **Bildmodus**, der bestimmt, wie aus Grautönen La
 
 **Bearbeitetes Bild speichern …** speichert das Bild als PNG genau so, wie es gelasert würde.
 
+## Bilder bearbeiten {#editing-images}
+
+**Bild bearbeiten …** (unter **Werkzeuge → Bild**, in der Werkzeugleiste oder im Kontextmenü, wenn genau ein Bild ausgewählt ist) schneidet ein Bild zu, entzerrt und rundet es, ohne etwas zu verlieren: Die Originalpixel und alle Werte bleiben im Projekt, du kannst sie später wieder ändern.
+
+- **Zuschnitt**: die Kanten- und Mittelgriffe auf der Arbeitsfläche ziehen oder die Werte in mm oder % eingeben.
+- **Perspektive**: die vier Ecken auf die Ecken von etwas ziehen, das schräg fotografiert wurde (ein Schild, eine Seite); das Bild wird entzerrt. **Zuschnitt zuerst** wählt den Bereich im Originalbild, **Perspektive zuerst** schneidet das entzerrte Ergebnis zu.
+- **Ecken abrunden**: ein Radius für alle sichtbaren Ecken oder ein eigener je Ecke. Die Radien sind Millimeter auf der Arbeitsfläche und bleiben beim Skalieren gleich. Die Griffe auf der Arbeitsfläche ziehen; Shift zieht alle Ecken gemeinsam.
+
+Der Dialog zeigt eine Live-Vorschau, die sich zoomen und verschieben lässt (**Zoomfaktor**, **Einpassen**, **Ansicht zurücksetzen**). **Anwenden** ist ein Undo-Schritt; Esc bricht ab. Um das Bild entlang seines neuen Umrisses auszuschneiden, schalte den [Bildschnitt](layers.md#images-and-image-cut) seines Layers ein.
+
 ## Hintergrund entfernen
 
 **Werkzeuge → Bild → Hintergrund entfernen …** (oder **Freistellen …** in der Leiste) arbeitet lokal, ohne Cloud-Dienst. Die Hintergrundfarben werden vom Bildrand genommen, oder du klickst sie in der Vorschau an (Shift+Klick fügt weitere hinzu). Farben innerhalb der Toleranz werden transparent und nicht gelasert. Die Bereinigung entfernt kleine Flecken und füllt kleine Löcher; **Auf das Motiv zuschneiden** beschneidet das Bild.

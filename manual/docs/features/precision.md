@@ -8,10 +8,12 @@ description: Snap to nodes and grid, use guides, measure, apply relations and dr
 
 ## Snapping
 
-**Snap** in the status bar switches snapping on and off. Objects and the pointer snap to nodes, midpoints, centres, intersections, lines and quadrant points of circles. **Grid** in the status bar snaps to the grid.
+**Snap** in the status bar, or the magnet button in the main toolbar, switches snapping on and off. Objects and the pointer snap to nodes, midpoints, centres, intersections, lines and quadrant points of circles. **Grid** in the status bar snaps to the grid.
 
 - **Ctrl** while dragging switches snapping off (or on) for the moment.
 - **Alt** while dragging snaps more strongly and shows alignment guides on other objects.
+
+How close the pointer has to come before it snaps is set under **Edit → Settings → Workspace and snapping → Snap distance (px)**, separately for normal snapping and with Alt.
 
 Circles and arcs are also recognised inside paths, for example holes in a plate or imported DXF circles, so their true centre snaps. **View → Show centers** shows centre crosses always, for the selection only, or not at all.
 
@@ -22,6 +24,8 @@ Circles and arcs are also recognised inside paths, for example holes in a plate 
 ## Guides
 
 Drag a guide out of the top ruler (horizontal) or the left ruler (vertical). Guides lie on their own **Guides** layer: they are never lasered or exported, and Ctrl+A, the palette and shape operations leave them alone. Drag a guide to move it, or back into the ruler to delete it. The Guides layer can be hidden and locked in the Objects window. Guides apply to all pages.
+
+A right-click on a ruler opens a menu: add a vertical or horizontal guide at that point, show, hide or lock the guides, and switch grid and object snapping. A right-click on a guide offers **Position …** to type its exact position in mm and **Delete this guide**. In the Objects window, a double-click on a guide opens the position as well.
 
 ## Measuring
 

@@ -1,5 +1,5 @@
 ---
-sidebar_position: 5
+sidebar_position: 6
 title: Schicht- und Rippenmodelle
 description: Eine STL- oder OBJ-Datei in gestapelte Schichten zum Verleimen oder in Rippen auf einem Rückgrat verwandeln.
 ---

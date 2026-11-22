@@ -66,10 +66,10 @@ La libreria contiene anche i motivi per il [riempimento con motivo](arranging.md
 
 ## Estensioni {#extensions}
 
-**File → Estensioni …** installa pacchetti (file `.kzp`) che aggiungono modelli di dispositivo, modelli, voci della libreria dei materiali ed elementi della libreria senza una nuova versione di KizamuBeam. Un pacchetto contiene solo dati, mai codice, e ogni voce viene controllata prima dell’installazione.
+**File → Estensioni …** installa estensioni (file `.kzp`) senza una nuova versione di KizamuBeam. Portano contenuti (modelli di dispositivo, modelli, voci della libreria dei materiali ed elementi della libreria) o plugin (generatori, strumenti per percorsi e filtri immagine nella Casella degli strumenti in **Dalle estensioni**).
 
-- Il **catalogo** nella stessa finestra elenca i pacchetti ufficiali: installa o aggiorna con un clic. Il catalogo è firmato, e ogni pacchetto viene verificato con il suo checksum.
-- **Installa …** o il trascinamento di un file `.kzp` sull’area di lavoro installa un pacchetto da file. La finestra elenca il contenuto e dice se si tratta di un aggiornamento.
-- Rimuovendo un pacchetto, le sue voci spariscono di nuovo.
+- Il **catalogo** nella stessa finestra elenca le estensioni ufficiali e della community: installa o aggiorna con un clic. I cataloghi sono firmati, e ogni estensione viene verificata con il suo checksum.
+- **Installa …** o il trascinamento di un file `.kzp` sull’area di lavoro installa un'estensione da file. La finestra elenca il contenuto e dice se si tratta di un aggiornamento.
+- Le estensioni installate si possono disattivare, riportare alla versione precedente o rimuovere.
 
-Cosa è disponibile lo trovi nell’[elenco delle estensioni](../extensions/index.md).
+Sicurezza, plugin con accesso a internet e l'elenco di ciò che è disponibile si trovano in [Estensioni](../extensions/index.md).

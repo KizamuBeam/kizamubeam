@@ -34,6 +34,16 @@ Ogni immagine ha la propria **Modalità immagine**, che decide come i toni di gr
 
 **Salva bitmap elaborato …** salva l’immagine come PNG esattamente come verrebbe lavorata.
 
+## Modificare le immagini {#editing-images}
+
+**Modifica immagine …** (in **Strumenti → Immagine**, nella barra degli strumenti o nel menu contestuale, con esattamente un'immagine selezionata) ritaglia, raddrizza e arrotonda un'immagine senza perdere nulla: i pixel originali e tutti i valori restano nel progetto e puoi cambiarli in seguito.
+
+- **Ritaglio**: trascina le maniglie dei bordi e del centro sull'area di lavoro, oppure inserisci i valori in mm o %.
+- **Prospettiva**: trascina i quattro angoli sugli angoli di qualcosa fotografato di sbieco (un cartello, una pagina); l'immagine viene raddrizzata. **Prima ritaglia** sceglie l'area nell'immagine originale, **Prima la prospettiva** ritaglia il risultato raddrizzato.
+- **Arrotondamento angoli**: un raggio per tutti gli angoli visibili o uno per ogni angolo. I raggi sono millimetri sull'area di lavoro e restano uguali quando ridimensioni l'immagine. Trascina le maniglie sull'area di lavoro; Maiusc trascina tutti gli angoli insieme.
+
+La finestra mostra un'anteprima dal vivo che si può ingrandire e spostare (**Livello di zoom**, **Adatta**, **Ripristina vista**). **Applica** è un unico passo di annullamento; Esc annulla. Per ritagliare l'immagine lungo il suo nuovo contorno, attiva il [taglio immagine](layers.md#images-and-image-cut) del suo livello.
+
 ## Rimuovere lo sfondo
 
 **Strumenti → Immagine → Rimuovi sfondo …** (o **Rimuovi sfondo …** nella barra) lavora in locale, senza servizi cloud. I colori dello sfondo vengono presi dal bordo dell’immagine, oppure li clicchi nell’anteprima (Maiusc+clic ne aggiunge altri). I colori entro la tolleranza diventano trasparenti e non vengono lavorati. La pulizia elimina piccole macchie e riempie piccoli buchi; **Ritaglia al soggetto** rifila l’immagine.

@@ -1,5 +1,5 @@
 ---
-sidebar_position: 6
+sidebar_position: 7
 title: Sfera a dischi
 description: Una sfera o un paralume fatto di dischi rotondi che si tengono a vicenda con asole oblique, senza colla.
 ---

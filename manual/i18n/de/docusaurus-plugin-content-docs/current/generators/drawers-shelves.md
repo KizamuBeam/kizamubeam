@@ -1,5 +1,5 @@
 ---
-sidebar_position: 4
+sidebar_position: 5
 title: Schubladen, Einsätze und Regale
 description: Schubladen mit Korpus und Blende, Fächereinsätze für Boxen und Schubladen und Steckregale ohne Leim.
 ---

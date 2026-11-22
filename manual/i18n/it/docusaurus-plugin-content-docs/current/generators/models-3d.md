@@ -1,5 +1,5 @@
 ---
-sidebar_position: 5
+sidebar_position: 6
 title: Modelli a strati e a nervature
 description: Trasformare un file STL o OBJ in strati sovrapposti da incollare o in nervature su un dorso.
 ---

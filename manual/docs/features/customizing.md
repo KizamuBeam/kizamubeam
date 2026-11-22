@@ -10,13 +10,30 @@ description: Arrange windows and toolbars, change language and theme, and move y
 
 **Edit → Settings …** holds all application-wide preferences in one window, with a sidebar (General, Appearance, Workspace and snapping, Mouse and keyboard, Machines and services, Extensions and fonts) and a search across all of them. Changes take effect with **OK**; **Cancel** discards them, and **Defaults** resets the current section.
 
-Settings that also have a menu entry (language, theme, snapping, grid and so on) are the same values: changing one place changes the other.
+Settings that also have a menu entry (language, theme, snapping, grid and so on) are the same values: changing one place changes the other. Device, connection, work area and camera stay with the device and are reached through buttons.
 
-## Language and theme
+Besides language, theme and the update channel, the sections hold, among others:
+
+| Section | Settings |
+|---|---|
+| **General** | Update channel, **Auto-save every** n minutes (0 = off), electricity tariff and currency for the [energy estimate](machine-control.md#energy-and-cost), taking over the cut order from LightBurn files. |
+| **Appearance** | Theme, font sizes, icon size, default font and size of the text tool; for the workspace a **Dark canvas**, **Handle size (px)**, a **Full-screen crosshair**, a **Bed-center cross**, **Show fill layers filled**, **Antialiasing when zooming** and the **Curve quality**; reset windows, toolbars and dialog positions. |
+| **Workspace and snapping** | Snapping and its **Snap distance (px)** (normal and with Alt), grid, Boolean operations; for importing: select, group or centre imported objects, notices about skipped content, the DXF unit and SVG resolution when a file does not say, the auto-close tolerance and whether hidden layers are imported; for jobs the default for **Cut Selected Graphics** and the default job origin of new projects. |
+| **Mouse and keyboard** | Pan with the right mouse button, **Invert mouse-wheel zoom direction**, **Remember tool switches**, **Switch to selection after drawing**, the arrow-key step sizes, the **Click tolerance (px)**, the overlap selection and the keyboard shortcuts. |
+| **Machines and services** | Check the design before lasering, **Ignore shapes outside** the work area in the design check, the test-fire overlay, devices, rotary, laser setup, access for AI agents and host mode. |
+| **Extensions and fonts** | Automatic download of missing fonts, the font manager and the extensions. |
+
+New settings never change the previous behaviour by themselves: the defaults keep KizamuBeam working as before.
+
+Dialogs whose content does not fit get a grip in the bottom-right corner to make them larger; the size is remembered per dialog. A double-click on the grip restores the default size, a double-click on the title bar makes the dialog as tall as its content.
+
+## Font sizes
 
 Under **Edit → Settings → Appearance**, set font sizes separately for controls and menus, supporting text, technical values and output, and workspace labels (80%, 100%, 125% or 150%). Only the sample changes immediately; **OK** applies the sizes and **Cancel** discards them. Choose 100% to reset one group, or use the button below the sample to reset all groups before confirming. Documents and exports are unchanged; native tooltips keep their system font size.
 
-- **View → Language**: English, German or Italian. The default follows the system language.
+## Language and theme
+
+- **View → Language**: English, German, Italian, Spanish or Brazilian Portuguese. The default follows the system language.
 - **View → Theme** (or the button at the far right of the main toolbar): light or dark. The default follows the system.
 
 ## Arranging windows

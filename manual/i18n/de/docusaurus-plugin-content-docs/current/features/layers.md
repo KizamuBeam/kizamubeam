@@ -34,7 +34,11 @@ T1 und T2 werden nie gelasert. Nutze sie für Konstruktionslinien, den Umriss ei
 
 ## Schnitteinstellungen
 
-Ein Doppelklick auf einen Layer öffnet seine **Layer-Einstellungen**. Welche Felder erscheinen, hängt vom Modus ab.
+Ein Doppelklick auf einen Layer (in der Tabelle oder in der Palette) öffnet seine **Layer-Einstellungen**. Die Tabs oben wechseln zwischen dem Layer und seinen [Sub-Layern](#sub-layer). Die Einstellungen sind in aufklappbare Abschnitte gegliedert: **Allgemein** (Name, Modus, Geschwindigkeit, Leistung, Durchgänge und Ausgabe), **Geometrie** (Kerf-Versatz und Fokuslage), **Linie** oder **Füllen**, **Bilder**, **Bildschnitt (optional)** und **Aussehen in 3D**. Welche Felder erscheinen, hängt vom Modus ab.
+
+### Layer-Art {#layer-type}
+
+**Art** sagt, was der Layer am Werkstück tut: **Schneiden**, **Gravieren** oder **Markieren**. **Automatisch** (die Vorgabe) entscheidet wie bisher aus Modus und Sub-Layern. Gravieren- und Markieren-Layer schneiden nie durch, auch nicht mit geschlossenen Formen: Die [3D-Ansicht](construction-3d.md#3d-view) graviert sie auf das Teil darunter, die Konstruktionsprüfung behandelt sie nicht als Schnitte, und das [Verschachteln](arranging.md) verschiebt sie zusammen mit dem Teil, auf dem sie liegen. Der G-Code ändert sich nicht. Die Art wird im Projekt und in Einträgen der Material-Bibliothek gespeichert.
 
 ### Für alle Modi
 
@@ -52,11 +56,12 @@ Ein Doppelklick auf einen Layer öffnet seine **Layer-Einstellungen**. Welche Fe
 | Einstellung | Bedeutung |
 |---|---|
 | **Kerf-Versatz (mm)** | Verschiebt den Schnitt bei Außenkonturen nach außen und bei Löchern nach innen, damit Teile ihr Nennmaß behalten. Meist die halbe Schnittbreite. |
-| **Stege** | Lässt kleine Brücken stehen, damit Teile nicht herausfallen: Anzahl je Form oder Abstand, Stegbreite, wahlweise ohne Innenformen. |
+| **Stege** | Lässt kleine Brücken stehen, damit Teile nicht herausfallen: Anzahl je Form oder Abstand, Stegbreite, wahlweise ohne Innenformen. **Max. Stege je Form** und **Min. Stege je Form** begrenzen die Anzahl (0 = unbegrenzt). **Stegleistung (%)** über 0 schneidet die Stege mit verringerter Leistung, statt den Laser auszuschalten. **Stege entfernen** löscht die automatischen Stege dieses Layers. |
 | **Perforation** | Schneidet eine bestimmte Länge und lässt dann eine Lücke, für Abreißkanten oder Falzlinien. |
 | **Anschnitt / Auslauf** | Eine schräge Gerade oder ein Bogen in die Kontur hinein und aus ihr heraus, immer auf der Abfallseite, damit der Startpunkt keine Spur am Teil hinterlässt. |
 | **Überschnitt (mm)** | Fährt über den Startpunkt hinaus, damit die Kontur sicher geschlossen ist. |
 | **Leistungsrampe** | Senkt die Leistung zu Ecken hin (ab einer einstellbaren Richtungsänderung), um Brandflecken zu vermeiden, wahlweise auch am Anfang und Ende jedes Schnitts. |
+| **Pause** | **Startpause** und **Endpause** (ms) vor und nach jedem Schnitt lassen den Kopf zur Ruhe kommen. Mit **Anstechen (Cut-Through)** feuert der Strahl während der Startpause mit der **Anstechleistung**, damit dickes Material sicher durchstochen wird. Smoothieware pausiert nur ohne Strahl, Ruida-Steuerungen pausieren nicht. |
 | **Doppelte Linien** | Entfernt übereinanderliegende Linien vor dem Schneiden, damit nichts doppelt geschnitten wird. |
 
 ### Füllen
@@ -71,6 +76,10 @@ Ein Doppelklick auf einen Layer öffnet seine **Layer-Einstellungen**. Welche Fe
 | **Füllart** | **Zeilenweise** oder **Kontur folgend**: Ringe, die der Kontur nach innen folgen. |
 
 **Standardwerte** setzt die Felder auf die Vorgaben des gewählten Modus zurück.
+
+### Bilder und Bildschnitt {#images-and-image-cut}
+
+Liegen Bilder auf dem Layer, zeigt der Abschnitt **Bilder** die Rastereinstellungen des Layers und einen Knopf **Bild anpassen …**. Unter **Bildschnitt (optional)** kann der Layer seine Bilder nach dem Gravieren auch ausschneiden, mit eigenen Linien-Einstellungen: Erst werden alle Bilder des Layers graviert, dann alle ihre Konturen geschnitten. Jedes Bild wird entlang seiner sichtbaren Begrenzung geschnitten oder entlang einer geschlossenen Form, die du ihm mit **Bildschnitt-Kontur zuweisen** im Kontextmenü zuweist (Bild und Form auswählen). Siehe [Bilder und Nachzeichnen](images.md#editing-images).
 
 ## Sub-Layer
 

@@ -1,5 +1,5 @@
 ---
-sidebar_position: 7
+sidebar_position: 8
 title: Multi-layer work
 description: Stack your own shapes into a layered piece, such as a shadow box or relief, and preview it in 3D.
 ---

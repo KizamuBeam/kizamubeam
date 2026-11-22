@@ -1,5 +1,5 @@
 ---
-sidebar_position: 7
+sidebar_position: 8
 title: Lavoro multistrato
 description: Sovrapporre le tue forme in un pezzo a strati, come una shadowbox o un rilievo, e vederlo in 3D.
 ---

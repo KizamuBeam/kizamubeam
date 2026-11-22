@@ -8,7 +8,7 @@ description: Fingerzinken, Zapfen, Schnappverbindungen und Scharniere an beliebi
 
 KizamuBeam macht aus gewöhnlichen Formen Teile, die sich zusammenstecken oder verleimen lassen. Die [Generatoren](../generators/index.md) bauen komplette Boxen, Schubladen und Regale; die Werkzeuge auf dieser Seite arbeiten mit Formen, die du selbst gezeichnet oder importiert hast.
 
-## Das Werkzeug Verbindung
+## Das Werkzeug Verbindung {#the-joint-tool}
 
 Das Werkzeug **Verbindung** (die Verbindungs-Schaltfläche in der Werkzeugleiste oder **Werkzeugkasten → Verbindungen und Biegen → Verbindungen**) setzt eine Verbindung zwischen zwei geraden Kanten:
 
@@ -75,6 +75,7 @@ Du kannst mehrere Schnitte an verschiedenen Kanten vorbereiten, bevor du sie anw
 - Boxen, Schubladen, Einsätze, Regale und Zahnradpaare aus den Generatoren werden automatisch zusammengesetzt. Die Räder eines Zahnradpaars lassen sich drehen.
 - Mit dem Werkzeug Verbindung verbundene Teile werden an den verbundenen Kanten zusammengesetzt: Ein Teil liegt flach, die anderen stehen darauf.
 - Andere geschlossene Formen auf Schnitt-Layern liegen flach mit einstellbarer Dicke; verschachtelte Formen werden Löcher.
+- Eine Form, die du auf einem Schnitt-Layer über ein Generator-Teil zeichnest (etwa eine Boxwand), wird zum Loch in diesem Teil oder zur Ausklinkung, wenn sie nur seinen Rand überdeckt, genau wie der Laser es schneiden wird. Auch die Baugruppenprüfung berücksichtigt diese Schnitte.
 - Schicht-, Rippen- und Scheibenmodelle aus [3D-Modellen](../generators/index.md) werden zusammengebaut gezeigt.
 
 Drehe die Ansicht mit der Maus oder nutze die festen Ansichten (3D, oben, vorn). Der Regler **Explosion** zieht die Teile auseinander. Ohne Auswahl zeigt die Ansicht die ganze Seite; ein ausgewähltes Teil bringt immer seine ganze Baugruppe mit.
@@ -82,6 +83,22 @@ Drehe die Ansicht mit der Maus oder nutze die festen Ansichten (3D, oben, vorn).
 **Kollisionen**: Wo sich zwei Teile durchdringen (etwa bei einer Presspassung oder einem zu schmalen Schlitz), färbt sich die Stelle rot, und die Statuszeile nennt die Teile und das Volumen.
 
 **Gravuren**: Mit dem Kästchen **Gravuren** erscheinen Füllungen, gravierte Linien, Text und bearbeitete Bilder auf der Seite, die beim Lasern oben lag, mit leichter Tiefe. Gravuren, die auf keinem Teil liegen, werden nicht gezeichnet und würden beim Lasern die Arbeitsfläche treffen. Die Statuszeile zählt sie („1 Gravur ohne Teil“); ein Klick auf die Zahl wählt sie auf der Arbeitsfläche aus.
+
+### Darstellungsmodi {#render-modes}
+
+Die Liste der Darstellungsmodi im 3D-Fenster ändert, wie die Teile gezeichnet werden:
+
+| Modus | Zeigt |
+|---|---|
+| **Material** | Die Teile in ihrem [Materialaussehen](#material-look) (Vorgabe). |
+| **Shaded + Kanten** | Schattierte Teile mit ihren Kanten als Linien. |
+| **Layer-Farben** | Jedes Teil in der Farbe seines Layers. |
+| **Röntgen** | Durchscheinende Teile, sodass Innenwände, Zapfen und Gravuren hinter anderen Teilen sichtbar bleiben. |
+| **Hidden Lines** | Sichtbare Kanten durchgezogen, verdeckte gestrichelt. |
+| **Wireframe** | Nur die Kanten. |
+| **Blueprint** | Ein Zeichnungsblatt mit vier Ansichten (3D, vorne, oben, Seite), verdeckte Kanten gestrichelt; **Bemaßung** ergänzt die Außenmaße in mm. |
+
+Füll-Layer und Gravuren werden in jedem Modus gezeichnet.
 
 ### Materialaussehen {#material-look}
 

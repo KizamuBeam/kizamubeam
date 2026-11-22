@@ -8,10 +8,12 @@ description: An Knoten und Raster fangen, Hilfslinien nutzen, messen, Beziehunge
 
 ## Fangen
 
-**Fang** in der Statusleiste schaltet das Fangen ein und aus. Objekte und Zeiger fangen an Knoten, Mittelpunkten von Kanten, Zentren, Schnittpunkten, Linien und Quadrantenpunkten von Kreisen. **Raster** in der Statusleiste fängt am Raster.
+**Fang** in der Statusleiste oder der Magnet-Knopf in der Hauptleiste schaltet das Fangen ein und aus. Objekte und Zeiger fangen an Knoten, Mittelpunkten von Kanten, Zentren, Schnittpunkten, Linien und Quadrantenpunkten von Kreisen. **Raster** in der Statusleiste fängt am Raster.
 
 - **Ctrl** beim Ziehen schaltet das Fangen vorübergehend aus (oder ein).
 - **Alt** beim Ziehen fängt stärker und zeigt Ausrichtungshilfen an anderen Objekten.
+
+Wie nah der Zeiger kommen muss, bevor er fängt, stellst du unter **Bearbeiten → Einstellungen → Arbeitsfläche und Fangen → Fangdistanz (px)** ein, getrennt für normales Fangen und mit Alt.
 
 Kreise und Bögen werden auch innerhalb von Pfaden erkannt, etwa Löcher in einer Platte oder importierte DXF-Kreise, sodass ihr echter Mittelpunkt fängt. **Ansicht → Mittelpunkte zeigen** zeigt Mittelpunktkreuze immer, nur für die Auswahl oder gar nicht.
 
@@ -22,6 +24,8 @@ Kreise und Bögen werden auch innerhalb von Pfaden erkannt, etwa Löcher in eine
 ## Hilfslinien
 
 Ziehe eine Hilfslinie aus dem oberen Lineal (waagerecht) oder dem linken Lineal (senkrecht). Hilfslinien liegen auf einer eigenen Ebene **Hilfslinien**: Sie werden nie gelasert oder exportiert, und Ctrl+A, die Palette und Formoperationen lassen sie in Ruhe. Ziehe eine Hilfslinie, um sie zu verschieben, oder zurück ins Lineal, um sie zu löschen. Die Ebene Hilfslinien lässt sich im Fenster Objekte ausblenden und sperren. Hilfslinien gelten für alle Seiten.
+
+Ein Rechtsklick auf ein Lineal öffnet ein Menü: an dieser Stelle eine senkrechte oder waagerechte Hilfslinie hinzufügen, Hilfslinien zeigen, ausblenden oder sperren und Raster- und Objektfang schalten. Ein Rechtsklick auf eine Hilfslinie bietet **Position …**, um ihre genaue Lage in mm einzugeben, und **Diese Hilfslinie löschen**. Im Fenster Objekte öffnet ein Doppelklick auf eine Hilfslinie ebenfalls die Position.
 
 ## Messen
 

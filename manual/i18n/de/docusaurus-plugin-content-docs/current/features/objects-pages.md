@@ -42,6 +42,8 @@ Mehrere Projekte können gleichzeitig offen sein, als Tabs über der Arbeitsflä
 - Ungespeicherte Änderungen sind mit • markiert.
 - Kopieren und Einfügen funktioniert zwischen Tabs.
 
+Standardmäßig erscheint jedes Projekt als farbige Gruppe mit seinen Seiten als Unter-Tabs: Ein Klick auf einen Seiten-Tab wechselt zu diesem Projekt und dieser Seite, das Kontextmenü benennt die Seite um, und der Pfeil am Projektkopf klappt es auf oder zu. Ein Rechtsklick auf einen Projektkopf schließt es oder alle anderen, speichert es, öffnet ein neues Projekt oder setzt seine **Farbe …**. **Ansicht → Gruppierte Tabs** schaltet zurück auf einen einfachen Tab je Projekt, **Ansicht → Seiten in Tabs** blendet die Seiten-Tabs aus.
+
 Alle offenen Tabs werden automatisch gesichert und sind nach einem Neustart wieder da.
 
 ## Speichern

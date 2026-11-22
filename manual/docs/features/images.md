@@ -34,6 +34,16 @@ Each image has its own **Image Mode**, which decides how grey tones become laser
 
 **Save Processed Bitmap …** saves the image as PNG exactly as it would be lasered.
 
+## Editing images
+
+**Edit image …** (in **Tools → Image**, on the toolbar or in the context menu, with exactly one image selected) crops, straightens and rounds an image without losing anything: the original pixels and all values are kept in the project, so you can change them again later.
+
+- **Crop**: drag the edge and centre handles on the workspace, or type the values in mm or %.
+- **Perspective**: drag the four corners onto the corners of something that was photographed at an angle (a sign, a page); the image is rectified. **Crop first** selects the area in the original image, **Perspective first** crops the rectified result.
+- **Corner rounding**: one radius for all visible corners or an individual radius per corner. The radii are in millimetres on the workspace and stay the same when you scale the image. Drag the handles on the workspace; Shift drags all corners together.
+
+The dialog shows a live preview that can be zoomed and panned (**Zoom level**, **Fit**, **Reset view**). **Apply** is one undo step; Esc cancels. To cut the image out along its new outline, switch on the [image cut](layers.md#images-and-image-cut) of its layer.
+
 ## Removing the background
 
 **Tools → Image → Remove Background …** (or **Remove BG …** in the toolbar) works locally, without a cloud service. The background colours are taken from the image border, or you click them in the preview (Shift+click adds more). Colours within the tolerance become transparent and are not lasered. Clean-up removes small specks and fills small holes; **Crop to subject** trims the image.
