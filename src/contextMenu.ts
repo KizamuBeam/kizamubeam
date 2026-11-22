@@ -46,15 +46,31 @@ export function showEditorMenu(x: number, y: number, groups: ContextAction[][], 
           nested.hidden = false;
           button.setAttribute('aria-expanded', 'true');
           const wrap = nested.closest('.editor-context-subitem') as HTMLElement | null;
-          // Open to the left when the flyout would leave the viewport on the right.
-          const r = nested.getBoundingClientRect();
-          wrap?.classList.toggle('open-left', r.right > innerWidth - 4 && r.left - r.width - 8 >= 4);
+          wrap?.classList.remove('open-left');
+          // Fixed am Viewport verankern (nicht absolut im Menü): Ein Flyout mit
+          // left:100% ragt aus der Menübox und erzeugt dort Scroll-Overflow
+          // (horizontale Scrollbar, verschobene Darstellung). Fixed-Elemente
+          // scrollen nicht mit und lösen keinen Scroll-Overflow des Menüs aus.
+          const r = button.getBoundingClientRect();
+          nested.style.position = 'fixed';
+          nested.style.margin = '0';
+          nested.style.left = '0px';
+          nested.style.top = '0px';
+          const w = nested.offsetWidth, hh = nested.offsetHeight;
+          let left = r.right - 2;
+          if (left + w > innerWidth - 8 && r.left - w + 2 >= 8) {
+            left = r.left - w + 2;
+            wrap?.classList.add('open-left');
+          }
+          nested.style.left = `${Math.max(8, left)}px`;
+          // Vertikal im Viewport halten: Bei Triggern nahe unten nach oben schieben.
+          nested.style.top = `${Math.max(8, Math.min(r.top - 4, innerHeight - hh - 8))}px`;
         };
         const closeSub = () => {
           nested.hidden = true; button.setAttribute('aria-expanded', 'false');
         };
         const button = h('button', { role: 'menuitem', 'aria-haspopup': 'true', 'aria-expanded': 'false',
-          onclick: () => { if (nested.hidden) { openSub(); nested.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus(); } else closeSub(); },
+          onclick: () => { if (nested.hidden) { openSub(); nested.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus({ preventScroll: true }); } else closeSub(); },
           onmouseenter: () => openSub(), onfocus: () => openSub() },
           action.label, ' ▸');
         const wrap = h('div', { class: 'editor-context-subitem', onmouseleave: () => closeSub() }, button, nested);
@@ -69,7 +85,9 @@ export function showEditorMenu(x: number, y: number, groups: ContextAction[][], 
   };
   groups.filter((group) => group.length).forEach((group, i) => { if (i) root.append(h('hr', { role: 'separator' })); fill(root, group); });
   const outside = (event: MouseEvent) => { if (!root.contains(event.target as Node)) close(); };
-  const scroll = (event: Event) => { if (!root.contains(event.target as Node)) close(); };
+  // Scrollen innerhalb des Menüs schließt nur offene Flyouts (fixiert am
+  // Viewport, würden sonst vom auslösenden Eintrag losgelöst stehenbleiben).
+  const scroll = (event: Event) => { if (!root.contains(event.target as Node)) close(); else closeSubs(); };
   const keydown = (event: KeyboardEvent) => {
     // Never let Delete, Ctrl+A, Space or node shortcuts reach the editor while a menu owns focus.
     event.stopImmediatePropagation();
@@ -105,6 +123,6 @@ export function showEditorMenu(x: number, y: number, groups: ContextAction[][], 
   document.addEventListener('scroll', scroll, true);
   window.addEventListener('blur', close); window.addEventListener('resize', close);
   activeClose = close;
-  root.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
+  root.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus({ preventScroll: true });
   return close;
 }

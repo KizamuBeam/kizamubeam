@@ -32,10 +32,14 @@ window.runContextMenuChecks = () => {
   check(document.activeElement.textContent.includes('Paste'),'submenu focus');
   const subBox = menu.querySelector('.editor-context-submenu');
   const subCss = getComputedStyle(subBox);
-  check(subCss.position === 'absolute','flyout is positioned, not inline');
+  check(subCss.position === 'fixed','flyout is viewport-anchored, not inline');
   const parentBtn = [...menu.querySelectorAll(':scope > .editor-context-subitem > button')].find(b => b.getAttribute('aria-haspopup') === 'true');
   const wr = parentBtn.getBoundingClientRect(), br = subBox.getBoundingClientRect();
   check(br.left >= wr.right - 2 || br.right <= wr.left + 2,'flyout opens to the side');
+  check(menu.scrollWidth <= menu.clientWidth + 1,'no horizontal scrollbar while flyout is open');
+  check(br.left >= 0 && br.right <= innerWidth + 1 && br.top >= 0 && br.bottom <= innerHeight + 1,'flyout stays inside viewport');
+  menu.dispatchEvent(new Event('scroll'));
+  check(subBox.hidden && menu.isConnected,'menu scroll parks the flyout, menu stays open');
   document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));
   check(!!document.querySelector('.editor-context-menu') && subBox.hidden,'first Escape backs out of flyout');
   check(document.activeElement === parentBtn,'focus returns to parent entry');
