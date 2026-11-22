@@ -612,7 +612,9 @@ export class Editor {
     const o = this.rectRadiusTarget();
     if (!o || o.shape.kind !== 'rect') return null;
     const s = o.shape;
-    const r = Math.max(0, Math.min(s.r, Math.abs(s.w) / 2, Math.abs(s.h) / 2));
+    const limit = Math.min(Math.abs(s.w), Math.abs(s.h)) / 2;
+    const corners = s.corners ?? [s.r, s.r, s.r, s.r];
+    const r = Math.max(0, Math.min(Math.max(...corners), Number.isFinite(limit) ? limit : 0));
     return this.toScreen(apply(o.m, r, r));
   }
   /** 24px-Trefferfläche für den Eckenradius-Griff. */

@@ -5352,5 +5352,7 @@
   "Einpassen": "Ajustar",
   "Zoomfaktor": "Nivel de zoom",
   "Griffe auf der Arbeitsfläche ziehen, Shift zieht alle Ecken gemeinsam.": "Arrastra los tiradores en el lienzo; Mayús mueve todas las esquinas a la vez.",
-  "Ansicht zurücksetzen": "Restablecer vista"
+  "Ansicht zurücksetzen": "Restablecer vista",
+  "Alle Ecken synchron": "Sincronizar todas las esquinas",
+  "Einzelne Eckenradien": "Radios de esquina individuales"
 }

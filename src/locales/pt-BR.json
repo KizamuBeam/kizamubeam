@@ -5352,5 +5352,7 @@
   "Einpassen": "Ajustar",
   "Zoomfaktor": "Nível de zoom",
   "Griffe auf der Arbeitsfläche ziehen, Shift zieht alle Ecken gemeinsam.": "Arraste as alças na tela; Shift move todos os cantos juntos.",
-  "Ansicht zurücksetzen": "Redefinir exibição"
+  "Ansicht zurücksetzen": "Redefinir exibição",
+  "Alle Ecken synchron": "Sincronizar todos os cantos",
+  "Einzelne Eckenradien": "Raios de canto individuais"
 }

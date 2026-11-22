@@ -5352,5 +5352,7 @@
   "Einpassen": "Fit",
   "Zoomfaktor": "Zoom level",
   "Griffe auf der Arbeitsfläche ziehen, Shift zieht alle Ecken gemeinsam.": "Drag the handles on the canvas; Shift drags all corners together.",
-  "Ansicht zurücksetzen": "Reset view"
+  "Ansicht zurücksetzen": "Reset view",
+  "Alle Ecken synchron": "Link all corners",
+  "Einzelne Eckenradien": "Individual corner radii"
 }
