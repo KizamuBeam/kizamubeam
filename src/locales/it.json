@@ -4534,6 +4534,7 @@
   "Formerstellung: Flächen entfernen": "Creazione forme: rimuovi aree",
   "Formerstellung: Flächen verbinden": "Creazione forme: unisci aree",
   "Formerstellung: Flächen verbinden; Alt entfernt Flächen. Esc beendet.": "Creazione forme: unisci aree; Alt rimuove aree. Esc termina.",
+  "Getrennte Formen lassen sich nicht verbinden. Nur überlappende Flächen lassen sich zusammenführen.": "Le forme separate non possono essere unite. Solo le aree sovrapposte possono essere combinate.",
   "Formerstellung …": "Creazione forme…",
   "Formerstellung als lokalen Test starten? Die erste Bearbeitung erstellt unabhängige Pfade und setzt die erhaltenen Originale auf „Nicht lasern“. Parametrische Originale bleiben editierbar; Ergebnisse aktualisieren sich nicht automatisch. Offene Linien und Lückenerkennung sind noch nicht unterstützt.": "Avviare la creazione forme come test locale? La prima modifica crea tracciati indipendenti e imposta gli originali conservati su «Non laserare». Gli originali parametrici restano modificabili; i risultati non si aggiornano automaticamente. Linee aperte e rilevamento aperture non sono ancora supportati.",
   "Ungültige Referenz der Konstruktionslinie.": "Riferimento della linea di costruzione non valido.",

@@ -88,7 +88,15 @@ export class EditorInteraction {
     if (!s || !s.picked.size || s.stamp !== this.state() || s.sources.some((o) => !this.selectable(o))) return false;
     const picked = s.faces.filter((_, i) => s.picked.has(i));
     const faces = s.faces.filter((_, i) => !s.picked.has(i));
-    if (!s.erase) for (const subs of mergeRegions(picked)) faces.push({ subs, layer: picked[0].layer });
+    const merged = s.erase ? [] : mergeRegions(picked);
+    if (!s.erase && s.picked.size > 1 && merged.length >= s.picked.size) {
+      // No shared area: a stroke across separate shapes must not merge anything.
+      s.picked.clear();
+      this.hint = t('Getrennte Formen lassen sich nicht verbinden. Nur überlappende Flächen lassen sich zusammenführen.');
+      this.emit('tool'); this.redraw();
+      return false;
+    }
+    if (!s.erase) for (const subs of merged) faces.push({ subs, layer: picked[0].layer });
     const output = faces.map((f) => regionObject(f, newId()));
     if (s.sources[0]?.noLaser) for (const o of output) o.noLaser = true;
     this.snapshot(s.erase ? t('Formerstellung: Flächen entfernen') : t('Formerstellung: Flächen verbinden'));

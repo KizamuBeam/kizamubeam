@@ -359,6 +359,7 @@
   "Dieser Teststand der Formerstellung unterstützt geschlossene Flächen ohne offene Linien oder Bilder.": "This Shape Builder prototype supports closed regions without open lines or images.",
   "Arbeitsgrenze der Formerstellung erreicht. Weniger oder einfachere Formen auswählen.": "Shape Builder work limit reached. Select fewer or simpler shapes.",
   "Formerstellung: Flächen anklicken oder überstreichen; Alt entfernt Flächen. Erste Übernahme behält Originale und setzt sie auf „Nicht lasern“. Esc beendet.": "Shape Builder: click or drag across regions; Alt removes regions. The first edit retains originals and sets them to Do not laser. Esc exits.",
+  "Getrennte Formen lassen sich nicht verbinden. Nur überlappende Flächen lassen sich zusammenführen.": "Separate shapes cannot be merged. Only overlapping regions can be combined.",
   "Formerstellung: Flächen entfernen": "Shape Builder: remove regions",
   "Formerstellung: Flächen verbinden": "Shape Builder: merge regions",
   "Formerstellung: Flächen verbinden; Alt entfernt Flächen. Esc beendet.": "Shape Builder: merge regions; Alt removes regions. Esc exits.",

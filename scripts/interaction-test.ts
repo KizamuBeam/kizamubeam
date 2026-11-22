@@ -79,6 +79,14 @@ await test('retained noLaser originals never become laser output implicitly', as
   const a = rect(); a.noLaser = true; const ed = editor([a]); assert.ok(await ed.startShapeBuilder());
   ed.builderSession!.picked.add(0); ed.commitShapeBuilder(); assert.ok(ed.sel.every((o) => o.noLaser));
 });
+await test('builder stroke across separate shapes is rejected without edits', async () => {
+  const ed = editor([rect(10, 30), rect(60, 30)]); assert.ok(await ed.startShapeBuilder());
+  ed.builderSession!.picked.add(0); ed.builderSession!.picked.add(1);
+  assert.equal(ed.commitShapeBuilder(), false);
+  assert.equal(ed.history.position, 0); assert.equal(ed.doc.objs.length, 2);
+  assert.ok(ed.hint.includes('Getrennte Formen'));
+  assert.equal(ed.builderSession!.picked.size, 0);
+});
 await test('async builder start rejects changed selection, tool and document', async () => {
   for (const change of [(ed: E) => ed.setSel([]), (ed: E) => ed.setTool('node'),
     (ed: E) => { ed.doc = newDoc(); }, (ed: E) => { ed.pickHandler = () => {}; }]) {
