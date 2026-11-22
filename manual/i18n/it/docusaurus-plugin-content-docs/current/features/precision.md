@@ -8,10 +8,12 @@ description: Aggancia a nodi e griglia, usa le guide, misura, applica relazioni 
 
 ## Aggancio
 
-**Aggancia** nella barra di stato attiva e disattiva l’aggancio. Oggetti e puntatore si agganciano a nodi, punti medi, centri, intersezioni, linee e punti dei quadranti dei cerchi. **Griglia** nella barra di stato aggancia alla griglia.
+**Aggancia** nella barra di stato, o il pulsante con la calamita nella barra principale, attiva e disattiva l’aggancio. Oggetti e puntatore si agganciano a nodi, punti medi, centri, intersezioni, linee e punti dei quadranti dei cerchi. **Griglia** nella barra di stato aggancia alla griglia.
 
 - **Ctrl** durante il trascinamento disattiva (o attiva) l’aggancio per il momento.
 - **Alt** durante il trascinamento aggancia più forte e mostra guide di allineamento sugli altri oggetti.
+
+Quanto deve avvicinarsi il puntatore prima di agganciarsi si imposta in **Modifica → Impostazioni → Area di lavoro e aggancio → Distanza di aggancio (px)**, separatamente per l'aggancio normale e con Alt.
 
 Cerchi e archi vengono riconosciuti anche all’interno dei percorsi, per esempio i fori di una piastra o i cerchi DXF importati, così si aggancia il loro vero centro. **Visualizza → Mostra centri** mostra le croci dei centri sempre, solo per la selezione o mai.
 
@@ -22,6 +24,8 @@ Cerchi e archi vengono riconosciuti anche all’interno dei percorsi, per esempi
 ## Guide
 
 Trascina una guida dal righello superiore (orizzontale) o da quello sinistro (verticale). Le guide stanno su un livello proprio, **Guide**: non vengono mai lavorate né esportate, e Ctrl+A, la tavolozza e le operazioni sulle forme le ignorano. Trascina una guida per spostarla, o riportala nel righello per eliminarla. Il livello Guide si può nascondere e bloccare nella finestra Oggetti. Le guide valgono per tutte le pagine.
+
+Un clic destro su un righello apre un menu: aggiungere in quel punto una guida verticale o orizzontale, mostrare, nascondere o bloccare le guide e attivare l'aggancio alla griglia e agli oggetti. Un clic destro su una guida offre **Posizione …** per inserirne la posizione esatta in mm ed **Elimina questa guida**. Nella finestra Oggetti anche un doppio clic su una guida apre la posizione.
 
 ## Misurare
 

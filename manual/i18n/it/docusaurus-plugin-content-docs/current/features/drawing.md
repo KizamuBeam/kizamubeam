@@ -16,12 +16,15 @@ Gli strumenti di disegno si trovano nella barra Strumenti a sinistra e nel menu 
 |---|---|---|
 | **Disegna linee** | Ctrl+L | Fai clic per gli angoli; fai clic e trascina per una curva di Bézier. Un clic sul punto iniziale chiude la forma; doppio clic, Invio o clic destro termina. |
 | **Arco** | | Imposta il centro, poi raggio e angolo iniziale, poi l'angolo finale — oppure fai clic su inizio, punto intermedio e fine (3 punti). Maiusc aggancia gli angoli a 15°, Invio conferma, Esc scarta l'arco. Modalità e direzione sono nelle opzioni dello strumento; in modalità centro la direzione sceglie l'arco complementare, con 3 punti inverte l'ordine dei nodi, quindi il taglio parte dall'ultimo punto impostato. |
+| **Percorso curvo** | | Clic per un angolo, trascina per una curva morbida. Ancore e maniglie restano visibili mentre disegni. Un clic vicino all'estremità aperta di un percorso aperto esistente lo prosegue. Clic sull'ancora iniziale chiude la forma, doppio clic o Invio termina, Backspace rimuove l'ultima ancora, Esc annulla. |
 | **Mano libera / Matita** | | Trascina un tratto; al rilascio viene convertito in curve morbide e modificabili. Nelle opzioni dello strumento imposti la tolleranza e se il tratto va chiuso. |
-| **Shaper** | | Trascina un gesto: circondare le forme le unisce, una linea che ne attraversa una sottrae lungo il tratto, un gesto chiuso crea la forma base riconosciuta (rettangolo, rettangolo arrotondato, ellisse, poligono) se il riconoscimento è attivo — altrimenti il tratto è adattato come la Matita. Opzioni: distanza di chiusura (l'anello nel punto iniziale mostra se il contorno si chiude al rilascio), levigatura, larghezza di taglio totale e l'elenco dei suggerimenti di forma incl. Mano libera. L'ultima operazione resta modificabile fino al gesto successivo, al cambio di strumento o ad Annulla. |
-| **Rettangolo** | Ctrl+R | Trascina un rettangolo. Maiusc disegna un quadrato, Ctrl parte dal centro. Il raggio degli angoli si imposta nella barra delle modifiche numeriche. |
+| **Shaper** | | Trascina un gesto: circondare le forme le unisce, una linea che ne attraversa una sottrae lungo il tratto, un gesto chiuso crea la forma base riconosciuta (rettangolo, rettangolo arrotondato, ellisse, poligono) se il riconoscimento è attivo — altrimenti il tratto è adattato come la Matita. Opzioni: distanza di chiusura (l'anello nel punto iniziale mostra se il contorno si chiude al rilascio), levigatura, larghezza di taglio totale e l'elenco dei suggerimenti di forma incl. Mano libera. L'ultima operazione resta modificabile fino al gesto successivo, al cambio di strumento o ad Annulla; nel frattempo i punti della curva riconosciuta si possono trascinare come una spline. |
+| **Rettangolo** | Ctrl+R | Trascina un rettangolo. Maiusc disegna un quadrato, Ctrl parte dal centro. Il raggio degli angoli si imposta nella barra delle modifiche numeriche; il pulsante accanto imposta un raggio diverso per ogni angolo (o tutti sincronizzati). |
 | **Ellisse** | Ctrl+E | Trascina un’ellisse. Maiusc disegna un cerchio, Ctrl parte dal centro. |
 | **Poligono** | | Trascina dal centro. Numero di angoli e **Stella** nella barra delle modifiche numeriche. |
 | **Testo** | Ctrl+T | Vedi [Testo e codici](text.md). |
+
+Linee, Matita, Percorso curvo e Arco condividono un gruppo di pulsanti nella barra degli strumenti. Dopo il disegno KizamuBeam torna allo strumento di selezione; per continuare con lo stesso strumento disattiva **Passa alla selezione dopo il disegno** in **Modifica → Impostazioni → Mouse e tastiera**. **Ricorda interruttori strumenti**, nello stesso punto, conserva le opzioni di ogni strumento per la volta successiva.
 
 Rettangoli, ellissi, poligoni e testi restano modificabili come tali: raggio degli angoli, numero di angoli o testo si possono cambiare in seguito. **Converti in percorso** (Ctrl+Maiusc+C) li trasforma in percorsi normali.
 
@@ -29,7 +32,7 @@ Rettangoli, ellissi, poligoni e testi restano modificabili come tali: raggio deg
 
 - Un **clic** seleziona un oggetto, **Maiusc+clic** ne aggiunge o ne toglie uno.
 - Un **riquadro verso destra** seleziona gli oggetti completamente al suo interno, un **riquadro verso sinistra** anche quelli che attraversa soltanto.
-- **Selezione a lazo** (**Strumenti → Percorso**): disegna intorno agli oggetti per selezionare quelli racchiusi completamente. Maiusc aggiunge, Ctrl inverte.
+- **Selezione a lazo** (**Strumenti → Percorso** o il gruppo di pulsanti con la freccia di selezione): disegna intorno agli oggetti per selezionare quelli racchiusi completamente. Disegnando in **senso antiorario** passi alla modalità a contatto, in cui viene selezionato anche ogni oggetto attraversato dal lazo; la direzione si può cambiare durante il disegno. Maiusc aggiunge, Ctrl inverte, Maiusc+Ctrl rimuove, Esc annulla.
 - **Ctrl+A** seleziona tutto nella pagina corrente; **Esc** annulla la selezione.
 - Un clic destro apre un menu contestuale con i comandi adatti a ciò che si trova sotto il puntatore: forme, immagini, nodi o area di lavoro vuota.
 
@@ -37,14 +40,14 @@ Quando molti oggetti sono sovrapposti, aiuta **Strumenti → Isola selezione**: 
 
 ## Spostare, ridimensionare e ruotare
 
-- Trascina una selezione per spostarla. I tasti freccia la spostano di 1 mm (Maiusc 10 mm, Alt 0,1 mm).
+- Trascina una selezione per spostarla. I tasti freccia la spostano di 1 mm (Maiusc 10 mm, Alt 0,1 mm); i tre passi si possono cambiare in **Modifica → Impostazioni → Mouse e tastiera**.
 - Trascina una maniglia per ridimensionare. Maiusc passa tra ridimensionamento proporzionale e libero, Ctrl ridimensiona dal centro.
 - **Fai clic una seconda volta sulla selezione** (o trascina appena fuori da un angolo) per ruotare. Il centro di rotazione si può spostare. Maiusc aggancia a 15°, Ctrl a 5°, Esc annulla.
 - `.` e `,` ruotano di 90°. **Ctrl+Maiusc+H** e **Ctrl+Maiusc+V** specchiano.
 
 ### Valori esatti
 
-La **barra delle modifiche numeriche** in alto mostra posizione, dimensioni e rotazione della selezione. Un riferimento a 9 punti stabilisce a quale punto si riferiscono i valori. I campi accettano formule e unità, come `100/3`, `2in` o `25.4*3`, e parametri del progetto come `{Larghezza}/2` (vedi [Modelli e libreria](templates-library.md)).
+La **barra delle modifiche numeriche** in alto mostra posizione, dimensioni e rotazione della selezione. Un riferimento a 9 punti stabilisce a quale punto si riferiscono i valori. I campi accettano formule e unità, come `100/3`, `2in` o `25.4*3`, e parametri del progetto come `{Larghezza}/2` (vedi [Modelli e libreria](templates-library.md)). In tutta l'app la virgola funziona come separatore decimale quanto il punto, e i numeri sono mostrati nel formato della lingua dell'app.
 
 ## Raggruppare, allineare e disporre
 
@@ -59,7 +62,7 @@ Scegli **Modifica nodi** (Ctrl+`) per cambiare la forma dei percorsi. Con più p
 
 | Azione | Come |
 |---|---|
-| Selezionare nodi | Clic, Maiusc+clic, riquadro (o **lazo dei nodi**) o Ctrl+A |
+| Selezionare nodi | Clic, Maiusc+clic, riquadro (o **Lazo per nodi** nella barra dei nodi, che seleziona con un contorno a mano libera; con Alt può iniziare anche sopra un nodo) o Ctrl+A |
 | Spostare nodi | Trascinali o spostali con i tasti freccia |
 | Eliminare un nodo | D o Canc |
 | Inserire un nodo | I, o doppio clic su un segmento |

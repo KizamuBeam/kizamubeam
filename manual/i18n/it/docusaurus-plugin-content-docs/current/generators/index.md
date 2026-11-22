@@ -12,23 +12,32 @@ I generatori creano parti finite a partire da poche misure, invece di disegnarle
 | [Ingranaggi e cremagliere](gears.md) | Ingranaggio, coppia di ingranaggi, cremagliera |
 | [Pulegge e camme](pulleys-cams.md) | Puleggia dentata, camma a disco |
 | [Scatole con giunzioni a dita](boxes.md) | Scatola con giunzioni a dita, scatola con giunti a pettine e divisori |
+| [Compositore di scatole](box-composer.md) | Una scatola con pareti interne posizionate liberamente (estensione) |
 | [Cassetti, inserti e scaffali](drawers-shelves.md) | Cassetto, inserto divisorio, ripiano a incastro |
 | [Modelli a strati e a nervature](models-3d.md) | Modello a strati e modello a nervature da un file STL o OBJ |
 | [Sfera a dischi](disc-sphere.md) | Una sfera o un paralume fatto di dischi a incastro |
 | [Lavoro multistrato](multilayer.md) | Le tue forme sovrapposte in un rilievo a strati |
 
+Altri generatori, come un puzzle, righelli e scale, tavolieri, arte a strati e una mappa stradale, sono [estensioni](../extensions/index.md) del catalogo. Una volta installati compaiono nella Casella degli strumenti in **Dalle estensioni** e funzionano come quelli integrati.
+
 Le giunzioni tra le tue forme, la cerniera del coperchio, le cerniere viventi e le asole sono strumenti, non generatori: vedi [Giunzioni, cerniere e vista 3D](../features/construction-3d.md). Le dime sono descritte in [Print and Cut e dime](../features/print-and-cut.md#jigs), gli schizzi quotati in [Aggancio, guide e misure](../features/precision.md#sketches-with-dimensions).
 
 ## Lavorare con i generatori
 
-### Crea e Aggiungi
+Tutti i generatori, anche quelli integrati, funzionano come plugin in un processo separato. L'editor resta utilizzabile mentre viene calcolata una parte grande, e un calcolo lungo si può annullare.
 
-Ogni finestra di un generatore mostra un’anteprima dal vivo e controlla i valori mentre li digiti; i problemi compaiono in rosso o arancione sotto i campi. Le impostazioni usate di rado si trovano in **Avanzate**.
+### La finestra del generatore
+
+Ogni finestra di un generatore mostra un’anteprima dal vivo e controlla i valori mentre li digiti; i problemi compaiono in rosso o arancione accanto ai campi. Le impostazioni usate di rado si trovano in **Avanzate**. L'anteprima si ingrandisce con la rotellina del mouse e si sposta con il tasto centrale; la finestra si allarga con la maniglia in basso a destra e l'anteprima cresce con essa. Alcuni generatori hanno più passi, elenchi o una superficie di disegno su cui posizioni le cose con il mouse (per esempio il [compositore di scatole](box-composer.md)). Aiuto, campi e messaggi stanno nella colonna di destra.
+
+I generatori che hanno bisogno del materiale o dell'area di lavoro li prendono dal livello e dal dispositivo correnti, per esempio spessore, kerf e gioco di un materiale [calibrato](../features/materials-tests.md#calibrate-fit). Alcuni possono anche partire dalla selezione corrente, come un'immagine per l'arte a strati.
+
+### Crea e Aggiungi
 
 - **Crea** genera la parte e chiude la finestra.
 - **Aggiungi** genera la parte e lascia la finestra aperta, così puoi preparare la successiva con altri valori. Quando modifichi una parte esistente, Aggiungi ne crea una nuova e lascia invariata quella modificata.
 
-Le nuove parti vanno nel primo spazio libero della pagina, partendo dal basso a sinistra, a 2 mm l’una dall’altra e a 3 mm dal bordo. Ogni oggetto sulla pagina viene evitato e un assieme (come una scatola) mantiene la sua disposizione. Quando la pagina è piena, la parte va su una nuova pagina. Per una parte più grande dell’area di lavoro viene chiesto prima: **Crea comunque** al centro, tornare indietro o annullare. Ogni Crea o Aggiungi è un solo passo di annullamento.
+Le nuove parti vanno nel primo spazio libero della pagina, partendo dal basso a sinistra, a 2 mm l’una dall’altra e a 3 mm dal bordo. Ogni oggetto sulla pagina viene evitato e un assieme (come una scatola) mantiene la sua disposizione. Quando la pagina è piena, la parte va su una nuova pagina. Un assieme più grande dell'area di lavoro può distribuire le sue parti su più pagine e resta comunque un unico oggetto da modificare, salvare e annullare in un solo passo. Per una parte più grande dell’area di lavoro viene chiesto prima: **Crea comunque** al centro, tornare indietro o annullare. Ogni Crea o Aggiungi è un solo passo di annullamento.
 
 ### Modificare una parte in seguito
 

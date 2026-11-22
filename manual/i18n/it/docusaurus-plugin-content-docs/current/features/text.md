@@ -18,6 +18,7 @@ La **barra del testo** sotto la barra delle modifiche numeriche contiene tutte l
 | **A capo** / **Larghezza massima** | Manda a capo alle parole alla larghezza della casella; la casella cresce verso il basso. Trascinando le maniglie laterali il testo si ridistribuisce. |
 | **Altezza max.** | Riduce in modo uniforme un blocco che diventa troppo alto. |
 | **Riduci** | Rimpicciolisce un testo troppo largo invece di comprimerlo. |
+| **Da destra a sinistra** | Scrive testo ebraico o arabo da destra a sinistra (al meglio). |
 
 Il testo resta modificabile. **Converti in percorso** (Ctrl+Maiusc+C) lo trasforma nei contorni reali del font, per esempio prima di modificarne i nodi.
 
@@ -30,7 +31,11 @@ Si possono usare tutti i font installati sul computer. **File → Font …** (o 
 - Allo stesso modo importi i tuoi file TTF o OTF.
 - Con la stella un font diventa preferito; i preferiti compaiono in cima all’elenco.
 
-Se un progetto usa un font che manca su questo computer, KizamuBeam propone di scaricarlo da Google Fonts.
+Se un progetto usa un font che manca su questo computer, KizamuBeam propone di scaricarlo da Google Fonts (o lo fa da solo, se **Modifica → Impostazioni → Estensioni e font → All'apertura scarica automaticamente da Google Fonts i font mancanti** è attivo). Finché il font non c'è, il testo viene disegnato con Roboto e KizamuBeam lo segnala: un avviso nella barra del testo (un clic apre il gestore dei font), un segno nella finestra Oggetti e una voce nella verifica del progetto. I testi che non vengono lavorati restano silenziosi.
+
+Nella versione browser, i browser basati su Chromium possono usare i font installati sul computer dopo un permesso una tantum; altrimenti, convertendo il testo in percorsi si usa Roboto.
+
+Font e dimensione predefiniti per i nuovi testi si impostano in **Modifica → Impostazioni → Aspetto → Strumento testo**.
 
 ## Testo su un percorso
 

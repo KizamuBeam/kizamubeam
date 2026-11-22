@@ -10,6 +10,8 @@ description: Importa file SVG, DXF, PDF, Illustrator e LightBurn ed esporta prog
 
 **File → Importa …** (Ctrl+I), il trascinamento dei file sull’area di lavoro o l’incolla con Ctrl+V da altri programmi funzionano allo stesso modo. I colori vengono associati al colore più vicino della tavolozza, cioè al livello più vicino, e più oggetti arrivano come gruppo.
 
+Il comportamento dell'importazione si cambia in **Modifica → Impostazioni → Area di lavoro e aggancio → Importa**: se gli oggetti importati vengono selezionati e raggruppati, se vengono messi al centro del piano, se compaiono avvisi sui contenuti saltati, l'unità DXF e la risoluzione SVG usate quando un file non le indica, la tolleranza per chiudere i percorsi quasi chiusi e se importare i livelli SVG e DXF nascosti.
+
 ### SVG
 
 Percorsi (anche archi), rettangoli, cerchi, ellissi, linee, poligoni, riferimenti `use`, trasformazioni, classi CSS e immagini incorporate. Le dimensioni derivano da `width`, `height` e `viewBox`. **Il testo nei file SVG viene saltato**: converti il testo in percorsi nel programma di disegno prima di salvare.

@@ -10,6 +10,8 @@ description: SVG-, DXF-, PDF-, Illustrator- und LightBurn-Dateien hereinholen un
 
 **Datei → Importieren …** (Ctrl+I), Dateien auf die Arbeitsfläche ziehen oder mit Ctrl+V aus anderen Programmen einfügen funktioniert jeweils gleich. Farben werden der nächstgelegenen Palettenfarbe zugeordnet, also dem nächstgelegenen Layer, und mehrere Objekte kommen als Gruppe an.
 
+Wie sich Importe verhalten, lässt sich unter **Bearbeiten → Einstellungen → Arbeitsfläche und Fangen → Import** ändern: ob importierte Objekte ausgewählt und gruppiert werden, ob sie in die Bettmitte gelegt werden, ob Hinweise zu übersprungenen Inhalten erscheinen, die DXF-Einheit und SVG-Auflösung, wenn eine Datei sie nicht angibt, die Toleranz zum Schließen fast geschlossener Pfade und ob versteckte SVG- und DXF-Ebenen importiert werden.
+
 ### SVG
 
 Pfade (auch Bögen), Rechtecke, Kreise, Ellipsen, Linien, Polygone, `use`-Verweise, Transformationen, CSS-Klassen und eingebettete Bilder. Die Größe ergibt sich aus `width`, `height` und `viewBox`. **Text in SVG-Dateien wird übersprungen**: Wandle Text im Zeichenprogramm vor dem Speichern in Pfade um.

@@ -66,10 +66,10 @@ Die Bibliothek enthält auch die Muster für [Muster füllen](arranging.md).
 
 ## Erweiterungen {#extensions}
 
-**Datei → Erweiterungen …** installiert Pakete (`.kzp`-Dateien), die Gerätevorlagen, Vorlagen, Einträge für die Material-Bibliothek und Bibliothekselemente hinzufügen, ohne neue Version von KizamuBeam. Ein Paket enthält nur Daten, nie Programmcode, und jeder Eintrag wird vor der Installation geprüft.
+**Datei → Erweiterungen …** installiert Erweiterungen (`.kzp`-Dateien) ohne neue Version von KizamuBeam. Sie bringen Inhalte (Gerätevorlagen, Vorlagen, Einträge für die Material-Bibliothek und Bibliothekselemente) oder Plugins (Generatoren, Pfadwerkzeuge und Bildfilter im Werkzeugkasten unter **Aus Erweiterungen**).
 
-- Der **Katalog** im selben Fenster listet die offiziellen Pakete: Installieren oder Aktualisieren mit einem Klick. Der Katalog ist signiert, und jedes Paket wird gegen seine Prüfsumme geprüft.
-- **Installieren …** oder das Ziehen einer `.kzp`-Datei auf die Arbeitsfläche installiert ein Paket aus einer Datei. Der Dialog listet den Inhalt und sagt, ob es ein Update ist.
-- Wird ein Paket entfernt, verschwinden seine Einträge wieder.
+- Der **Katalog** im selben Fenster listet die offiziellen und die Community-Erweiterungen: Installieren oder Aktualisieren mit einem Klick. Die Kataloge sind signiert, und jede Erweiterung wird gegen ihre Prüfsumme geprüft.
+- **Installieren …** oder das Ziehen einer `.kzp`-Datei auf die Arbeitsfläche installiert eine Erweiterung aus einer Datei. Der Dialog listet den Inhalt und sagt, ob es ein Update ist.
+- Installierte Erweiterungen lassen sich ausschalten, auf die vorherige Version zurücksetzen oder entfernen.
 
-Was es gibt, steht in der [Liste der Erweiterungen](../extensions/index.md).
+Sicherheit, Plugins mit Internetzugriff und die Liste dessen, was es gibt, stehen unter [Erweiterungen](../extensions/index.md).

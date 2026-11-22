@@ -10,13 +10,30 @@ description: Disponi finestre e barre degli strumenti, cambia lingua e tema e tr
 
 **Modifica → Impostazioni …** raccoglie tutte le preferenze dell’applicazione in una finestra, con una barra laterale (Generale, Aspetto, Area di lavoro e aggancio, Mouse e tastiera, Macchine e servizi, Estensioni e font) e una ricerca su tutte le sezioni. Le modifiche diventano effettive con **OK**; **Annulla** le scarta, e **Valori predefiniti** ripristina la sezione corrente.
 
-Le impostazioni che hanno anche una voce di menu (lingua, tema, aggancio, griglia e così via) sono gli stessi valori: cambiandole in un punto, cambiano anche nell’altro.
+Le impostazioni che hanno anche una voce di menu (lingua, tema, aggancio, griglia e così via) sono gli stessi valori: cambiandole in un punto, cambiano anche nell’altro. Dispositivo, connessione, area di lavoro e fotocamera restano legati al dispositivo e si raggiungono tramite pulsanti.
 
-## Lingua e tema
+Oltre a lingua, tema e canale di aggiornamento, le sezioni contengono tra l'altro:
+
+| Sezione | Impostazioni |
+|---|---|
+| **Generale** | Canale di aggiornamento, **Salvataggio automatico ogni** n minuti (0 = disattivato), tariffa elettrica e valuta per la [stima dell'energia](machine-control.md#energy-and-cost), adozione dell'ordine di taglio dai file LightBurn. |
+| **Aspetto** | Tema, dimensioni del testo, dimensione delle icone, font e dimensione predefiniti dello strumento testo; per l'area di lavoro **Area di lavoro scura**, **Dimensione maniglie (px)**, **Mirino a tutto schermo**, **Croce del centro del piano**, **Mostra i livelli di riempimento pieni**, **Antialiasing durante lo zoom** e la **Qualità delle curve**; ripristino di finestre, barre e posizioni dei dialoghi. |
+| **Area di lavoro e aggancio** | Aggancio e la sua **Distanza di aggancio (px)** (normale e con Alt), griglia, operazioni booleane; per l'importazione: selezionare, raggruppare o centrare sul piano gli oggetti importati, avvisi sui contenuti saltati, unità DXF e risoluzione SVG quando un file non le indica, la tolleranza di chiusura automatica e se importare i livelli nascosti; per il lavoro il valore predefinito di **Taglia solo la grafica selezionata** e l'origine del lavoro predefinita dei nuovi progetti. |
+| **Mouse e tastiera** | Spostare la vista con il tasto destro, **Inverti la direzione dello zoom con la rotellina del mouse**, **Ricorda interruttori strumenti**, **Passa alla selezione dopo il disegno**, i passi dei tasti freccia, la **Tolleranza del clic (px)**, la selezione delle sovrapposizioni e le scorciatoie da tastiera. |
+| **Macchine e servizi** | Verifica prima della lavorazione, **Ignora forme esterne** all'area di lavoro nella verifica del progetto, l'overlay della prova di accensione, dispositivi, asse rotante, configurazione del laser, accesso per agenti IA e modalità host. |
+| **Estensioni e font** | Download automatico dei font mancanti, il gestore dei font e le estensioni. |
+
+Le nuove impostazioni non cambiano mai da sole il comportamento precedente: con i valori predefiniti KizamuBeam funziona come prima.
+
+I dialoghi il cui contenuto non entra ricevono una maniglia nell'angolo in basso a destra per ingrandirli; ogni dialogo ricorda la propria dimensione. Un doppio clic sulla maniglia ripristina la dimensione predefinita, un doppio clic sulla barra del titolo rende il dialogo alto quanto il suo contenuto.
+
+## Dimensioni del testo {#font-sizes}
 
 In **Modifica → Impostazioni → Aspetto** puoi impostare separatamente le dimensioni del testo per controlli e menu, testi di supporto, valori e output tecnici ed etichette dell’area di lavoro (80%, 100%, 125% o 150%). Solo il campione cambia subito; **OK** applica le dimensioni e **Annulla** le scarta. Scegli il 100% per ripristinare un gruppo oppure usa il pulsante sotto il campione per ripristinarli tutti prima di confermare. Documenti ed esportazioni restano invariati; i tooltip nativi mantengono la dimensione del testo di sistema.
 
-- **Visualizza → Lingua**: italiano, inglese o tedesco. Per impostazione predefinita segue la lingua del sistema.
+## Lingua e tema
+
+- **Visualizza → Lingua**: italiano, inglese, tedesco, spagnolo o portoghese brasiliano. Per impostazione predefinita segue la lingua del sistema.
 - **Visualizza → Tema** (o il pulsante all’estrema destra della barra principale): chiaro o scuro. Per impostazione predefinita segue il sistema.
 
 ## Disporre le finestre

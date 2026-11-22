@@ -16,15 +16,15 @@ Dieses Kapitel beschreibt jeden Teil von KizamuBeam, eine Seite pro Thema. Bist 
 | [Fangen, Hilfslinien und Messen](precision.md) | Fangen, Raster, Hilfslinien, Messen, Beziehungen, Skizzen mit Bemaßung |
 | [Text und Codes](text.md) | Text, Schriften, Text auf Pfad, variabler Text, QR-Codes und Strichcodes |
 | [Anordnen und vervielfältigen](arranging.md) | Ausrichten, Arrays, Verschachteln, Muster füllen |
-| [Verbindungen, Scharniere und 3D-Ansicht](construction-3d.md) | Fingerzinken und andere Verbindungen, Scharniere, Schlitze, 3D-Ansicht, Konstruktionsprüfung |
+| [Verbindungen, Scharniere und 3D-Ansicht](construction-3d.md) | Fingerzinken und andere Verbindungen, Scharniere, Schlitze, 3D-Ansicht und ihre Darstellungsmodi, Konstruktionsprüfung |
 
 ## Ordnen und vorbereiten
 
 | Seite | Inhalt |
 |---|---|
-| [Layer und Schnitteinstellungen](layers.md) | Layer, Linie und Füllen, alle Schnitteinstellungen, Sub-Layer |
+| [Layer und Schnitteinstellungen](layers.md) | Layer, Layer-Art, Linie und Füllen, alle Schnitteinstellungen, Sub-Layer, Bildschnitt |
 | [Objekte, Seiten und Projekte](objects-pages.md) | Fenster Objekte, Seiten, Projekt-Tabs, Speichern, Verlauf |
-| [Bilder und Nachzeichnen](images.md) | Bildmodi, Anpassen, Hintergrund entfernen, Nachzeichnen |
+| [Bilder und Nachzeichnen](images.md) | Bildmodi, Anpassen, Bearbeiten (Zuschnitt, Perspektive, runde Ecken), Hintergrund entfernen, Nachzeichnen |
 | [Import und Export](import-export.md) | Dateiformate hinein und hinaus |
 | [Materialien und Tests](materials-tests.md) | Material-Bibliothek, Materialtest, Fokustest, Passungs-Kalibrierung, Notizen |
 | [Vorlagen, Bibliothek und Erweiterungen](templates-library.md) | Parameter, Vorlagen, Serie aus Tabelle, Werkzeugkasten, Bibliothek, Erweiterungen |
@@ -33,7 +33,7 @@ Dieses Kapitel beschreibt jeden Teil von KizamuBeam, eine Seite pro Thema. Bist 
 
 | Seite | Inhalt |
 |---|---|
-| [Jobs ausführen und Maschine steuern](machine-control.md) | Vorschau, Rahmen, Start, Startposition, Nachsteuern beim Lasern, Geräte |
+| [Jobs ausführen und Maschine steuern](machine-control.md) | Vorschau, Energieschätzung, Rahmen, Start, Startposition, Schnittreihenfolge, Nachsteuern beim Lasern, Testfeuer, Geräte |
 | [Drehachse](rotary.md) | Becher, Gläser und andere runde Gegenstände gravieren |
 | [Kamera](camera.md) | Kamerabild, Kalibrierung, Kopfkamera, Entwürfe auf Werkstücke legen |
 | [Print and Cut und Jigs](print-and-cut.md) | Gedruckte Bögen ausschneiden, Halteplatten für Serien |
@@ -44,7 +44,7 @@ Dieses Kapitel beschreibt jeden Teil von KizamuBeam, eine Seite pro Thema. Bist 
 
 | Seite | Inhalt |
 |---|---|
-| [Anpassen und Einstellungen](customizing.md) | Fenster, Leisten, Sprache, Design, Einstellungen übertragen und synchronisieren |
+| [Anpassen und Einstellungen](customizing.md) | Fenster Einstellungen, Fenster, Leisten, Tastenkürzel, Sprache, Design, Einstellungen übertragen und synchronisieren |
 | [KI-Agenten (MCP)](ai-agents.md) | Einen KI-Assistenten an deinem Entwurf arbeiten lassen |
 
-Die parametrischen Teile wie Zahnräder, Boxen und 3D-Modelle haben ein eigenes Kapitel: [Generatoren](../generators/index.md).
+Die parametrischen Teile wie Zahnräder, Boxen und 3D-Modelle haben ein eigenes Kapitel: [Generatoren](../generators/index.md). Plugins und Inhaltspakete sind unter [Erweiterungen](../extensions/index.md) beschrieben.

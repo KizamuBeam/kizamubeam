@@ -19,6 +19,7 @@ Mit KizamuBeam kommst du in einer App von der ersten Idee zum fertigen Stück: d
 | dich im Fenster zurechtfinden | [Die Oberfläche](getting-started/interface.md) |
 | heute noch etwas lasern | [Dein erstes Projekt](getting-started/first-project.md) |
 | deinen Laser verbinden | [Laser verbinden](getting-started/connect-laser.md) |
+| Generatoren, Geräte und Inhalte ergänzen | [Erweiterungen](extensions/index.md) |
 | ein Tastenkürzel nachschlagen | [Tastenkürzel](reference/keyboard-shortcuts.md) |
 | ein Problem lösen | [Fehlerbehebung](reference/troubleshooting.md) |
 

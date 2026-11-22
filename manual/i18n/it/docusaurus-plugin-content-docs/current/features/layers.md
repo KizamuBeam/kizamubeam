@@ -34,7 +34,11 @@ T1 e T2 non vengono mai lavorati. Usali per linee di costruzione, il contorno di
 
 ## Impostazioni di taglio
 
-Un doppio clic su un livello apre le sue **Impostazioni di taglio**. I campi visibili dipendono dalla modalità.
+Un doppio clic su un livello (nella tabella o nella tavolozza) apre le sue **Impostazioni di taglio**. Le schede in alto passano dal livello ai suoi [sotto-livelli](#sotto-livelli). Le impostazioni sono raggruppate in sezioni richiudibili: **Generali** (nome, modalità, velocità, potenza, passate e uscita), **Geometria** (offset kerf e posizione del fuoco), **Linea** o **Riempimento**, **Immagini**, **Taglio immagine (opzionale)** e **Aspetto in 3D**. I campi visibili dipendono dalla modalità.
+
+### Tipo di livello {#layer-type}
+
+**Tipo** dice cosa fa il livello sul pezzo: **Taglia**, **Incidi** o **Marca**. **Automatico** (il predefinito) decide come prima in base alla modalità e ai sotto-livelli. I livelli Incidi e Marca non tagliano mai fino in fondo, nemmeno con forme chiuse: la [vista 3D](construction-3d.md#3d-view) li incide sulla parte sottostante, la verifica del progetto non li considera tagli e il [nesting](arranging.md) li sposta insieme alla parte su cui si trovano. Il G-code non cambia. Il tipo viene salvato nel progetto e nelle voci della libreria dei materiali.
 
 ### Comuni a tutte le modalità
 
@@ -52,11 +56,12 @@ Un doppio clic su un livello apre le sue **Impostazioni di taglio**. I campi vis
 | Impostazione | Significato |
 |---|---|
 | **Offset kerf (mm)** | Sposta il taglio verso l’esterno sui contorni esterni e verso l’interno sui fori, così i pezzi mantengono la misura nominale. Di solito metà della larghezza di taglio. |
-| **Linguette** | Lascia piccoli ponti non tagliati perché i pezzi non cadano: numero per forma o distanza, larghezza della linguetta, eventualmente senza forme interne. |
+| **Linguette** | Lascia piccoli ponti non tagliati perché i pezzi non cadano: numero per forma o distanza, larghezza della linguetta, eventualmente senza forme interne. **Max linguette per forma** e **Min linguette per forma** limitano il numero (0 = illimitato). **Potenza linguetta (%)** sopra 0 taglia le linguette a potenza ridotta invece di spegnere il laser. **Rimuovi linguette** elimina le linguette automatiche di questo livello. |
 | **Perforazione** | Taglia una lunghezza data, poi lascia uno spazio, per bordi a strappo o linee di piega. |
 | **Entrata / Uscita** | Una linea inclinata o un arco verso il contorno e fuori da esso, sempre sul lato di scarto, così il punto iniziale non lascia segni sul pezzo. |
 | **Sovrataglio (mm)** | Prosegue oltre il punto iniziale per essere sicuri che il contorno sia chiuso. |
 | **Rampa di potenza** | Abbassa la potenza verso gli angoli (da un cambio di direzione impostabile) per evitare bruciature, eventualmente anche all’inizio e alla fine di ogni taglio. |
+| **Pausa** | **Pausa iniziale** e **Pausa finale** (ms) prima e dopo ogni taglio lasciano assestare la testa. Con **Sfondamento (Cut-Through)** il raggio si accende durante la pausa iniziale alla **Potenza di sfondamento**, così il materiale spesso viene forato in modo affidabile. Smoothieware fa solo la pausa senza raggio, i controller Ruida non fanno pause. |
 | **Linee duplicate** | Rimuove le linee sovrapposte prima del taglio, così nulla viene tagliato due volte. |
 
 ### Riempimento
@@ -71,6 +76,10 @@ Un doppio clic su un livello apre le sue **Impostazioni di taglio**. I campi vis
 | **Stile riempimento** | **Riga per riga** o **Riempimento a offset**: anelli che seguono il contorno verso l’interno. |
 
 **Valori predefiniti** riporta i campi ai valori predefiniti della modalità scelta.
+
+### Immagini e taglio immagine {#images-and-image-cut}
+
+Se il livello contiene immagini, la sezione **Immagini** mostra le impostazioni raster del livello e un pulsante per regolare l'immagine. In **Taglio immagine (opzionale)** il livello può anche ritagliare le sue immagini dopo averle incise, con impostazioni di linea proprie: prima vengono incise tutte le immagini del livello, poi tagliati tutti i loro contorni. Ogni immagine viene tagliata lungo il suo bordo visibile oppure lungo una forma chiusa che le assegni con **Assegna contorno di taglio immagine** nel menu contestuale (seleziona immagine e forma). Vedi [Immagini e ricalco](images.md#editing-images).
 
 ## Sotto-livelli
 

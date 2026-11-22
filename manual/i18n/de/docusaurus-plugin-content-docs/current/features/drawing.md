@@ -16,12 +16,15 @@ Die Zeichenwerkzeuge liegen in der Werkzeugleiste links und im Menü **Werkzeuge
 |---|---|---|
 | **Linien zeichnen** | Ctrl+L | Klicken setzt Ecken, Klicken und Ziehen erzeugt eine Bézierkurve. Ein Klick auf den Startpunkt schließt die Form; Doppelklick, Enter oder Rechtsklick beendet. |
 | **Bogen** | | Mitte, dann Radius und Startwinkel, dann Endwinkel setzen — oder Start, Durchgangspunkt und Ende anklicken (3-Punkt). Shift rastet Winkel auf 15°, Enter übernimmt, Esc verwirft den Bogen. Modus und Richtung stehen in den Werkzeugoptionen; im Mitte-Modus wählt die Richtung den Komplementärbogen, im 3-Punkt-Modus kehrt sie die Knotenreihenfolge um, der Schnitt beginnt dann am zuletzt gesetzten Punkt. |
+| **Kurvenpfad** | | Klicken setzt eine Ecke, Ziehen formt eine glatte Kurve. Ankerpunkte und Griffe bleiben beim Zeichnen sichtbar. Ein Klick nahe am offenen Ende eines vorhandenen offenen Pfads setzt diesen Pfad fort. Klick auf den Startanker schließt die Form, Doppelklick oder Enter beendet, Rücktaste entfernt den letzten Anker, Esc verwirft. |
 | **Freihand / Bleistift** | | Einen Strich ziehen; beim Loslassen wird er in glatte, bearbeitbare Kurven umgerechnet. In den Werkzeugoptionen stellst du die Toleranz ein und ob der Strich geschlossen wird. |
-| **Shaper** | | Eine Geste ziehen: Umfahren vereint Formen, eine kreuzende Linie zieht entlang des Strichs ab, eine geschlossene Geste legt bei eingeschalteter Erkennung eine erkannte Grundform an (Rechteck, abgerundetes Rechteck, Ellipse, Polygon) — sonst wird der Strich wie beim Bleistift angepasst. Optionen: Schließabstand (der Ring am Startpunkt zeigt, ob die Kontur beim Loslassen schließt), Glättung, Schnittbreite gesamt und die Liste der Formvorschläge inklusive Freihand. Die letzte Operation bleibt bis zur nächsten Geste, zum Werkzeugwechsel oder zu Undo einstellbar. |
-| **Rechteck** | Ctrl+R | Ein Rechteck aufziehen. Shift zeichnet ein Quadrat, Ctrl von der Mitte aus. Den Eckenradius stellst du in der Eigenschaftenleiste ein. |
+| **Shaper** | | Eine Geste ziehen: Umfahren vereint Formen, eine kreuzende Linie zieht entlang des Strichs ab, eine geschlossene Geste legt bei eingeschalteter Erkennung eine erkannte Grundform an (Rechteck, abgerundetes Rechteck, Ellipse, Polygon) — sonst wird der Strich wie beim Bleistift angepasst. Optionen: Schließabstand (der Ring am Startpunkt zeigt, ob die Kontur beim Loslassen schließt), Glättung, Schnittbreite gesamt und die Liste der Formvorschläge inklusive Freihand. Die letzte Operation bleibt bis zur nächsten Geste, zum Werkzeugwechsel oder zu Undo einstellbar; solange lassen sich die Punkte der erkannten Kurve wie ein Spline ziehen. |
+| **Rechteck** | Ctrl+R | Ein Rechteck aufziehen. Shift zeichnet ein Quadrat, Ctrl von der Mitte aus. Den Eckenradius stellst du in der Eigenschaftenleiste ein; der Knopf daneben setzt für jede Ecke einen eigenen Radius (oder alle Ecken synchron). |
 | **Ellipse** | Ctrl+E | Eine Ellipse aufziehen. Shift zeichnet einen Kreis, Ctrl von der Mitte aus. |
 | **Polygon** | | Von der Mitte aus ziehen. Eckenzahl und **Stern** in der Eigenschaftenleiste. |
 | **Text** | Ctrl+T | Siehe [Text und Codes](text.md). |
+
+Linien, Bleistift, Kurvenpfad und Bogen teilen sich eine Knopfgruppe in der Werkzeugleiste. Nach dem Zeichnen wechselt KizamuBeam zurück zum Auswahlwerkzeug; wer mit demselben Werkzeug weiterzeichnen will, schaltet **Nach dem Zeichnen zur Auswahl wechseln** unter **Bearbeiten → Einstellungen → Maus und Tastatur** aus. **Werkzeugschalter merken** an gleicher Stelle behält die Optionen jedes Werkzeugs für den nächsten Start.
 
 Rechtecke, Ellipsen, Polygone und Texte bleiben als solche bearbeitbar: Eckenradius, Eckenzahl oder Text lassen sich später ändern. **In Pfad umwandeln** (Ctrl+Shift+C) macht gewöhnliche Pfade daraus.
 
@@ -29,7 +32,7 @@ Rechtecke, Ellipsen, Polygone und Texte bleiben als solche bearbeitbar: Eckenrad
 
 - **Klick** wählt ein Objekt aus, **Shift+Klick** fügt eines hinzu oder nimmt es heraus.
 - Ein **Rahmen nach rechts** wählt Objekte, die ganz darin liegen, ein **Rahmen nach links** auch solche, die er nur schneidet.
-- **Lasso-Auswahl** (**Werkzeuge → Pfad**): um Objekte herumzeichnen, um die vollständig umschlossenen auszuwählen. Shift ergänzt, Ctrl schaltet um.
+- **Lasso-Auswahl** (**Werkzeuge → Pfad** oder die Knopfgruppe mit dem Auswahlpfeil): um Objekte herumzeichnen, um die vollständig umschlossenen auszuwählen. Wer **gegen den Uhrzeigersinn** zeichnet, wechselt in den Berührungsmodus: Dann wird auch jedes Objekt ausgewählt, das das Lasso kreuzt; die Richtung lässt sich beim Zeichnen wechseln. Shift ergänzt, Ctrl schaltet um, Shift+Ctrl entfernt, Esc bricht ab.
 - **Ctrl+A** wählt alles auf der aktuellen Seite, **Esc** hebt die Auswahl auf.
 - Ein Rechtsklick öffnet ein Kontextmenü mit den Befehlen, die zu dem passen, was unter dem Zeiger liegt: Formen, Bilder, Knoten oder leere Arbeitsfläche.
 
@@ -37,14 +40,14 @@ Liegen viele Objekte übereinander, hilft **Werkzeuge → Auswahl isolieren**: N
 
 ## Verschieben, skalieren und drehen
 
-- Eine Auswahl ziehen, um sie zu verschieben. Die Pfeiltasten verschieben um 1 mm (Shift 10 mm, Alt 0,1 mm).
+- Eine Auswahl ziehen, um sie zu verschieben. Die Pfeiltasten verschieben um 1 mm (Shift 10 mm, Alt 0,1 mm); die drei Schrittweiten lassen sich unter **Bearbeiten → Einstellungen → Maus und Tastatur** ändern.
 - Einen Griff ziehen, um zu skalieren. Shift wechselt zwischen proportionalem und freiem Skalieren, Ctrl skaliert von der Mitte aus.
 - **Die Auswahl ein zweites Mal anklicken** (oder knapp außerhalb einer Ecke ziehen), um zu drehen. Der Drehpunkt lässt sich verschieben. Shift rastet auf 15° ein, Ctrl auf 5°, Esc bricht ab.
 - `.` und `,` drehen um 90°. **Ctrl+Shift+H** und **Ctrl+Shift+V** spiegeln.
 
 ### Genaue Werte
 
-Die **Eigenschaftenleiste** oben zeigt Position, Größe und Drehung der Auswahl. Ein 9-Punkt-Anker legt fest, auf welchen Punkt sich die Werte beziehen. Die Felder verstehen Formeln und Einheiten, etwa `100/3`, `2in` oder `25.4*3`, und Projektparameter wie `{Breite}/2` (siehe [Vorlagen und Bibliothek](templates-library.md)).
+Die **Eigenschaftenleiste** oben zeigt Position, Größe und Drehung der Auswahl. Ein 9-Punkt-Anker legt fest, auf welchen Punkt sich die Werte beziehen. Die Felder verstehen Formeln und Einheiten, etwa `100/3`, `2in` oder `25.4*3`, und Projektparameter wie `{Breite}/2` (siehe [Vorlagen und Bibliothek](templates-library.md)). Überall in der App funktioniert das Komma ebenso wie der Punkt als Dezimaltrennzeichen, und Zahlen werden im Format der App-Sprache angezeigt.
 
 ## Gruppieren, ausrichten und anordnen
 
@@ -59,7 +62,7 @@ Mit **Knoten bearbeiten** (Ctrl+`) änderst du die Form von Pfaden. Sind mehrere
 
 | Aktion | So geht's |
 |---|---|
-| Knoten auswählen | Klick, Shift+Klick, Rahmen (oder **Knoten-Lasso**) oder Ctrl+A |
+| Knoten auswählen | Klick, Shift+Klick, Rahmen (oder **Knoten-Lasso** in der Knotenleiste, das mit einem Freihand-Umriss auswählt; mit Alt kann es auch direkt auf einem Knoten beginnen) oder Ctrl+A |
 | Knoten verschieben | Ziehen oder mit den Pfeiltasten schieben |
 | Knoten löschen | D oder Entf |
 | Knoten einfügen | I oder Doppelklick auf ein Segment |

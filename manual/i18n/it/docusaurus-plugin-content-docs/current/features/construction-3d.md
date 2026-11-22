@@ -8,7 +8,7 @@ description: Aggiungi giunzioni a dita, tenoni, incastri a scatto e cerniere a q
 
 KizamuBeam trasforma forme normali in pezzi che si incastrano o si incollano. I [generatori](../generators/index.md) creano scatole, cassetti e scaffali completi; gli strumenti di questa pagina lavorano sulle forme che hai disegnato o importato tu.
 
-## Lo strumento Giunzione
+## Lo strumento Giunzione {#the-joint-tool}
 
 Lo strumento **Giunzione** (il pulsante Giunzione nella barra Strumenti, o **Casella degli strumenti → Giunzioni e piegatura → Giunzioni**) aggiunge una giunzione tra due bordi rettilinei:
 
@@ -75,6 +75,7 @@ Puoi preparare più tagli su bordi diversi prima di applicarli. **Applica** è u
 - Scatole, cassetti, inserti, scaffali e coppie di ingranaggi dei generatori vengono montati automaticamente. Gli ingranaggi di una coppia possono girare.
 - I pezzi uniti con lo strumento Giunzione vengono montati sui bordi uniti: un pezzo sta in piano, gli altri sono in piedi su di esso.
 - Le altre forme chiuse sui livelli di taglio stanno in piano con uno spessore regolabile; le forme annidate diventano fori.
+- Una forma che disegni su un livello di taglio sopra una parte di un generatore (per esempio una parete di una scatola) diventa un foro in quella parte, o una tacca se ne copre solo il bordo, proprio come la taglierà il laser. Anche la verifica dell'assemblaggio tiene conto di questi tagli.
 - I modelli a strati, a nervature e a dischi da [modelli 3D](../generators/index.md) vengono mostrati montati.
 
 Ruota la vista con il mouse o usa le viste predefinite (3D, dall’alto, frontale). Il cursore **Esplodi** allontana i pezzi tra loro. Senza selezione la vista mostra tutta la pagina; un pezzo selezionato porta sempre con sé il suo intero assieme.
@@ -82,6 +83,22 @@ Ruota la vista con il mouse o usa le viste predefinite (3D, dall’alto, frontal
 **Collisioni**: dove due pezzi si compenetrano (per esempio con un accoppiamento forzato o un’asola troppo stretta) l’area diventa rossa, e la riga di stato indica i pezzi e il volume.
 
 **Incisioni**: con la casella **Incisioni**, riempimenti, linee incise, testo e immagini elaborate compaiono sulla faccia che era in alto durante la lavorazione, con una leggera profondità. Le incisioni che non giacciono su nessuna parte non vengono disegnate e durante la lavorazione colpirebbero la superficie di lavoro. La riga di stato le conta (“1 incisione senza parte”); un clic sul numero le seleziona sull’area di lavoro.
+
+### Modalità di rendering {#render-modes}
+
+L'elenco delle modalità di rendering nella finestra 3D cambia il modo in cui le parti vengono disegnate:
+
+| Modalità | Mostra |
+|---|---|
+| **Materiale** | Le parti nel loro [aspetto del materiale](#material-look) (predefinito). |
+| **Ombreggiato + bordi** | Parti ombreggiate con i bordi disegnati come linee. |
+| **Colori dei livelli** | Ogni parte nel colore del suo livello. |
+| **Raggi X** | Parti traslucide, così pareti interne, tenoni e incisioni dietro altre parti restano visibili. |
+| **Linee nascoste** | Bordi visibili a tratto pieno, bordi nascosti tratteggiati. |
+| **Wireframe** | Solo i bordi. |
+| **Blueprint** | Un foglio di disegno con quattro viste (3D, fronte, alto, lato), bordi nascosti tratteggiati; **Quote** aggiunge le dimensioni esterne in mm. |
+
+I livelli di riempimento e le incisioni vengono disegnati in ogni modalità.
 
 ### Aspetto del materiale {#material-look}
 

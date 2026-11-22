@@ -18,6 +18,7 @@ Die **Textleiste** unter der Eigenschaftenleiste enthält alle Textoptionen: Sch
 | **Umbrechen** / **Max. Breite** | Bricht Zeilen an Wortgrenzen bei der Rahmenbreite um; der Rahmen wächst nach unten. Ziehen an den seitlichen Griffen bricht den Text neu um. |
 | **Max. Höhe** | Verkleinert einen zu hohen Block gleichmäßig. |
 | **Verkleinern** | Verkleinert einen zu breiten Text, statt ihn zu stauchen. |
+| **Rechts nach links** | Schreibt hebräischen oder arabischen Text von rechts nach links (nach bestem Vermögen). |
 
 Text bleibt bearbeitbar. **In Pfad umwandeln** (Ctrl+Shift+C) macht daraus die echten Umrisse der Schrift, etwa vor dem Bearbeiten der Knoten.
 
@@ -30,7 +31,11 @@ Alle auf deinem Rechner installierten Schriften lassen sich verwenden. **Datei �
 - Eigene TTF- oder OTF-Dateien importierst du genauso.
 - Mit dem Stern wird eine Schrift zum Favoriten; Favoriten stehen oben in der Schriftliste.
 
-Nutzt ein Projekt eine Schrift, die auf diesem Rechner fehlt, bietet KizamuBeam an, sie von Google Fonts zu laden.
+Nutzt ein Projekt eine Schrift, die auf diesem Rechner fehlt, bietet KizamuBeam an, sie von Google Fonts zu laden (oder tut es von selbst, wenn **Bearbeiten → Einstellungen → Erweiterungen und Schriften → Fehlende Schriften beim Öffnen automatisch von Google Fonts laden** eingeschaltet ist). Bis die Schrift da ist, wird der Text mit Roboto gezeichnet, und KizamuBeam sagt das: eine Warnung in der Textleiste (ein Klick öffnet den Schriftmanager), eine Markierung im Fenster Objekte und ein Eintrag in der Konstruktionsprüfung. Texte, die nicht gelasert werden, bleiben still.
+
+In der Browserversion können Chromium-basierte Browser nach einmaliger Erlaubnis die auf dem Rechner installierten Schriften nutzen; sonst wird beim Umwandeln von Text in Pfade Roboto verwendet.
+
+Standardschrift und -größe für neue Texte stellst du unter **Bearbeiten → Einstellungen → Darstellung → Textwerkzeug** ein.
 
 ## Text auf einem Pfad
 

@@ -10,13 +10,30 @@ description: Fenster und Leisten anordnen, Sprache und Design wechseln und deine
 
 **Bearbeiten → Einstellungen …** enthält alle programmweiten Einstellungen in einem Fenster, mit einer Seitenleiste (Allgemein, Darstellung, Arbeitsfläche und Fangen, Maus und Tastatur, Maschinen und Dienste, Erweiterungen und Schriften) und einer Suche über alle Bereiche. Änderungen gelten mit **OK**; **Abbrechen** verwirft sie, und **Standardwerte** setzt den aktuellen Bereich zurück.
 
-Einstellungen, die es auch als Menüeintrag gibt (Sprache, Design, Fangen, Raster und so weiter), sind dieselben Werte: Änderst du sie an einer Stelle, ändern sie sich auch an der anderen.
+Einstellungen, die es auch als Menüeintrag gibt (Sprache, Design, Fangen, Raster und so weiter), sind dieselben Werte: Änderst du sie an einer Stelle, ändern sie sich auch an der anderen. Gerät, Verbindung, Arbeitsbereich und Kamera bleiben beim Gerät und sind über Knöpfe erreichbar.
 
-## Sprache und Design
+Neben Sprache, Design und Update-Kanal enthalten die Bereiche unter anderem:
+
+| Bereich | Einstellungen |
+|---|---|
+| **Allgemein** | Update-Kanal, **Automatisches Sichern alle** n Minuten (0 = aus), Stromtarif und Währung für die [Energieschätzung](machine-control.md#energy-and-cost), Übernahme der Schnittreihenfolge aus LightBurn-Dateien. |
+| **Darstellung** | Design, Schriftgrößen, Symbolgröße, Standardschrift und -größe des Textwerkzeugs; für die Arbeitsfläche **Dunkle Arbeitsfläche**, **Griffgröße (px)**, **Vollbild-Fadenkreuz**, **Bettmittel-Kreuz**, **Füll-Layer gefüllt anzeigen**, **Kantenglättung beim Zoomen** und die **Kurvenqualität**; Fenster, Leisten und Dialogpositionen zurücksetzen. |
+| **Arbeitsfläche und Fangen** | Fangen und seine **Fangdistanz (px)** (normal und mit Alt), Gitter, Boolesche Operationen; für den Import: Importiertes auswählen, gruppieren oder in die Bettmitte legen, Hinweise zu übersprungenen Inhalten, DXF-Einheit und SVG-Auflösung, wenn eine Datei sie nicht angibt, die Auto-Close-Toleranz und ob versteckte Ebenen importiert werden; für den Auftrag die Vorgabe für **Nur Auswahl** und der Standard-Job-Ursprung neuer Projekte. |
+| **Maus und Tastatur** | Verschieben mit der rechten Maustaste, **Mausrad-Zoomrichtung umkehren**, **Werkzeugschalter merken**, **Nach dem Zeichnen zur Auswahl wechseln**, die Schrittweiten der Pfeiltasten, die **Klick-Toleranz (px)**, die Überlappungsauswahl und die Tastenkürzel. |
+| **Maschinen und Dienste** | Vor dem Lasern prüfen, **Formen außerhalb ignorieren** in der Konstruktionsprüfung, das Testfeuer-Overlay, Geräte, Drehachse, Laser einrichten, Zugang für KI-Agenten und Host-Modus. |
+| **Erweiterungen und Schriften** | Automatisches Laden fehlender Schriften, der Schriftmanager und die Erweiterungen. |
+
+Neue Einstellungen ändern das bisherige Verhalten nie von selbst: Mit den Vorgaben arbeitet KizamuBeam wie zuvor.
+
+Dialoge, deren Inhalt nicht hineinpasst, bekommen unten rechts einen Griff zum Vergrößern; die Größe merkt sich jeder Dialog. Ein Doppelklick auf den Griff stellt die Standardgröße wieder her, ein Doppelklick auf die Titelleiste macht den Dialog so hoch wie sein Inhalt.
+
+## Schriftgrößen {#font-sizes}
 
 Unter **Bearbeiten → Einstellungen → Darstellung** stellst du die Schriftgrößen für Bedienelemente und Menüs, Hinweise und Zusatztexte, technische Werte und Ausgaben sowie Beschriftungen im Arbeitsbereich getrennt ein (80 %, 100 %, 125 % oder 150 %). Sofort ändert sich nur das Muster; **OK** übernimmt die Größen, **Abbrechen** verwirft sie. Wähle 100 % für eine Gruppe oder setze vor dem Bestätigen alle Gruppen mit dem Knopf unter dem Muster zurück. Dokumente und Exporte bleiben unverändert; native Tooltips behalten die Schriftgröße des Systems.
 
-- **Ansicht → Sprache**: Deutsch, Englisch oder Italienisch. Standardmäßig folgt sie der Systemsprache.
+## Sprache und Design
+
+- **Ansicht → Sprache**: Deutsch, Englisch, Italienisch, Spanisch oder brasilianisches Portugiesisch. Standardmäßig folgt sie der Systemsprache.
 - **Ansicht → Design** (oder die Schaltfläche ganz rechts in der Hauptleiste): hell oder dunkel. Standardmäßig folgt es dem System.
 
 ## Fenster anordnen
