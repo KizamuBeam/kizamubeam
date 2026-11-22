@@ -45,8 +45,6 @@ export function showEditorMenu(x: number, y: number, groups: ContextAction[][], 
           closeSubs(nested);
           nested.hidden = false;
           button.setAttribute('aria-expanded', 'true');
-          const wrap = nested.closest('.editor-context-subitem') as HTMLElement | null;
-          wrap?.classList.remove('open-left');
           // Fixed am Viewport verankern (nicht absolut im Menü): Ein Flyout mit
           // left:100% ragt aus der Menübox und erzeugt dort Scroll-Overflow
           // (horizontale Scrollbar, verschobene Darstellung). Fixed-Elemente
@@ -58,10 +56,7 @@ export function showEditorMenu(x: number, y: number, groups: ContextAction[][], 
           nested.style.top = '0px';
           const w = nested.offsetWidth, hh = nested.offsetHeight;
           let left = r.right - 2;
-          if (left + w > innerWidth - 8 && r.left - w + 2 >= 8) {
-            left = r.left - w + 2;
-            wrap?.classList.add('open-left');
-          }
+          if (left + w > innerWidth - 8 && r.left - w + 2 >= 8) left = r.left - w + 2;
           nested.style.left = `${Math.max(8, left)}px`;
           // Vertikal im Viewport halten: Bei Triggern nahe unten nach oben schieben.
           nested.style.top = `${Math.max(8, Math.min(r.top - 4, innerHeight - hh - 8))}px`;
@@ -69,7 +64,7 @@ export function showEditorMenu(x: number, y: number, groups: ContextAction[][], 
         const closeSub = () => {
           nested.hidden = true; button.setAttribute('aria-expanded', 'false');
         };
-        const button = h('button', { role: 'menuitem', 'aria-haspopup': 'true', 'aria-expanded': 'false',
+        const button = h('button', { role: 'menuitem', type: 'button', 'aria-haspopup': 'true', 'aria-expanded': 'false',
           onclick: () => { if (nested.hidden) { openSub(); nested.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus({ preventScroll: true }); } else closeSub(); },
           onmouseenter: () => openSub(), onfocus: () => openSub() },
           action.label, ' ▸');
@@ -87,7 +82,11 @@ export function showEditorMenu(x: number, y: number, groups: ContextAction[][], 
   const outside = (event: MouseEvent) => { if (!root.contains(event.target as Node)) close(); };
   // Scrollen innerhalb des Menüs schließt nur offene Flyouts (fixiert am
   // Viewport, würden sonst vom auslösenden Eintrag losgelöst stehenbleiben).
-  const scroll = (event: Event) => { if (!root.contains(event.target as Node)) close(); else closeSubs(); };
+  const scroll = (event: Event) => {
+    if (!root.contains(event.target as Node)) close();
+    // Scrollen im Menü parkt offene Flyouts; Scrollen innerhalb eines Flyouts lässt es offen.
+    else if (!(event.target as HTMLElement | null)?.closest?.('.editor-context-submenu')) closeSubs();
+  };
   const keydown = (event: KeyboardEvent) => {
     // Never let Delete, Ctrl+A, Space or node shortcuts reach the editor while a menu owns focus.
     event.stopImmediatePropagation();
@@ -105,8 +104,15 @@ export function showEditorMenu(x: number, y: number, groups: ContextAction[][], 
     const current = buttons.indexOf(document.activeElement as HTMLButtonElement);
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault(); buttons[(current + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length]?.focus();
-    } else if (event.key === 'ArrowRight' && document.activeElement?.getAttribute('aria-haspopup') === 'true') {
-      event.preventDefault(); (document.activeElement as HTMLButtonElement).click();
+    } else if (event.key === 'ArrowRight') {
+      // Ins Flyout springen, nicht toggeln: Bei offenem Flyout Fokus auf den ersten Eintrag legen.
+      const btn = document.activeElement as HTMLButtonElement | null;
+      const sub = btn?.closest('.editor-context-subitem')?.querySelector<HTMLElement>('.editor-context-submenu');
+      if (btn?.getAttribute('aria-haspopup') === 'true' && sub) {
+        event.preventDefault();
+        if (sub.hidden) btn.click();
+        else sub.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus({ preventScroll: true });
+      }
     } else if (event.key === 'ArrowLeft') {
       const sub = (document.activeElement as HTMLElement | null)?.closest('.editor-context-submenu');
       const parentButton = sub?.parentElement?.querySelector('button');

@@ -45,6 +45,10 @@ window.runContextMenuChecks = () => {
   check(document.activeElement === parentBtn,'focus returns to parent entry');
   parentBtn.dispatchEvent(new MouseEvent('mouseenter',{bubbles:true}));
   check(!subBox.hidden,'hover reopens flyout');
+  parentBtn.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true,cancelable:true}));
+  check(!subBox.hidden && document.activeElement.textContent.includes('Paste'),'ArrowRight with open flyout moves focus inside');
+  subBox.dispatchEvent(new Event('scroll'));
+  check(!subBox.hidden,'scrolling inside the flyout keeps it open');
   subBox.querySelector('button:not(:disabled)').focus();
   document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));
   check(subBox.hidden && document.activeElement === parentBtn,'Escape backs out again');
