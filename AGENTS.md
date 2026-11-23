@@ -58,7 +58,7 @@ Do not claim a fix is verified merely because code was written or another AI mod
 - Treat existing user projects, imports/exports, machine profiles, preferences, template and pack formats, and the library as durable user data.
 - Do not silently remove, rename, or reinterpret serialized fields. If a change is required, add compatible reading and, where appropriate, an explicit migration with regression tests.
 - Avoid modifying `src/storageMigration.ts` without first understanding the legacy settings migration.
-- Keep the main app and the Virtual Machine's configuration and versioning separate. Main releases use tags such as `v2.5.0`; VM releases use `vm-v…`. Do not update versions or publish releases unless requested.
+- Keep the main app and the Virtual Machine's configuration and versioning separate. Main releases use tags such as `v2.5.0`; VM releases use `vm-v…`. Do not update versions or publish releases unless requested; when asked to bump, use `npm run bump <version>` (see CONTRIBUTING.md) instead of editing the files by hand.
 - Never commit credentials, machine network secrets, signing keys, personal projects, or private images.
 
 ## Machine and laser safety — high priority

@@ -89,6 +89,18 @@ A PR is always accepted or declined as a whole, so put independent changes into 
 - After that merge, rebase onto `main` (for example `git rebase --onto main <old-base-branch>`), because the squashed commits of the first PR are not in `main` under their original hashes. Then mark the PR as ready for review.
 - Prefer opening dependent PRs one after another rather than all at once.
 
+## Versions and releases (maintainers)
+
+Contributors do not bump versions. Maintainers set the version in all places at once:
+
+```bash
+npm run bump 2.9.1          # stable: package.json, package-lock.json, Cargo, tauri.conf.json, READMEs, issue templates, website
+npm run bump 2.10.0-rc.1    # pre-release: app files and Cargo only; READMEs and website keep the stable version
+npm run bump -- --check     # check that the app files agree (also runs in CI)
+```
+
+Or directly on GitHub: **Actions → Bump version → Run workflow**, enter the version, and the workflow opens a pull request “Bump version to …”. Its option *After merge* decides what happens once that PR is merged: *nothing* (default, tag and release by hand), *draft release* (a draft release with generated notes to finish and publish), or *publish release* (the release is published and the installers are built right away). The choice is a `release:draft` / `release:publish` label on the PR; remove it before merging to cancel. The workflow needs *Settings → Actions → General → Allow GitHub Actions to create and approve pull requests*. CI does not start on its own for PRs opened by a workflow; close and reopen the PR to run it.
+
 ## Pull request checklist
 
 The [pull request template](.github/pull_request_template.md) contains this checklist plus project-specific points (translations, feature docs, website, test fixtures). Before submitting a PR, please check that:

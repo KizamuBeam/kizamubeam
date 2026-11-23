@@ -19,6 +19,7 @@
     "test:context-menu": "node scripts/vector-offline-test.mjs scripts/context-menu-test.ts",
     "test:objects-context": "node scripts/vector-offline-test.mjs scripts/objects-context-test.ts",
     "test:layer-assign": "node scripts/run-ts.mjs scripts/layer-assign-test.ts",
+    "bump": "node scripts/bump-version.mjs",
     "preview": "vite preview",
     "tauri": "tauri",
     "i18n:check": "node scripts/i18n-check.mjs",
