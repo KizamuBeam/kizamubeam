@@ -60,6 +60,48 @@ export class EditorPaths {
     return [...plans.values()].reduce((n,p)=>n+p.length,0);
   }
 
+  /** Pfadinseln trennen, aber nur die gewählten Gruppen je Objekt abspalten.
+   * Nicht gewählte Gruppen und erhaltene Reste bleiben im Originalobjekt (gleiche ID).
+   * Wie separatePathIslands: genau ein Snapshot, ein Undo; 0 ohne Änderung. */
+  separateSelectedPathIslands(this: Editor, selections: { obj: Obj; indexes: number[] }[], options: IslandOptions = {}): number {
+    if (this.drag || this.draft || this.pickHandler) return 0;
+    const items: { obj: Obj; selected: SubPath[][]; keep: SubPath[] }[] = [];
+    try {
+      for (const { obj, indexes } of selections) {
+        if (!this.sel.includes(obj) || !this.doc.objs.includes(obj) || !this.selectable(obj) ||
+            this.layer(obj.layer).locked || !this.layer(obj.layer).show || obj.shape.kind !== 'path' || !!obj.shape.mark)
+          throw Error(t('Pfadinseln: bearbeitbare Pfade auswählen; Gruppen auflösen und parametrische Formen ausdrücklich umwandeln.'));
+        if (obj.shape.kind !== 'path') continue;
+        const plan = pathIslandPlan(obj.shape.subs, { ...options, matrix: obj.m });
+        const valid = [...new Set(indexes)].filter(i => Number.isInteger(i) && i >= 0 && i < plan.groups.length);
+        if (!valid.length) continue;
+        if (plan.groups.length < 2 && JSON.stringify(plan.groups[0]) === JSON.stringify(obj.shape.subs)) continue;
+        items.push({
+          obj,
+          selected: valid.map(i => plan.groups[i]),
+          keep: plan.groups.filter((_, i) => !valid.includes(i)).flat().concat(plan.preserved),
+        });
+      }
+    } catch (error) { this.hint = error instanceof Error ? error.message : String(error); this.emit('tool'); return 0; }
+    if (!items.length) { this.hint = t('Keine getrennten Pfadinseln gefunden.'); this.emit('tool'); return 0; }
+    this.snapshot(t('Pfadinseln trennen'));
+    const created: Obj[] = [];
+    for (const { obj, selected, keep } of items) {
+      if (!keep.length) {
+        const replacements = selected.map((subs, i) => ({ ...obj, id: i ? newId() : obj.id, m: [...obj.m], shape: { ...obj.shape, kind: 'path', subs: structuredClone(subs) } } as Obj));
+        this.doc.objs = this.doc.objs.flatMap(o => o === obj ? replacements : [o]);
+        created.push(...replacements);
+      } else {
+        const kept = { ...obj, m: [...obj.m], shape: { ...obj.shape, kind: 'path', subs: structuredClone(keep) } } as Obj;
+        const fresh = selected.map(subs => ({ ...obj, id: newId(), m: [...obj.m], shape: { ...obj.shape, kind: 'path', subs: structuredClone(subs) } } as Obj));
+        this.doc.objs = this.doc.objs.flatMap(o => o === obj ? [kept, ...fresh] : [o]);
+        created.push(...fresh);
+      }
+    }
+    this.setSel(created);
+    this.emit('doc');
+    return created.length;
+  }
   /** Pfad-Blätter der Auswahl samt Weltmatrix (Gruppen werden durchsucht, Texte und Bilder ausgelassen) */
   selPathLeaves(this: Editor): [Obj, Mat][] {
     return [...leaves(this.sel)].filter(([l]) => VECTOR.includes(l.shape.kind));

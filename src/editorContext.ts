@@ -8,6 +8,7 @@ import { guideContextGroups } from './guideDialog';
 import { selectAssembly } from './asmSelect';
 import { assignLayerAsk } from './layerAssign';
 import { EDIT_TITLE, runImageEdit } from './imageCropUi';
+import { openPathIslandsDialog } from './pathIslandsDialog';
 
 export interface ContextCallbacks {
   adjust: () => void; trace: () => void; background: () => void; saveBitmap: () => void | Promise<unknown>;
@@ -74,7 +75,8 @@ export function editorContextGroups(ed: Editor, callbacks: ContextCallbacks, bla
       action('continue-path', t('Pfad fortsetzen'), () => { ed.setTool('curvature'); ed.continuePath(ed.sel[0], -1); },
         editable && count === 1 && !!ed.continuableSub(ed.sel[0])),
       action('closepath', t('Pfad schließen'), () => ed.closeSel(), editable), action('join', t('Ausgewählte Formen verbinden'), () => ed.joinSel(), editable && count > 1),
-      action('breakapart', t('Zerlegen'), () => ed.breakApartSel(), editable), action('reverse', t('Richtung umkehren'), () => ed.reverseSel(), editable)] },
+      action('breakapart', t('Zerlegen'), () => ed.breakApartSel(), editable), action('reverse', t('Richtung umkehren'), () => ed.reverseSel(), editable),
+      action('path-islands', t('Pfadinseln trennen …'), () => openPathIslandsDialog(ed), editable && paths.length > 0)] },
     { id: 'booleans', label: t('Boolesche Operationen'), run: () => {}, items: [
       action('union', t('Vereinen'), () => ed.booleanSel('union'), editable),
       action('subtract', t('Abziehen'), () => ed.booleanSel('subtract'), editable && count > 1),

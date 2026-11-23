@@ -14,6 +14,8 @@ export interface OutlineSession {
 /** Transient workspace overlay and input owner; never serialized or sent to output. */
 export interface OutlinePreview {
   subs: SubPath[]; holes: SubPath[][]; hover: number;
+  /** Optional per-group colors (parallel to holes order); renders each group distinctly. */
+  subGroups?: { subs: SubPath[]; color: string; dim?: boolean }[];
   original?: SubPath[];
   excluded?: SubPath[]; removed?: SubPath[]; markers?: Pt[];
   pick: (point: Pt) => void; move: (point: Pt) => void; cancel: () => void;

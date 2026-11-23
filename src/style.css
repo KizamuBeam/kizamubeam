@@ -5544,6 +5544,7 @@ input.jig-count {
 .contour-offset-dialog > select, .contour-offset-dialog #contour-offset-assembly-owner { display: block; width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box; margin-bottom: 6px; }
 .contour-offset-dialog .note { overflow-wrap: anywhere; }
 .outline-choices { max-height: 140px; overflow: auto; display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 8px 0; }
+.island-swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin: 0 6px 0 2px; vertical-align: baseline; flex: none; }
 .outline-choices .outline-choice-active { outline: 2px solid var(--accent, #5b9bff); outline-offset: 2px; border-radius: 3px; background: color-mix(in srgb, var(--accent, #5b9bff) 18%, transparent); }
 .slot-placement-badge { position: fixed; top: 80px; left: 50%; transform: translateX(-50%); z-index: 1000; padding: 12px; display: flex; gap: 12px; background: var(--panel); border: 1px solid var(--line); color: var(--text); }
 .slot-projection-dialog { box-sizing: border-box; width: min(1120px, calc(100vw - 16px)); height: min(800px, calc(100vh - 16px)); min-width: min(340px, calc(100vw - 16px)); min-height: min(280px, calc(100vh - 16px)); resize: both; overflow: auto; padding: 10px; }
@@ -5601,6 +5602,7 @@ input.jig-count {
 .outline-tool-window { position: fixed; top: 70px; left: auto; right: 16px; margin: 0; box-sizing: border-box; width: min(370px, calc(100vw - 16px)); z-index: 100; }
 .outline-tool-window h3 { cursor: move; touch-action: none; }
 .outline-choices { max-height: 140px; overflow: auto; display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 8px 0; }
+.island-swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin: 0 6px 0 2px; vertical-align: baseline; flex: none; }
 
 /* Remote KizamuBeam (host mode, pairing, remote jobs) */
 .remote-status.error {
