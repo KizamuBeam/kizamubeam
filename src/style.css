@@ -5596,6 +5596,12 @@ input.jig-count {
 .overlap-picker > div { padding:5px; font-weight:600; }
 .overlap-picker button { text-align:left; white-space:normal; overflow-wrap:anywhere; padding:6px; flex:none; }
 .overlap-picker button:hover, .overlap-picker button:focus-visible { outline:2px solid #e0218a; outline-offset:-2px; }
+/* Geführte Formerstellung: Symbol-Buttons mit Bildunterschrift darunter */
+.shape-builder-ops { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.shape-builder-op { display: inline-flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 6px 6px; min-width: 64px; flex: 1 1 0; }
+.shape-builder-op svg { width: 30px; height: 30px; pointer-events: none; }
+.shape-builder-op small { font-size: 11px; line-height: 1.25; text-align: center; pointer-events: none; }
+.shape-builder-op.active { outline: 2px solid var(--accent, #6bafff); outline-offset: -2px; }
 
 .outline-dialog { width: min(900px, 94vw); max-height: 92vh; overflow: auto; }
 .outline-dialog canvas { display: block; width: 100%; height: auto; border: 1px solid var(--line); touch-action: none; }

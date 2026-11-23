@@ -13,7 +13,7 @@ import { openPathIslandsDialog } from './pathIslandsDialog';
 export interface ContextCallbacks {
   adjust: () => void; trace: () => void; background: () => void; saveBitmap: () => void | Promise<unknown>;
   library: () => void;
-  vectorFit: () => void; builder: () => void | Promise<unknown>;
+  vectorFit: () => void; builder: () => void | Promise<unknown>; builderGuided: () => void | Promise<unknown>;
   preview: () => void | Promise<unknown>; objects: () => void;
 }
 
@@ -71,6 +71,7 @@ export function editorContextGroups(ed: Editor, callbacks: ContextCallbacks, bla
     action('tolines', t('In Pfad umwandeln'), () => ed.convertSelToPath(), editable && ed.sel.some((o) => !['path', 'image'].includes(o.shape.kind))),
     action('vectorfit', t('Pfade vereinfachen / glätten…'), callbacks.vectorFit, editable && ed.nodeTargets().length > 0),
     action('shape-builder', t('Formerstellung …'), callbacks.builder, editable && !images.length),
+    action('shape-builder-guided', t('Geführte Formerstellung …'), callbacks.builderGuided, editable && !images.length),
     { id: 'path', label: t('Pfad'), run: () => {}, items: [
       action('continue-path', t('Pfad fortsetzen'), () => { ed.setTool('curvature'); ed.continuePath(ed.sel[0], -1); },
         editable && count === 1 && !!ed.continuableSub(ed.sel[0])),
