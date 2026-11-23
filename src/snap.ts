@@ -7,6 +7,9 @@ import { shapeCenters } from './arcs';
 
 export type SnapKind = 'node' | 'mid' | 'center' | 'quad' | 'cross' | 'line';
 
+/** Feste Reihenfolge der Fangziele für UI und Tests. */
+export const SNAP_TARGET_ORDER: readonly SnapKind[] = ['node', 'mid', 'center', 'quad', 'cross', 'line'];
+
 export const SNAP_LABELS: Record<SnapKind, string> = {
   node: t('Knoten'),
   mid: t('Mittelpunkt'),
@@ -133,10 +136,11 @@ export function buildSnapSet(objs: Obj[], visible: (leaf: Obj) => boolean, skip:
  * Nächsten Fangpunkt suchen. Punkte (Knoten, Mittelpunkt, Zentrum, Schnittpunkt) haben Vorrang vor Linien.
  * extra: zusätzliche Knoten (z. B. die Linie im Entstehen).
  */
-export function findSnap(set: SnapSet, p: Pt, tol: number, extra: Pt[] = []): SnapHit | null {
+export function findSnap(set: SnapSet, p: Pt, tol: number, extra: Pt[] = [], targets?: ReadonlySet<SnapKind>): SnapHit | null {
   let best: SnapHit | null = null,
     bd = tol;
   const consider = (x: number, y: number, kind: SnapKind) => {
+    if (targets && !targets.has(kind)) return;
     const d = Math.hypot(x - p.x, y - p.y);
     if (d <= bd) {
       bd = d;
@@ -160,6 +164,7 @@ export function findSnap(set: SnapSet, p: Pt, tol: number, extra: Pt[] = []): Sn
       }
   }
   if (best) return best;
+  if (targets && !targets.has('line')) return best;
   for (const s of near) {
     const r = distToPiece(s, p);
     if (r.d <= bd) {

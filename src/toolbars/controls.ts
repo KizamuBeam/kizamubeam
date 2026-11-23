@@ -16,6 +16,8 @@ import { outputGrid } from '../images';
 import { shaperName } from '../editor/shaper';
 import type { ShaperKind } from '../shaper';
 import { t, tn } from '../i18n';
+import { SNAP_LABELS, SNAP_TARGET_ORDER, type SnapKind } from '../snap';
+import { isSnapOn, toggleSnapMaster } from '../editor/snapping';
 import { withShortcut } from '../commandKeys';
 import type { Definitions } from './model';
 import type { ControlContext, ControlDefinition, ToolbarControl } from './registry';
@@ -140,6 +142,121 @@ export function createEditorToolbarControls(ed: Editor, refresh: () => void): {
     } });
   };
   const currentRot = () => ed.sel.length === 1 ? (-Math.atan2(ed.sel[0].m[1], ed.sel[0].m[0]) * 180) / Math.PI : 0;
+  register('snap-options', t('Fangziele'), () => true, () => {
+    let open = false;
+    const magnet = h('button', {
+      class: 'ib', title: t('Fangen ein-/ausschalten'), 'aria-label': t('Fangen ein-/ausschalten'),
+      onclick: () => { toggleSnapMaster(ed); refresh(); },
+    }) as HTMLButtonElement;
+    setIcon(magnet, 'snap');
+    const toggle = h('button', {
+      class: 'ib-more', title: t('Fangziele'), 'aria-label': t('Fangziele'), 'aria-haspopup': 'dialog', 'aria-expanded': 'false',
+      onclick: (e: Event) => {
+        e.stopPropagation();
+        open = !open;
+        refresh();
+        if (!open) toggle.focus();
+      },
+    }, '▾') as HTMLButtonElement;
+    const masterBox = h('input', { type: 'checkbox' }) as HTMLInputElement;
+    masterBox.addEventListener('change', () => { toggleSnapMaster(ed); refresh(); });
+    const masterRow = h('label', { class: 'check' }, masterBox, h('strong', {}, t('Einrasten aktivieren')));
+    const targetBoxes = new Map<SnapKind, HTMLInputElement>();
+    const targetRows = SNAP_TARGET_ORDER.map((kind) => {
+      const box = h('input', { type: 'checkbox' }) as HTMLInputElement;
+      box.addEventListener('change', () => {
+        const next = new Set(ed.snapTargetSet());
+        if (box.checked) next.add(kind);
+        else next.delete(kind);
+        if (!next.size) {
+          // Mindestens ein Fangziel bleibt aktiv; leere Auswahl still zurückweisen.
+          box.checked = true;
+          return;
+        }
+        ed.setSnap({ targets: SNAP_TARGET_ORDER.filter((k) => next.has(k)) });
+        refresh();
+      });
+      targetBoxes.set(kind, box);
+      return h('label', { class: 'check' }, box, SNAP_LABELS[kind]);
+    });
+    const gridBox = h('input', { type: 'checkbox' }) as HTMLInputElement;
+    gridBox.addEventListener('change', () => { ed.setSnap({ grid: gridBox.checked }); refresh(); });
+    const guideBox = h('input', { type: 'checkbox' }) as HTMLInputElement;
+    guideBox.addEventListener('change', () => { ed.setGuideLayer({ hidden: !guideBox.checked }); refresh(); });
+    const resetBtn = h('button', {
+      class: 'link', onclick: () => {
+        ed.setSnap({ grid: false, objects: true });
+        ed.resetSnapTargets();
+        refresh();
+      },
+    }, t('Auf Standard zurücksetzen')) as HTMLButtonElement;
+    const pop = h('div', { class: 'toolbar-popup snap-targets-pop', role: 'dialog', 'aria-label': t('Fangziele') },
+      masterRow, h('hr', {}), ...targetRows, h('hr', {}),
+      h('label', { class: 'check' }, gridBox, t('Raster')),
+      h('label', { class: 'check' }, guideBox, t('Hilfslinien')),
+      h('hr', {}), resetBtn);
+    const el = h('span', { class: 'ib-group snap-options-wrap', role: 'group', 'aria-label': t('Fangziele') }, magnet, toggle);
+    const positionPop = () => {
+      const anchor = toggle.getBoundingClientRect();
+      const { width, height } = pop.getBoundingClientRect();
+      const clamp = (v: number, max: number) => Math.max(4, Math.min(v, max - 4));
+      const below = anchor.bottom + 4;
+      const top = below + height > window.innerHeight - 4 && anchor.top - height - 4 >= 4
+        ? anchor.top - height - 4 : below;
+      pop.style.left = `${clamp(anchor.left, window.innerWidth - width)}px`;
+      pop.style.top = `${clamp(top, window.innerHeight - height)}px`;
+    };
+    function refresh() {
+      const on = isSnapOn(ed);
+      magnet.classList.toggle('on', on);
+      magnet.setAttribute('aria-pressed', String(on));
+      masterBox.checked = on;
+      const active = ed.snapTargetSet();
+      for (const [kind, box] of targetBoxes) {
+        box.checked = active.has(kind);
+        box.disabled = !ed.snapObjects;
+      }
+      gridBox.checked = ed.snapGrid;
+      guideBox.checked = ed.guidesShown();
+      toggle.classList.toggle('on', open);
+      toggle.setAttribute('aria-expanded', String(open));
+      if (open) {
+        // Die scrollbare Toolbar würde ein Kind-Popup unter der Zeile abschneiden.
+        if (!pop.isConnected) document.body.append(pop);
+        positionPop();
+      } else pop.remove();
+    }
+    const onDoc = (e: Event) => {
+      if (!open) return;
+      if (e.target instanceof Node && pop.contains(e.target)) return;
+      if (e.target === toggle || e.target === magnet) return;
+      open = false;
+      refresh();
+    };
+    document.addEventListener('pointerdown', onDoc, true);
+    const onKey = (e: KeyboardEvent) => {
+      if (open && e.key === 'Escape') {
+        open = false;
+        refresh();
+        toggle.focus();
+      }
+    };
+    document.addEventListener('keydown', onKey, true);
+    const onLayout = (e: Event) => {
+      if (!open || (e.target instanceof Node && pop.contains(e.target))) return;
+      if (toggle.getClientRects().length) positionPop();
+      else { open = false; refresh(); }
+    };
+    window.addEventListener('resize', onLayout);
+    window.addEventListener('scroll', onLayout, true);
+    return { el, update: refresh, dispose() {
+      pop.remove();
+      document.removeEventListener('pointerdown', onDoc, true);
+      document.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('resize', onLayout);
+      window.removeEventListener('scroll', onLayout, true);
+    } };
+  });
   register('geometry', t('Bezugspunkt'), () => !!ed.selBounds(), () => {
     const fx = numInput('num', plain(['x'], (v) => ed.setSelBox({ x: v }, ax, ay, lock)), t('X-Position (mm)'), formula('x'));
     const fy = numInput('num', plain(['y'], (v) => ed.setSelBox({ y: ed.doc.bed.h - v }, ax, ay, lock)), t('Y-Position (mm, Ursprung unten links)'), formula('y'));

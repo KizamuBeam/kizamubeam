@@ -176,7 +176,7 @@ export class EditorPointer {
           }
           if (!this.sel.includes(o)) return;
           // Wird an einem Fangpunkt der Auswahl gegriffen, fängt genau dieser Punkt
-          const own = findSnap(buildSnapSet(this.sel, (l) => this.layer(l.layer).show), wp, this.snapTol().normal / this.view.zoom);
+          const own = findSnap(buildSnapSet(this.sel, (l) => this.layer(l.layer).show), wp, this.snapTol().normal / this.view.zoom, undefined, this.snapTargetSet());
           this.drag = {
             type: 'move', start: wp, orig: this.sel.map((x) => x.m), moved: false,
             toggleRotate: was && !e.shiftKey && !ctrl, sx, sy,

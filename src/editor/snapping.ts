@@ -1,12 +1,31 @@
 // Editor: Fangen an Raster, Objekten und Hilfslinien.
 import { Obj, Pt } from '../model';
-import { alignBox, alignPoint, buildSnapSet, findSnap, SnapHit, SnapSet } from '../snap';
+import { alignBox, alignPoint, buildSnapSet, findSnap, SNAP_TARGET_ORDER, SnapHit, SnapKind, SnapSet } from '../snap';
 import type { Editor } from '../editor';
 import { Drag } from './shared';
 import { cleanGrid, GRID_KEY, GridSettings } from '../grid';
 import { t } from '../i18n';
 
 const SNAP_KEY = 'kizamubeam.snap';
+
+/** Aktive Objektfang-Ziele je Editor (Standard: alle Arten); legacy Stände ohne Feld gelten als vollständig */
+const SNAP_TARGETS_KEY = 'kizamubeam.snapTargets';
+const isSnapKind = (v: unknown): v is SnapKind => typeof v === 'string' && (SNAP_TARGET_ORDER as readonly string[]).includes(v);
+export const validSnapTargets = (v: unknown): v is SnapKind[] =>
+  Array.isArray(v) && v.length > 0 && v.every(isSnapKind) && new Set(v).size === v.length;
+export function defaultSnapTargets(): SnapKind[] {
+  return [...SNAP_TARGET_ORDER];
+}
+/** Gespeicherte Fangziele laden (Fixtures ohne localStorage ergeben die Standards) */
+export function loadSnapTargets(): SnapKind[] {
+  try {
+    const raw = JSON.parse(localStorage.getItem(SNAP_TARGETS_KEY) ?? 'null');
+    if (validSnapTargets(raw)) return [...raw];
+  } catch {
+    /* Standardwerte */
+  }
+  return defaultSnapTargets();
+}
 
 const SNAP_PX_ALT = 20;
 
@@ -89,13 +108,18 @@ export class EditorSnapping {
     this.snapTolerance = next;
   }
   /** Fang-Einstellungen ändern und merken */
-  setSnap(this: Editor, patch: { grid?: boolean; objects?: boolean; step?: number; centers?: Editor['centerMarks'] }) {
+  setSnap(this: Editor, patch: { grid?: boolean; objects?: boolean; step?: number; centers?: Editor['centerMarks']; targets?: SnapKind[] }) {
     if (patch.centers !== undefined) this.centerMarks = patch.centers;
     if (patch.grid !== undefined) this.snapGrid = patch.grid;
     if (patch.objects !== undefined) this.snapObjects = patch.objects;
     if (patch.step !== undefined && patch.step > 0) this.gridStep = patch.step;
+    if (patch.targets !== undefined) {
+      if (!validSnapTargets(patch.targets)) throw new Error(t('Einstellung konnte nicht gespeichert werden.'));
+      this.snapTargets = [...patch.targets];
+    }
     try {
       localStorage.setItem(SNAP_KEY, JSON.stringify({ grid: this.snapGrid, objects: this.snapObjects, step: this.gridStep, centers: this.centerMarks }));
+      localStorage.setItem(SNAP_TARGETS_KEY, JSON.stringify(this.snapTargets ?? defaultSnapTargets()));
     } catch {
       /* Speicher nicht verfügbar */
     }
@@ -129,6 +153,16 @@ export class EditorSnapping {
     } catch {
       /* Standardwerte */
     }
+    this.snapTargets = loadSnapTargets();
+  }
+  /** Alle Objektfang-Ziele wieder einschalten und merken */
+  resetSnapTargets(this: Editor) {
+    this.setSnap({ targets: defaultSnapTargets() });
+  }
+  /** Aktive Fangziele als Menge (Fixtures ohne Feld ergeben alle Arten) */
+  snapTargetSet(this: Editor): ReadonlySet<SnapKind> {
+    const cur = this.snapTargets ?? defaultSnapTargets();
+    return new Set(cur.filter(isSnapKind));
   }
   clearSnap(this: Editor) {
     this.snapHit = null;
@@ -171,7 +205,7 @@ export class EditorSnapping {
     if (md.obj) {
       const set = opt.set ?? this.hoverSnapSet();
       const tol = (md.alt ? this.snapTol().alt : this.snapTol().normal) / this.view.zoom;
-      const hit = findSnap(set, p, tol, opt.extra);
+      const hit = findSnap(set, p, tol, opt.extra, this.snapTargetSet());
       if (hit) {
         this.snapHit = hit;
         return hit.p;
@@ -197,10 +231,11 @@ export class EditorSnapping {
         ? [d.anchor]
         : [0, 0.5, 1].flatMap((fx) => [0, 0.5, 1].map((fy) => ({ x: b.x + fx * b.w, y: b.y + fy * b.h })));
       let best: { hit: SnapHit; from: Pt; dist: number } | null = null;
+      const targets = this.snapTargetSet();
       for (const pass of ['point', 'line'] as const) {
         for (const q of own) {
           const moved = { x: q.x + dx, y: q.y + dy };
-          const hit = findSnap(d.snapSet, moved, tol);
+          const hit = findSnap(d.snapSet, moved, tol, undefined, targets);
           if (!hit || (pass === 'point') === (hit.kind === 'line')) continue;
           const dist = Math.hypot(hit.p.x - moved.x, hit.p.y - moved.y);
           if (!best || dist < best.dist) best = { hit, from: q, dist };
@@ -240,8 +275,12 @@ export class EditorSnapping {
     const ax = d.axis;
     if (md.obj) {
       const tol = (md.alt ? this.snapTol().alt : this.snapTol().normal) / this.view.zoom;
+      const targets = this.snapTargetSet();
       let best: (typeof d.snapSet.pts)[number] | null = null;
-      for (const q of d.snapSet.pts) if (Math.abs(q[ax] - wp[ax]) <= tol && (!best || Math.abs(q[ax] - wp[ax]) < Math.abs(best[ax] - wp[ax]))) best = q;
+      for (const q of d.snapSet.pts) {
+        if (!targets.has(q.kind)) continue;
+        if (Math.abs(q[ax] - wp[ax]) <= tol && (!best || Math.abs(q[ax] - wp[ax]) < Math.abs(best[ax] - wp[ax]))) best = q;
+      }
       if (best) {
         this.snapHit = { p: { x: best.x, y: best.y }, kind: best.kind };
         return best[ax];

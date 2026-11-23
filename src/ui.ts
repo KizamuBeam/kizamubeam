@@ -793,7 +793,7 @@ function buildBars(ed: Editor) {
     {
       main: [
         'new', 'open', 'save', 'import', 'export', SEP, 'undo', 'redo', SEP, 'cut', 'copy', 'paste', 'delete', SEP,
-        'grp:zoom', 'view3d', 'camera-overlays', 'snap-toggle', SEP, 'devsettings', 'check', 'preview', SEP,
+        'grp:zoom', 'view3d', 'camera-overlays', 'control:snap-options', SEP, 'devsettings', 'check', 'preview', SEP,
         'group', 'ungroup', 'isolate', 'grp:transform', 'tolines', SEP, 'grp:align', SEP, 'theme',
       ],
       tools: [

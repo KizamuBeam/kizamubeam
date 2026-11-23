@@ -12,7 +12,7 @@ import { BoolBase } from './ops';
 import { onFontLoaded } from './fonts';
 import { EdgePick } from './joints';
 import { Box, boundsOf, hitLeaf } from './geom';
-import { AlignGuide, SnapHit, SnapSet } from './snap';
+import { AlignGuide, SNAP_TARGET_ORDER, SnapHit, SnapKind, SnapSet } from './snap';
 import { History } from './history';
 import { Tool, RULER, CANVAS_THEMES, HANDLE_OFF, Drag, NodeHover, SegHover, TOOL_HINTS } from './editor/shared';
 import { EditorCommands } from './editor/commands';
@@ -97,6 +97,8 @@ export class Editor {
   grid: GridSettings = { ...DEFAULT_GRID };
   /** An Objekten fangen (Knoten, Mittelpunkte, Zentren, Schnittpunkte, Linien) */
   snapObjects = true;
+  /** Aktive Objektfang-Ziele; Default alle Arten (SNAP_TARGET_ORDER) */
+  snapTargets: SnapKind[] = [...SNAP_TARGET_ORDER];
   /** Aktueller Fangpunkt zur Anzeige */
   snapHit: SnapHit | null = null;
   /** Ausrichtungshilfen (Alt) zur Anzeige */
