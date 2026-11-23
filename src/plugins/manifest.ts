@@ -6,6 +6,7 @@ import { LIMITS, PLUGIN_API } from './contract';
 import { base64ToBytes, type Runtime } from './engine';
 import { HOST_FNS } from './hostfns';
 import { sha256 } from '../pdfcrypt';
+import { parsePluginImage } from './images';
 import { t } from '../i18n';
 
 /** Texts of a plugin: language code → text key → text. English is required. */
@@ -32,6 +33,10 @@ export interface PluginManifest {
   sha256: string;
   /** Icon of the app (icons.ts); unknown names fall back to the extension icon */
   icon?: string;
+  /** Own icon for the toolbox tile: a square PNG as data: URL (images.ts); wins over `icon` */
+  iconImage?: string;
+  /** Picture of what the plugin makes, shown in the Extensions window: PNG or JPEG as data: URL (images.ts) */
+  previewImage?: string;
   /** Parameters with text keys as labels (label = key, title = key + ".title", option label = text key) */
   schema: ParamSpec[];
   texts: PluginTexts;
@@ -483,6 +488,9 @@ export function parsePlugin(raw: unknown, where: string): PluginManifest {
     const m: PluginManifest = { id, version: version as number, api: api as number, type, kind: kind as 'part' | 'assembly', runtime: runtime as Runtime, code, sha256: sum, schema, texts: tx };
     if (typeof raw.icon === 'string' && /^[a-zA-Z][a-zA-Z0-9-]{0,40}$/.test(raw.icon)) m.icon = raw.icon;
     if (isObj(raw.preview) && raw.preview.center === true) m.preview = { center: true };
+    // Own pictures (optional); a broken one refuses the pack so the author sees it in plugin:check
+    if (raw.iconImage !== undefined) m.iconImage = parsePluginImage(raw.iconImage, 'icon').url;
+    if (raw.previewImage !== undefined) m.previewImage = parsePluginImage(raw.previewImage, 'preview').url;
     // Lists, actions, the surface and inputs belong to the generator dialog; a tool has fields only
     if (type !== 'generator' && (raw.inputs !== undefined || (isObj(raw.dialog) && (raw.dialog.lists !== undefined || raw.dialog.actions !== undefined || raw.dialog.surface !== undefined))))
       fail(t('Listen, Aktionen, Zeichenfläche und Eingaben gibt es nur bei Generatoren'));

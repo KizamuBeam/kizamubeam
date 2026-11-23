@@ -15,7 +15,7 @@ Auch die eingebauten Generatoren (Boxen, Zahnräder, Schubladen und die anderen)
 
 ## Das Fenster Erweiterungen
 
-Öffne **Datei → Erweiterungen …** (oder **Bearbeiten → Einstellungen → Erweiterungen und Schriften**). Das Fenster hat drei Bereiche: links die Liste (**Installiert**, **Katalog** und **Updates**, mit Suche und einem Filter für **Alle**, **Inhalte** und **Plugins**), in der Mitte die ausgewählte Erweiterung und rechts ihre Details: was sie enthält, ihre Version, woher sie kommt und welche Server sie ansprechen darf.
+Öffne **Datei → Erweiterungen …** (oder **Bearbeiten → Einstellungen → Erweiterungen und Schriften**). Das Fenster hat drei Bereiche: links die Liste (**Installiert**, **Katalog** und **Updates**, mit Suche und einem Filter für **Alle**, **Inhalte** und **Plugins**), in der Mitte die ausgewählte Erweiterung und rechts ihre Details: was sie enthält, ihre Version, woher sie kommt und welche Server sie ansprechen darf. Ein Plugin kann ein eigenes Symbol und ein Vorschaubild mitbringen: Das Symbol steht vor der Erweiterung und auf ihrer Kachel im Werkzeugkasten, das Vorschaubild in den Details.
 
 ### Installieren
 

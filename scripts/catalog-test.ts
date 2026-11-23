@@ -86,6 +86,48 @@ await test('buildCatalog: plugin packs carry plugin count, runtimes, protocol, c
   assert.equal(old.packs[0].source, undefined);
 });
 
+await test('plugin icon and preview: files next to the catalogue, loaded with checksum and format check', async () => {
+  const { buildPluginPack } = await import('./plugin-pack.mjs');
+  const { png, jpegHeader, dataUrl } = await import('./test-images');
+  const raw = JSON.parse(buildPluginPack('plugins/hole-plate'));
+  const icon = png(64, 64);
+  const preview = jpegHeader(800, 450);
+  raw.plugins[0].iconImage = dataUrl(icon);
+  raw.plugins[0].previewImage = dataUrl(preview, 'image/jpeg');
+  const text = JSON.stringify(raw);
+  const files = C.catalogImageFiles(text);
+  assert.deepEqual(files.map((f) => f.file), ['org.kizamubeam.hole-plate.icon.png', 'org.kizamubeam.hole-plate.preview.jpg']);
+  assert.deepEqual(Buffer.from(files[0].bytes), icon);
+  const catText = await C.buildCatalog([['org.kizamubeam.hole-plate.kzp', text]], '');
+  const e = C.parseCatalog(catText).packs[0];
+  assert.equal(e.icon!.file, 'org.kizamubeam.hole-plate.icon.png');
+  assert.equal(e.icon!.size, icon.length);
+  assert.equal(e.preview!.file, 'org.kizamubeam.hole-plate.preview.jpg');
+  // A pack without pictures has no entries, and broken entries are dropped
+  assert.equal(C.parseCatalog(await C.buildCatalog([['de.test.katalog.kzp', pack('1.0.0')]], '')).packs[0].icon, undefined);
+  const odd = C.parseCatalog(JSON.stringify({ format: 'kizamubeam-catalog', packs: [{ ...e, icon: { file: '../x.png', sha256: e.icon!.sha256 }, preview: { file: 'a.gif', sha256: e.preview!.sha256 } }] })).packs[0];
+  assert.equal(odd.icon, undefined);
+  assert.equal(odd.preview, undefined);
+  // Loading: the right bytes give a data: URL, changed bytes or a missing file give nothing
+  const served = new Map<string, Buffer>([['https://img.test/c/org.kizamubeam.hole-plate.icon.png', icon], ['https://img.test/c/org.kizamubeam.hole-plate.preview.jpg', preview]]);
+  const fetched: string[] = [];
+  g.fetch = async (u: string) => {
+    fetched.push(u);
+    const b = served.get(u);
+    return { ok: !!b, status: b ? 200 : 404, arrayBuffer: async () => new Uint8Array(b ?? []).buffer };
+  };
+  const url = 'https://img.test/c/catalog.json';
+  assert.equal(await C.fetchCatalogImage(e, 'icon', url), dataUrl(icon));
+  assert.equal(await C.fetchCatalogImage(e, 'preview', url), dataUrl(preview, 'image/jpeg'));
+  assert.equal(await C.fetchCatalogImage(e, 'icon', url), dataUrl(icon));
+  assert.equal(fetched.length, 2, 'kept per checksum');
+  const other = { ...e, icon: { ...e.icon!, sha256: 'b'.repeat(64) } };
+  assert.equal(await C.fetchCatalogImage(other, 'icon', url), null, 'checksum differs');
+  served.delete('https://img.test/c/org.kizamubeam.hole-plate.preview.jpg');
+  assert.equal(await C.fetchCatalogImage({ ...e, preview: { ...e.preview!, sha256: 'c'.repeat(64) } }, 'preview', url), null, 'missing file');
+  assert.equal(await C.fetchCatalogImage({ ...e, icon: undefined }, 'icon', url), null);
+});
+
 await test('parseCatalog: fehlerhafte Einträge fallen weg, falsches Format wird abgelehnt', () => {
   const ok = { id: 'a.b', version: '1.0.0', name: 'A', file: 'a.b.kzp', sha256: 'a'.repeat(64) };
   const cat = C.parseCatalog(JSON.stringify({ format: 'kizamubeam-catalog', packs: [ok, { ...ok, file: '../x.kzp' }, { ...ok, sha256: 'xyz' }, { ...ok, name: '' }, null] }));

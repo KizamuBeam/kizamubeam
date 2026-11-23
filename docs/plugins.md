@@ -26,6 +26,8 @@ A plugin is an entry of `plugins` in an extension pack ([docs/packs.md](packs.md
   "code": "AGFzbQEAAAAB…",          // WebAssembly as Base64, JavaScript as text
   "sha256": "9f2c…",                // SHA-256 of the code bytes (hex), checked on every load
   "icon": "pattern",                // optional, a name from src/icons.ts
+  "iconImage": "@icon.png",         // optional, own toolbox icon: square PNG (see "Icon and preview picture")
+  "previewImage": "@preview.png",   // optional, picture for the Extensions window: PNG or JPEG
   "preview": { "center": true },    // optional, centre the dialog preview on the parts
   "dialog": { "version": 1 },       // optional, dialog schema the plugin needs (see below); 2 adds lists and actions
   "params": [
@@ -257,6 +259,19 @@ At most 4 servers. `network` needs `fetch` in `host` and the other way round. Th
 The test load before installing makes no requests (a plugin that asks for data counts as answered). The headless runner and `npm run plugin:check` have no network either: they answer requests from recorded answers, `net-fixtures.json` next to `plugin.json` or in its `test/` folder: `{ "answers": [{ "host", "path", "match"?, "status"?, "contentType"?, "file" }] }`. A request gets the first answer with its server id and a URL starting with the server's base plus `path`; `match` is a text the URL or POST body must contain. Requests without an answer fail with `net-offline`, and the check says how to add one. `useNetAnswers(manifest, answers)` in `src/plugins/headless.ts` does the same for a plugin's own tests; the catalogue build checks every plugin this way. Example: `plugins/street-map` (#280 stage 10), whose `test/` folder has a small made-up town.
 
 Error codes: `net-unknown-host`, `net-method`, `net-offline`, `net-denied`, `net-local`, `net-failed`, `net-status`, `net-type`, `net-too-large`. A plugin that ends its call with one of them gets the app's explanation shown to the user. `net-failed` means the server could not be reached (connection, name lookup, TLS or time-out); a plugin may declare a second server for the same data and try it then, like the street map does with three Overpass instances. Recorded answers can simulate it: `"error": "net-failed"` in an answer makes the request fail with that code.
+
+## Icon and preview picture
+
+A plugin can bring two pictures of its own; both are optional, and without them nothing changes.
+
+| Field | Format | Where it shows |
+| --- | --- | --- |
+| `iconImage` | PNG, square, 32 to 512 pixels, at most 128 KB (128 or 256 pixels with a transparent background work well) | The plugin's tile in the Toolbox, instead of `icon`; in front of the extension in the Extensions window |
+| `previewImage` | PNG or JPEG, 120 to 2048 pixels per side, aspect ratio at most 3:1, at most 512 KB | The details of the installed extension in the Extensions window, and the catalogue entry before installing |
+
+In the pack both are `data:image/png;base64,…` (or `data:image/jpeg;base64,…`). In `plugin.json`, write `"@icon.png"` (a path inside the plugin folder, ending in `.png`, `.jpg` or `.jpeg`) and `npm run plugin:pack` puts the file in. Keep `icon` as well: older app versions ignore `iconImage` and use it. A picture that is not a PNG (or JPEG for the preview), too large, too small or, for the icon, not square refuses the pack with a message naming the field, so `npm run plugin:check` shows it before publishing. The app only reads the file header and lets the WebView decode the picture as a `data:` URL; SVG and pictures from the network are not accepted.
+
+For the catalogue, `scripts/build-catalog.ts` writes the icon and the preview of the first plugin that has one next to `catalog.json` (`<pack id>.icon.png`, `<pack id>.preview.png|jpg`) and names them with their SHA-256 in the signed entry (`icon`, `preview`), so the Extensions window can show them before the pack is downloaded. Pictures whose checksum or format does not match are not shown.
 
 ## Path tools and image filters (#205 stage 3)
 

@@ -9,6 +9,7 @@ import { localText, Pack, parsePack, PACK_EXT } from './packs';
 import { t } from './i18n';
 import { PLUGIN_API } from './plugins/contract';
 import { codeBytes } from './plugins/manifest';
+import { checkImageBytes, parsePluginImage, type PluginImageKind } from './plugins/images';
 
 /**
  * Where the signed catalogue is published, tried in this order. GitHub Pages of the KizamuBeam organization first,
@@ -63,12 +64,22 @@ export interface CatalogEntry {
   source?: string;
   /** Servers the plugins may fetch data from (#280), host names */
   network?: string[];
+  /** Icon and preview picture of the first plugin that has one, as files next to catalog.json */
+  icon?: CatalogImage;
+  preview?: CatalogImage;
   /** Paketdatei relativ zu catalog.json */
   file: string;
   sha256: string;
   size: number;
   /** Runtime-only: URL des Katalogs, aus dem dieser Eintrag stammt */
   catalogUrl?: string;
+}
+
+/** A picture next to catalog.json (plugin icon or preview), checked by its SHA-256 like a pack */
+export interface CatalogImage {
+  file: string;
+  sha256: string;
+  size: number;
 }
 
 export interface Catalog {
@@ -80,6 +91,14 @@ export class CatalogError extends Error {}
 
 const HEX64 = /^[0-9a-f]{64}$/;
 const FILE_RE = /^[a-z0-9][a-z0-9.-]*\.kzp$/;
+const IMAGE_FILE_RE = /^[a-z0-9][a-z0-9.-]*\.(?:png|jpg)$/;
+
+function catalogImage(v: unknown): CatalogImage | undefined {
+  if (!v || typeof v !== 'object') return undefined;
+  const x = v as Record<string, unknown>;
+  if (typeof x.file !== 'string' || !IMAGE_FILE_RE.test(x.file) || typeof x.sha256 !== 'string' || !HEX64.test(x.sha256)) return undefined;
+  return { file: x.file, sha256: x.sha256, size: typeof x.size === 'number' && Number.isInteger(x.size) && x.size > 0 ? x.size : 0 };
+}
 
 export async function sha256Hex(text: string): Promise<string> {
   const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
@@ -129,6 +148,8 @@ export function parseCatalog(text: string): Catalog {
       ...(n(p.codeSize) ? { codeSize: n(p.codeSize) } : {}),
       ...(typeof p.source === 'string' && p.source.startsWith('https://') ? { source: p.source } : {}),
       ...(Array.isArray(p.network) && p.network.length ? { network: p.network.filter((x): x is string => typeof x === 'string' && /^[a-z0-9.-]{1,253}$/.test(x)).slice(0, 16) } : {}),
+      ...(catalogImage(p.icon) ? { icon: catalogImage(p.icon) } : {}),
+      ...(catalogImage(p.preview) ? { preview: catalogImage(p.preview) } : {}),
       file: p.file, sha256: p.sha256, size: n(p.size),
     });
   }
@@ -294,8 +315,64 @@ export async function buildCatalog(files: [name: string, text: string][], genera
         : {}),
       ...(p.plugins.some((x) => x.network?.length) ? { network: [...new Set(p.plugins.flatMap((x) => (x.network ?? []).map((h) => h.hostname)))].sort() } : {}),
       ...(sources[p.id] ? { source: sources[p.id] } : {}),
+      ...(await catalogImageEntries(text)),
       file: name, sha256: await sha256Hex(text), size: new TextEncoder().encode(text).length,
     });
   }
   return JSON.stringify({ format: CATALOG_FORMAT, version: 1, generated, packs }, null, 1) + '\n';
+}
+
+const bytesSha256 = async (b: Uint8Array) => etc.bytesToHex(new Uint8Array(await crypto.subtle.digest('SHA-256', b as BufferSource)));
+
+/**
+ * Picture files the catalogue publishes next to a pack: the icon and the preview of the first plugin that has one
+ * (`<id>.icon.png`, `<id>.preview.png|jpg`). scripts/build-catalog.ts writes them; the entry names them.
+ */
+export function catalogImageFiles(packText: string): { kind: PluginImageKind; file: string; bytes: Uint8Array }[] {
+  const p = parsePack(packText, '9999.0.0');
+  const out: { kind: PluginImageKind; file: string; bytes: Uint8Array }[] = [];
+  for (const kind of ['icon', 'preview'] as const) {
+    const url = p.plugins.map((x) => (kind === 'icon' ? x.iconImage : x.previewImage)).find(Boolean);
+    if (!url) continue;
+    const img = parsePluginImage(url, kind);
+    out.push({ kind, file: `${p.id}.${kind}.${img.mime === 'image/png' ? 'png' : 'jpg'}`, bytes: img.bytes });
+  }
+  return out;
+}
+
+async function catalogImageEntries(packText: string): Promise<{ icon?: CatalogImage; preview?: CatalogImage }> {
+  const out: { icon?: CatalogImage; preview?: CatalogImage } = {};
+  for (const f of catalogImageFiles(packText)) out[f.kind] = { file: f.file, sha256: await bytesSha256(f.bytes), size: f.bytes.length };
+  return out;
+}
+
+const imageCache = new Map<string, Promise<string | null>>();
+
+/**
+ * Load a picture of a catalogue entry and check it (checksum from the signed catalogue, format and size like in a
+ * manifest). Gives a data: URL for <img>, or null when it is missing or broken; the result is kept per checksum.
+ */
+export function fetchCatalogImage(e: CatalogEntry, kind: PluginImageKind, url = e.catalogUrl ?? catalogSource): Promise<string | null> {
+  const img = kind === 'icon' ? e.icon : e.preview;
+  if (!img) return Promise.resolve(null);
+  let p = imageCache.get(img.sha256);
+  if (!p) {
+    p = (async () => {
+      try {
+        const r = await fetch(new URL(img.file, url).href);
+        if (!r.ok) return null;
+        const bytes = new Uint8Array(await r.arrayBuffer());
+        if ((await bytesSha256(bytes)) !== img.sha256) return null;
+        return checkImageBytes(bytes, kind).url;
+      } catch {
+        return null;
+      }
+    })();
+    imageCache.set(img.sha256, p);
+    // A failed download may work later (offline now)
+    void p.then((x) => {
+      if (x === null) imageCache.delete(img.sha256);
+    });
+  }
+  return p;
 }

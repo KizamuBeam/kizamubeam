@@ -15,7 +15,7 @@ Anche i generatori integrati (scatole, ingranaggi, cassetti e gli altri) sono pl
 
 ## La finestra Estensioni
 
-Apri **File → Estensioni …** (o **Modifica → Impostazioni → Estensioni e font**). La finestra ha tre riquadri: a sinistra l'elenco (**Installato**, **Catalogo** e **Aggiornamenti**, con una ricerca e un filtro per **Tutto**, **Contenuti** e **Plugin**), al centro l'estensione selezionata e a destra i suoi dettagli: cosa contiene, la versione, da dove viene e quali server può contattare.
+Apri **File → Estensioni …** (o **Modifica → Impostazioni → Estensioni e font**). La finestra ha tre riquadri: a sinistra l'elenco (**Installato**, **Catalogo** e **Aggiornamenti**, con una ricerca e un filtro per **Tutto**, **Contenuti** e **Plugin**), al centro l'estensione selezionata e a destra i suoi dettagli: cosa contiene, la versione, da dove viene e quali server può contattare. Un plugin può portare un'icona propria e un'immagine di anteprima: l'icona compare davanti all'estensione e sul suo riquadro nella Casella degli strumenti, l'anteprima nei dettagli.
 
 ### Installare
 
