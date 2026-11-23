@@ -59,6 +59,9 @@ export function openPathIslandsDialog(ed: Editor): void {
     let activeIsland = -1;
     let groups: IslandGroup[] = [];
     let locked = 0;
+    /** Categorical palette; red is reserved for invalid islands (excluded). */
+    const ISLAND_COLORS = ['#ff8c1a', '#38bdf8', '#34d399', '#a78bfa', '#facc15', '#22d3ee', '#f472b6', '#60a5fa'];
+    const islandColor = (i: number) => ISLAND_COLORS[i % ISLAND_COLORS.length];
     let options: IslandOptions = { distance: 0 };
     const title = h('h3', {}, t('Pfadinseln trennen'));
     const dlg = h('dialog', { class: 'path-islands-dialog outline-tool-window', 'aria-labelledby': 'path-islands-title' });
@@ -122,6 +125,7 @@ export function openPathIslandsDialog(ed: Editor): void {
     const refresh = () => {
       preview.subs = groups.filter((_, i) => selected.has(i)).flatMap((g) => g.world);
       preview.holes = groups.map((g) => g.world);
+      preview.subGroups = groups.map((g, i) => ({ subs: g.world, color: islandColor(i), dim: !selected.has(i) }));
       preview.excluded = [];
       boxes.forEach((box, i) => { box.checked = selected.has(i); });
       const invalid = locked > 0 && !preserve.checked;
@@ -156,7 +160,7 @@ export function openPathIslandsDialog(ed: Editor): void {
         const box = h('input', { type: 'checkbox', onchange: () => toggleIsland(i) });
         boxes.push(box);
         const row = h('label', { class: 'check', 'data-island-group': String(i), onclick: () => highlightIsland(i) },
-          box, t('Insel {n}', { n: i + 1 }));
+          box, h('span', { class: 'island-swatch', style: `background:${islandColor(i)}` }), t('Insel {n}', { n: i + 1 }));
         rows.push(row); choices.append(row);
       });
       if (locked) {

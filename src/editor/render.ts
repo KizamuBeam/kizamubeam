@@ -652,9 +652,29 @@ export class EditorRender {
         ctx.fillStyle = 'rgba(255,150,35,0.3)';
         ctx.fill(subsToPath2D(preview.holes[preview.hover]), 'evenodd');
       }
-      ctx.strokeStyle = '#0d9488'; ctx.lineWidth = 2 * px;
-      ctx.setLineDash([6 * px, 4 * px]);
-      ctx.stroke(subsToPath2D(preview.subs));
+      if (preview.subGroups?.length) {
+        preview.subGroups.forEach((g, i) => {
+          const path = subsToPath2D(g.subs);
+          const active = preview.hover === i;
+          if (g.dim && !active) {
+            ctx.fillStyle = g.color + '22';
+            ctx.fill(path, 'evenodd');
+            ctx.strokeStyle = '#6b7280'; ctx.lineWidth = 1 * px;
+            ctx.setLineDash([3 * px, 3 * px]);
+            ctx.stroke(path);
+            return;
+          }
+          ctx.fillStyle = g.color + (active ? 'aa' : '55');
+          ctx.fill(path, 'evenodd');
+          ctx.strokeStyle = g.color; ctx.lineWidth = (active ? 3 : 2) * px;
+          ctx.setLineDash([]);
+          ctx.stroke(path);
+        });
+      } else {
+        ctx.strokeStyle = '#0d9488'; ctx.lineWidth = 2 * px;
+        ctx.setLineDash([6 * px, 4 * px]);
+        ctx.stroke(subsToPath2D(preview.subs));
+      }
       if (preview.removed?.length) {
         ctx.strokeStyle = '#c77414'; ctx.lineWidth = 3 * px;
         ctx.setLineDash([4 * px, 3 * px]); ctx.stroke(subsToPath2D(preview.removed));
