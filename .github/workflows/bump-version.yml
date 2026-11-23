@@ -1,0 +1,109 @@
+# Bump version: Actions → Bump version → Run workflow, enter the new version (e.g. 2.9.1 or 2.10.0-rc.1).
+# Runs `npm run bump <version>` on main and opens a pull request "Bump version to <version>".
+# Pre-releases (with a hyphen) only change the app files and Cargo; READMEs, issue templates and website keep the
+# stable version.
+#
+# "After merge" decides what happens once that pull request is merged (release-on-merge.yml):
+#   nothing          default: tag and release by hand as before
+#   draft release    a draft release v<version> with generated notes; paste the release text, then Publish
+#                    (publishing starts release.yml as usual)
+#   publish release  release v<version> is published right away and the installers are built
+# The choice is stored as a label on the pull request (release:draft / release:publish). Removing the label
+# before merging cancels it.
+#
+# Requirement: Settings → Actions → General → "Allow GitHub Actions to create and approve pull requests".
+# Pull requests opened with GITHUB_TOKEN do not start CI on their own; close and reopen the pull request
+# (or push to its branch) if CI should run on it.
+name: Bump version
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'New version, e.g. 2.9.1 or 2.10.0-rc.1 (without "v")'
+        required: true
+        type: string
+      after_merge:
+        description: 'After the pull request is merged'
+        type: choice
+        options:
+          - nothing
+          - draft release
+          - publish release
+        default: nothing
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: bump-version
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Bump
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          VERSION="${VERSION#v}"
+          old=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          if git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" >/dev/null; then
+            echo "::error::Tag v$VERSION already exists."
+            exit 1
+          fi
+          node scripts/bump-version.mjs "$VERSION"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "OLD=$old" >> "$GITHUB_ENV"
+
+      - name: Open pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AFTER_MERGE: ${{ inputs.after_merge }}
+        run: |
+          branch="bump/v$VERSION"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898699+github-actions[bot]@users.noreply.github.com'
+          git switch -c "$branch"
+          git commit -am "Bump version to $VERSION"
+          git push --force origin "$branch"
+
+          case "$AFTER_MERGE" in
+            'draft release')   label='release:draft';   after="After merging, a **draft** release \`v$VERSION\` is created. Paste the release text and publish it to build the installers." ;;
+            'publish release') label='release:publish'; after="After merging, release \`v$VERSION\` is **published** and the installers are built." ;;
+            *)                 label='';                after="Nothing happens after merging. Tag and release \`v$VERSION\` by hand." ;;
+          esac
+          if [[ "$VERSION" == *-* ]]; then
+            scope='Pre-release: only the app files and Cargo change; READMEs, issue templates and website keep the stable version.'
+          else
+            scope='Stable version: app files, Cargo, READMEs, issue templates and website.'
+          fi
+          body=$(printf '%s\n\n%s\n\n%s\n\n%s\n' \
+            "Bumps the version from $OLD to $VERSION with \`npm run bump $VERSION\` (started by $GITHUB_ACTOR)." \
+            "$scope" \
+            "$after" \
+            "Remove the \`release:…\` label before merging to skip the automatic release.")
+
+          args=(--base main --head "$branch" --title "Bump version to $VERSION" --body "$body")
+          if [[ -n "$label" ]]; then
+            gh label create "$label" --color 0E8A16 --description 'Bump PR: create the release after merge' --force
+            args+=(--label "$label")
+          fi
+          if url=$(gh pr view "$branch" --json url,state --jq 'select(.state == "OPEN") | .url' 2>/dev/null) && [[ -n "$url" ]]; then
+            gh pr edit "$branch" --title "Bump version to $VERSION" --body "$body" ${label:+--add-label "$label"}
+          else
+            url=$(gh pr create "${args[@]}")
+          fi
+          echo "Pull request: $url" >> "$GITHUB_STEP_SUMMARY"
+          echo "$url"

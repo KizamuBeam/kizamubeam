@@ -1,0 +1,66 @@
+# Creates the release after a "Bump version" pull request (bump-version.yml) is merged, if that pull request carries
+# the label release:draft or release:publish. Without one of these labels nothing happens.
+#   release:draft    draft release v<version> with generated notes; publishing it by hand starts release.yml
+#   release:publish  release v<version> is published and built right away (release.yml via workflow_call, because a
+#                    release created with GITHUB_TOKEN does not start release.yml on its own)
+# Versions with a hyphen (2.10.0-rc.1) become pre-releases.
+name: Release on merge
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    if: >-
+      github.event.pull_request.merged == true &&
+      startsWith(github.event.pull_request.head.ref, 'bump/v') &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (contains(github.event.pull_request.labels.*.name, 'release:draft') ||
+       contains(github.event.pull_request.labels.*.name, 'release:publish'))
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      publish: ${{ steps.release.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+
+      - name: Create release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          PUBLISH: ${{ contains(github.event.pull_request.labels.*.name, 'release:publish') }}
+        run: |
+          npm run -s bump -- --check
+          version=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          tag="v$version"
+          if gh release view "$tag" >/dev/null 2>&1 || git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
+            echo "::error::Release or tag $tag already exists."
+            exit 1
+          fi
+          args=("$tag" --target "$SHA" --title "KizamuBeam $tag" --generate-notes)
+          [[ "$version" == *-* ]] && args+=(--prerelease)
+          if [[ "$PUBLISH" == "true" ]]; then
+            gh release create "${args[@]}"
+            echo "Published $tag from $SHA, building the installers." >> "$GITHUB_STEP_SUMMARY"
+          else
+            gh release create "${args[@]}" --draft
+            echo "Draft release $tag created. Paste the release text and publish it to build the installers." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "publish=$PUBLISH" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: prepare
+    if: needs.prepare.outputs.publish == 'true'
+    uses: ./.github/workflows/release.yml
+    with:
+      tag: ${{ needs.prepare.outputs.tag }}
+    secrets: inherit

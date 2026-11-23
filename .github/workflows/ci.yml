@@ -31,6 +31,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: App version is the same in package.json, Cargo and tauri.conf.json
+        run: npm run bump -- --check
+
       - name: TypeScript and Vite build
         run: npm run build
 

@@ -99,7 +99,7 @@ jobs:
         run: |
           v=$(node -p "require('./src-tauri/tauri.conf.json').version")
           if [[ "$TAG" != "v$v" ]]; then
-            echo "::error::Tag $TAG does not match version $v in src-tauri/tauri.conf.json (expected v$v). Bump the version (package.json, tauri.conf.json, Cargo.toml), merge it, then tag that commit."
+            echo "::error::Tag $TAG does not match version $v in src-tauri/tauri.conf.json (expected v$v). Bump the version (npm run bump <version> or Actions → Bump version), merge it, then tag that commit."
             exit 1
           fi
 
