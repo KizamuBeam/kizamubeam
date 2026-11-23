@@ -19,6 +19,10 @@ ed.tool = 'select'; const image: Obj = { ...a, id: 2, shape: { kind: 'image', as
 ed.doc.objs.push(image); ed.setSel([image]); assert.equal(entries().find(e => e.id === 'trace')!.enabled, true);
 const image2 = { ...image, id: 3 }; ed.doc.objs.push(image2); ed.setSel([image, image2]);
 assert.equal(entries().find(e => e.id === 'trace')!.enabled, false); assert.equal(entries().find(e => e.id === 'save-bitmap')!.enabled, false);
+const path: Obj = { ...a, id: 4, shape: { kind: 'path', subs: [] } as Obj['shape'] };
+ed.doc.objs.push(path); ed.setSel([path]);
+assert.equal(entries().find(e => e.id === 'path-islands')!.enabled, true, 'path islands entry enabled for path selection');
+ed.setSel([a]); assert.equal(entries().find(e => e.id === 'path-islands')!.enabled, false, 'path islands entry disabled without path');
 assert.ok(entries(true).every(e => e.id !== 'delete')); assert.equal(commandKey('copy'), 'Ctrl+C');
 const key = { key: 'c', ctrlKey: true, metaKey: false, shiftKey: false, altKey: false } as KeyboardEvent;
 assert.ok(commandMatches('copy', key)); assert.equal(commandMatches('copy', { ...key, altKey: true }), false);
