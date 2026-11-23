@@ -444,14 +444,91 @@ export async function startJobAt(ed: Editor, preview: Moves, i: number, frac: nu
   return runGCode(g);
 }
 
-export async function frameJob(ed: Editor, contour: boolean, src?: JobSource) {
-  if (!canRun()) return;
-  if (machine.remote) return void (await remoteFrame(ed, src, device.cutSelected, contour, notify));
+/** One frame lap; true if it was started. Later laps of a continuous frame stop instead of asking about the work area. */
+async function frameOnce(ed: Editor, contour: boolean, src: JobSource | undefined, first: boolean): Promise<boolean> {
+  if (!canRun()) return false;
+  if (machine.remote) return remoteFrame(ed, src, device.cutSelected, contour, notify);
   const job = await makeJob(ed, false, src);
   const lines = frameGCode(job, device, contour);
-  if (!lines) return void nothingToDo(job);
-  if (!boundsOk(ed, job)) return;
-  await machine.runJob(lines, null, true);
+  if (!lines) return (nothingToDo(job), false);
+  if (first) {
+    if (!boundsOk(ed, job)) return false;
+  } else {
+    const why = bedProblem(ed, job);
+    if (why) return (notify(t('Rahmen wiederholen beendet: {why}', { why: why.split('\n')[0] }), true), false);
+  }
+  return machine.runJob(lines, null, true);
+}
+
+/** Running continuous frame (#503); `end` asks it to stop after the current lap */
+let frameLoop: { contour: boolean; end: boolean } | null = null;
+const frameLoopListeners = new Set<() => void>();
+const frameLoopChanged = () => frameLoopListeners.forEach((f) => f());
+/** Menu and command list: switch "Repeat frame" on or off */
+export function toggleFrameRepeat() {
+  device.frameRepeat = !device.frameRepeat;
+  deviceChanged();
+}
+/** Kind of the running continuous frame, or null */
+export const frameLooping = (): 'frame' | 'contour' | null => (frameLoop ? (frameLoop.contour ? 'contour' : 'frame') : null);
+
+/** Wait until the lap has been sent and acknowledged. A remote host reports the start with a delay. */
+function lapDone(poll: number): Promise<void> {
+  return new Promise((resolve) => {
+    const t0 = performance.now();
+    let seen = machine.running;
+    const id = setInterval(() => {
+      if (machine.running) seen = true;
+      if (!machine.connected || (!machine.running && (seen || performance.now() - t0 > 2000))) {
+        clearInterval(id);
+        resolve();
+      }
+    }, poll);
+  });
+}
+
+/**
+ * Continuous frame loop (#503): runs `lap` until the loop is ended (frameJob again: after the current lap), Stop, a failed
+ * job, a disconnect, a lap that does not start, or the time limit. Exported for tests.
+ */
+export async function runFrameLoop(lap: (first: boolean) => Promise<boolean>, contour: boolean, minutes: number, poll = 100) {
+  if (frameLoop) return;
+  const loop: { contour: boolean; end: boolean } = { contour, end: false };
+  frameLoop = loop;
+  const off = machine.on((e) => {
+    if (e.type === 'stop' || (e.type === 'done' && !e.ok) || (e.type === 'connection' && !machine.connected)) loop.end = true;
+  });
+  const until = minutes > 0 ? performance.now() + minutes * 60_000 : Infinity;
+  frameLoopChanged();
+  try {
+    for (let first = true; !loop.end; first = false) {
+      if (!(await lap(first))) break;
+      await lapDone(poll);
+      if (!loop.end && performance.now() >= until) {
+        notify(t('Rahmen wiederholen nach {n} min beendet.', { n: minutes }));
+        break;
+      }
+    }
+  } finally {
+    off();
+    frameLoop = null;
+    frameLoopChanged();
+  }
+}
+
+/**
+ * Frame or contour of the job. With "Repeat frame" (device.frameRepeat) it runs in a loop that is recomputed every lap,
+ * so moved objects show up on the next lap. Clicking Frame or Contour again ends the loop after the current lap,
+ * Stop ends it at once.
+ */
+export async function frameJob(ed: Editor, contour: boolean, src?: JobSource, repeat = device.frameRepeat) {
+  if (frameLoop) {
+    frameLoop.end = true;
+    frameLoopChanged();
+    return;
+  }
+  if (!repeat) return void (await frameOnce(ed, contour, src, true));
+  await runFrameLoop((first) => frameOnce(ed, contour, src, first), contour, device.frameRepeatMinutes);
 }
 
 export async function saveGCode(ed: Editor, src?: JobSource) {
@@ -856,6 +933,7 @@ function laserTab(ed: Editor): HTMLElement {
     ),
     h('div', { class: 'checks' },
       check(t('Nur Auswahl'), t('Nur die ausgewählten Objekte lasern'), () => device.cutSelected, (v) => (device.cutSelected = v)),
+      check(t('Rahmen wiederholen'), t('Rahmen und Kontur laufen in einer Schleife, bis man sie erneut anklickt oder stoppt. Jede Runde wird neu berechnet, verschobene Objekte sind also gleich in der nächsten Runde zu sehen.'), () => device.frameRepeat, (v) => (device.frameRepeat = v)),
       check(t('Drehachse'), t('Rotary einschalten: Y wird zur Umfangsrichtung des Objekts'), () => device.rotary.enabled, (v) => (device.rotary = { ...device.rotary, enabled: v })),
       h('button', { class: 'btn small', title: t('Drehachse (Rotary) einrichten'), onclick: () => openRotaryDialog() }, t('Drehachse …')),
     ),
@@ -931,6 +1009,11 @@ function laserTab(ed: Editor): HTMLElement {
     portSel.disabled = on || machine.connecting || !isTauri();
     refreshBtn.disabled = portSel.disabled;
     for (const b of [startB, frameB, contourB, homeB, originB]) b.disabled = !on || busy;
+    // A running continuous frame is ended with the button that started it
+    const looping = frameLooping();
+    frameB.classList.toggle('cur', looping === 'frame');
+    contourB.classList.toggle('cur', looping === 'contour');
+    if (looping) (looping === 'frame' ? frameB : contourB).disabled = !on;
     pauseB.disabled = !on || machine.fire.locked;
     stopB.disabled = !on;
     saveB.lastChild!.textContent = device.fw === 'ruida' ? '.rd' : 'G-Code';
@@ -986,6 +1069,7 @@ function laserTab(ed: Editor): HTMLElement {
     if (e.type !== 'line') refresh();
   });
   uploadListeners.add(refresh);
+  frameLoopListeners.add(refresh);
   deviceListeners.add(() => (fillDevices(), fillPorts(), refresh()));
   fillDevices();
   // Fortschrittstext auch ohne neue Ereignisse aktualisieren (vergangene Zeit)
@@ -1527,6 +1611,7 @@ export function openDeviceDialog(ed: Editor, target: Device = device, onDone?: (
   num(t('Geschwindigkeit (mm/min)'), () => d.frameSpeed, (v) => (d.frameSpeed = v));
   bool(t('Mit Laser (schwach)'), () => d.frameLaser, (v) => (d.frameLaser = v), t('Rahmen mit niedriger Leistung sichtbar machen'));
   num(t('Leistung (%)'), () => d.framePower, (v) => (d.framePower = Math.min(100, v)));
+  num(t('Wiederholen höchstens (min)'), () => d.frameRepeatMinutes, (v) => (d.frameRepeatMinutes = v), t('„Rahmen wiederholen“ endet nach dieser Zeit von selbst'));
   head(t('Testfeuer im Bewegen-Fenster'));
   const fireRows = fireSettings(d);
   const fireTabIndex = tabs.length - 1;

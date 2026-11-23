@@ -42,7 +42,7 @@ import { maybeOfferSetup, openSetupWizard } from './setupWizard';
 import { maybeCheckForUpdates, nightlyBuild, nightlyWarning, openUpdateDialog } from './updateDialog';
 import { openPacksDialog } from './packsDialog';
 import { openGridDialog } from './gridDialog';
-import { applyNewDocDefaults, buildLaser, frameJob, isPositionPick, openDeviceDialog, openDevicesDialog, openPreview, openRotaryDialog, saveGCode, startJob, togglePositionPick } from './laser';
+import { applyNewDocDefaults, buildLaser, device, frameJob, isPositionPick, openDeviceDialog, openDevicesDialog, openPreview, openRotaryDialog, saveGCode, startJob, toggleFrameRepeat, togglePositionPick } from './laser';
 import { openLayerDialog, setAdjustOpener } from './layerdialog';
 import { openLayerDefaultsDialog } from './layerDefaultsDialog';
 import { imageLayerFields, liveLayerRaster } from './imageLayerFields';
@@ -396,6 +396,7 @@ function buildMenu(ed: Editor) {
       [t('Start'), 'start', () => startJob(ed)],
       [t('Rahmen'), 'frame', () => frameJob(ed, false)],
       [t('Kontur-Rahmen'), 'contour', () => frameJob(ed, true)],
+      [t('Rahmen wiederholen'), 'framerepeat', toggleFrameRepeat, () => device.frameRepeat],
       'sep',
       [t('Laser einrichten …'), 'setup', () => openSetupWizard(ed)],
       { sub: t('Test und Kalibrieren'), items: [
@@ -749,6 +750,7 @@ function buildBars(ed: Editor) {
     { id: 'start', cat: L, icon: 'play', label: t('Job starten'), run: () => startJob(ed) },
     { id: 'frame', cat: L, icon: 'frame', label: t('Rahmen: Rechteck um den Job abfahren'), run: () => frameJob(ed, false) },
     { id: 'contour', cat: L, icon: 'contour', label: t('Kontur-Rahmen: Umriss des Jobs abfahren'), run: () => frameJob(ed, true) },
+    { id: 'framerepeat', cat: L, icon: 'frame', label: t('Rahmen wiederholen: Rahmen und Kontur laufen in einer Schleife, bis man sie erneut anklickt oder stoppt'), run: toggleFrameRepeat, on: () => device.frameRepeat },
     { id: 'laserpos', cat: L, icon: 'target', label: t('Laser positionieren: Klick auf die Arbeitsfläche fährt den Laser dorthin'), run: () => togglePositionPick(ed), on: () => isPositionPick(ed) },
     { id: 'gcode', cat: L, icon: 'gcode', label: t('G-Code speichern'), run: () => saveGCode(ed) },
     { id: 'setup', cat: L, icon: 'setup', short: t('Einrichten'), label: t('Laser einrichten: Schritt für Schritt von der Verbindung bis zum ersten Testauftrag'), run: () => openSetupWizard(ed) },

@@ -31,6 +31,8 @@ Unter der Zeitschätzung zeigt die Vorschau **Geschätzte Energie und Kosten** d
 
 **Rahmen** fährt das Rechteck um den Job ab, **Kontur-Rahmen** folgt seinem Umriss. Beides kann mit schwachem Laser laufen, damit du den Rahmen auf dem Material siehst. Prüfe mit dem Rahmen vor dem Start, ob der Job auf das Werkstück passt.
 
+Mit **Rahmen wiederholen** (Häkchen im Laser-Fenster oder Laser → Rahmen wiederholen) laufen Rahmen und Kontur-Rahmen in einer Schleife. Jede Runde wird aus der aktuellen Zeichnung neu berechnet: Verschiebe Objekte oder das Werkstück und sieh das Ergebnis gleich in der nächsten Runde. Ein erneuter Klick auf den laufenden Knopf beendet die Schleife nach der aktuellen Runde, **Stopp** sofort. Die Schleife endet auch von selbst nach der Zeit unter **Wiederholen höchstens (min)** in den Geräteeinstellungen (Tab **Rahmen & Zeiger**, Standard 5 Minuten) und wenn eine Runde den Arbeitsbereich verlassen würde.
+
 ## Starten, pausieren und stoppen
 
 **Start** schickt den Job ab. Währenddessen zeigt das Fenster Laser Fortschritt, vergangene und verbleibende Zeit.

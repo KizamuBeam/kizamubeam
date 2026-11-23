@@ -46,6 +46,8 @@ export type MachineEvent =
   | { type: 'progress' }
   | { type: 'fire' }
   | { type: 'done'; ok: boolean; message: string }
+  /** Stop was requested (also ends a continuous frame between two laps) */
+  | { type: 'stop' }
   /** FluidNC-Konfiguration wurde (neu) gelesen */
   | { type: 'config' };
 
@@ -721,6 +723,7 @@ class Machine {
     await this.call('machine_resume').catch((e) => this.log(tBackend(String(e)), 'error'));
   }
   async stop() {
+    this.emit({ type: 'stop' });
     if (this.fire.locked) { await this.fire.stop(); return; }
     if (!this.connected) return;
     // Ein Job von SD/Flash endet mit dem Reset; Meldung kommt über den Status

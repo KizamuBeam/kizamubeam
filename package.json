@@ -106,6 +106,7 @@
     "test:grid": "node scripts/run-ts.mjs scripts/grid-test.ts",
     "test:dialog-drag": "node scripts/run-ts.mjs scripts/dialog-drag-test.ts",
     "test:optimize-dialog": "node scripts/run-ts.mjs scripts/optimize-dialog-test.ts",
+    "test:frame-repeat": "node scripts/run-ts.mjs scripts/frame-repeat-test.ts",
     "test:preview-layout": "node scripts/preview-layout-test.mjs && node scripts/preview-pipeline-test.mjs",
     "test:preview-playback": "node scripts/run-ts.mjs scripts/preview-playback-test.ts",
     "test:placement": "node scripts/run-ts.mjs scripts/placement-test.ts",
