@@ -1,7 +1,7 @@
 {
   "lang": "pt",
   "locale": "pt_BR",
-  "version": "2.9.0",
+  "version": "2.9.1",
   "meta": {
     "title": "KizamuBeam – Software gratuito de gravação e corte a laser",
     "description": "Software a laser gratuito e de código aberto para macOS, Windows e Linux. Desenhe, grave fotos, gere caixas e engrenagens e envie trabalhos direto para lasers FluidNC, GRBL, grblHAL, Marlin e Smoothieware.",

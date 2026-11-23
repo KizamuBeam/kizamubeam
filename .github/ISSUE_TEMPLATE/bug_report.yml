@@ -38,7 +38,7 @@ body:
     attributes:
       label: KizamuBeam version
       description: Shown under Help → About. For the Virtual Machine, give its own version.
-      placeholder: e.g. 2.9.0
+      placeholder: e.g. 2.9.1
     validations:
       required: true
   - type: dropdown
