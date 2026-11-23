@@ -31,6 +31,8 @@ Below the time estimate, the preview shows the **estimated energy and cost** of 
 
 **Frame** traces the rectangle around the job, **Contour Frame** follows its outline. Both can run with a low-power laser so you can see the frame on the material. Use framing to check that the job fits on the workpiece before you start.
 
+With **Repeat frame** switched on (check box in the Laser window, or Laser → Repeat frame), Frame and Contour Frame run in a loop. Every lap is recomputed from the current drawing, so you can move objects or slide the workpiece and see the result on the next lap. Click the running button again to end the loop after the current lap; **Stop** ends it at once. The loop also ends by itself after the time set under **Repeat for at most (min)** in the device settings (tab **Framing & pointer**, default 5 minutes), and when a lap would leave the work area.
+
 ## Start, pause and stop
 
 **Start** sends the job. During the job, the Laser window shows progress, elapsed and remaining time.

@@ -5419,5 +5419,12 @@
   "„{key}“ ist {w} × {h} Pixel, erlaubt sind {min} bis {max} Pixel je Seite": "«{key}» misura {w} × {h} pixel; sono ammessi da {min} a {max} pixel per lato",
   "„{key}“ muss quadratisch sein (ist {w} × {h} Pixel)": "«{key}» deve essere quadrata (misura {w} × {h} pixel)",
   "„{key}“ ist zu schmal (Seitenverhältnis höchstens {r}:1)": "«{key}» è troppo stretta (rapporto massimo {r}:1)",
-  "„{key}“ muss ein {types}-Bild als data:-Adresse mit Base64 sein": "«{key}» deve essere un'immagine {types} come indirizzo data: in Base64"
+  "„{key}“ muss ein {types}-Bild als data:-Adresse mit Base64 sein": "«{key}» deve essere un'immagine {types} come indirizzo data: in Base64",
+  "Rahmen wiederholen beendet: {why}": "Ripeti frame terminato: {why}",
+  "Rahmen wiederholen nach {n} min beendet.": "Ripeti frame terminato dopo {n} min.",
+  "Rahmen wiederholen": "Ripeti frame",
+  "Rahmen und Kontur laufen in einer Schleife, bis man sie erneut anklickt oder stoppt. Jede Runde wird neu berechnet, verschobene Objekte sind also gleich in der nächsten Runde zu sehen.": "Frame e Contorno girano in ciclo finché non li clicchi di nuovo o premi Stop. Ogni giro viene ricalcolato, quindi gli oggetti spostati si vedono già al giro successivo.",
+  "Wiederholen höchstens (min)": "Ripeti al massimo (min)",
+  "„Rahmen wiederholen“ endet nach dieser Zeit von selbst": "“Ripeti frame” termina da solo dopo questo tempo",
+  "Rahmen wiederholen: Rahmen und Kontur laufen in einer Schleife, bis man sie erneut anklickt oder stoppt": "Ripeti frame: Frame e Contorno girano in ciclo finché non li clicchi di nuovo o premi Stop"
 }

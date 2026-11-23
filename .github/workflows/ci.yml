@@ -49,6 +49,9 @@ jobs:
       - name: G-code regression tests
         run: npm run test:gcode
 
+      - name: Continuous frame tests (#503)
+        run: npm run test:frame-repeat
+
       - name: Pointer-offset tests (return-home regression, discussion on #476)
         run: npm run test:pointer
 

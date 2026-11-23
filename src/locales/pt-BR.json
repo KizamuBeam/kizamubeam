@@ -5419,5 +5419,12 @@
   "„{key}“ ist {w} × {h} Pixel, erlaubt sind {min} bis {max} Pixel je Seite": "“{key}” tem {w} × {h} pixels; são permitidos de {min} a {max} pixels por lado",
   "„{key}“ muss quadratisch sein (ist {w} × {h} Pixel)": "“{key}” deve ser quadrada (tem {w} × {h} pixels)",
   "„{key}“ ist zu schmal (Seitenverhältnis höchstens {r}:1)": "“{key}” é estreita demais (proporção no máximo {r}:1)",
-  "„{key}“ muss ein {types}-Bild als data:-Adresse mit Base64 sein": "“{key}” deve ser uma imagem {types} como endereço data: em Base64"
+  "„{key}“ muss ein {types}-Bild als data:-Adresse mit Base64 sein": "“{key}” deve ser uma imagem {types} como endereço data: em Base64",
+  "Rahmen wiederholen beendet: {why}": "Repetir enquadramento encerrado: {why}",
+  "Rahmen wiederholen nach {n} min beendet.": "Repetir enquadramento encerrado após {n} min.",
+  "Rahmen wiederholen": "Repetir enquadramento",
+  "Rahmen und Kontur laufen in einer Schleife, bis man sie erneut anklickt oder stoppt. Jede Runde wird neu berechnet, verschobene Objekte sind also gleich in der nächsten Runde zu sehen.": "Enquadramento e Contorno rodam em loop até você clicar neles de novo ou parar. Cada volta é recalculada, então objetos movidos aparecem já na próxima volta.",
+  "Wiederholen höchstens (min)": "Repetir no máximo (min)",
+  "„Rahmen wiederholen“ endet nach dieser Zeit von selbst": "“Repetir enquadramento” termina sozinho após esse tempo",
+  "Rahmen wiederholen: Rahmen und Kontur laufen in einer Schleife, bis man sie erneut anklickt oder stoppt": "Repetir enquadramento: Enquadramento e Contorno rodam em loop até você clicar neles de novo ou parar"
 }

@@ -31,6 +31,8 @@ Sotto la stima del tempo, l'anteprima mostra **Energia e costo stimati** del lav
 
 **Frame** percorre il rettangolo intorno al lavoro, **Frame del contorno** ne segue il contorno. Entrambi possono usare il laser a bassa potenza, così vedi il frame sul materiale. Usa il frame per verificare che il lavoro stia sul pezzo prima di iniziare.
 
+Con **Ripeti frame** attivo (casella nella finestra Laser, oppure Laser → Ripeti frame) Frame e Frame del contorno girano in ciclo. Ogni giro viene ricalcolato dal disegno attuale: sposta gli oggetti o il pezzo e vedi il risultato già al giro successivo. Un nuovo clic sul pulsante in corso termina il ciclo dopo il giro attuale, **Arresta** subito. Il ciclo termina anche da solo dopo il tempo impostato in **Ripeti al massimo (min)** nelle impostazioni del dispositivo (scheda **Riquadro e puntatore**, predefinito 5 minuti) e quando un giro uscirebbe dall’area di lavoro.
+
 ## Avviare, mettere in pausa e fermare
 
 **Avvia** invia il lavoro. Durante il lavoro la finestra Laser mostra avanzamento, tempo trascorso e tempo rimanente.

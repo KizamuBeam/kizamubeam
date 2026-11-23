@@ -227,6 +227,10 @@ export interface Device {
   frameLaser: boolean;
   framePower: number;
   frameSpeed: number;
+  /** Continuous frame (#503): Frame and Contour repeat until they are clicked again or stopped */
+  frameRepeat: boolean;
+  /** Continuous frame ends by itself after this many minutes (0 = no limit) */
+  frameRepeatMinutes: number;
   /** Testfeuer im Bewegen-Fenster: erst aktivieren, dann nie über die eingestellte Leistung/dauer */
   fireEnabled: boolean;
   /** Maximale Laserleistung für das Testfeuer in % (0 … 100) */
@@ -337,6 +341,8 @@ export const DEFAULT_DEVICE: Device = {
   frameLaser: false,
   framePower: 1,
   frameSpeed: 3000,
+  frameRepeat: false,
+  frameRepeatMinutes: 5,
   fireEnabled: false,
   fireMaxPower: 1,
   fireMaxSeconds: 5,

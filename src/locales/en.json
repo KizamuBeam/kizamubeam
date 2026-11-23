@@ -5419,5 +5419,12 @@
   "„{key}“ ist {w} × {h} Pixel, erlaubt sind {min} bis {max} Pixel je Seite": "“{key}” is {w} × {h} pixels; {min} to {max} pixels per side are allowed",
   "„{key}“ muss quadratisch sein (ist {w} × {h} Pixel)": "“{key}” must be square (it is {w} × {h} pixels)",
   "„{key}“ ist zu schmal (Seitenverhältnis höchstens {r}:1)": "“{key}” is too narrow (aspect ratio at most {r}:1)",
-  "„{key}“ muss ein {types}-Bild als data:-Adresse mit Base64 sein": "“{key}” must be a {types} image as a data: URL with Base64"
+  "„{key}“ muss ein {types}-Bild als data:-Adresse mit Base64 sein": "“{key}” must be a {types} image as a data: URL with Base64",
+  "Rahmen wiederholen beendet: {why}": "Repeat frame ended: {why}",
+  "Rahmen wiederholen nach {n} min beendet.": "Repeat frame ended after {n} min.",
+  "Rahmen wiederholen": "Repeat frame",
+  "Rahmen und Kontur laufen in einer Schleife, bis man sie erneut anklickt oder stoppt. Jede Runde wird neu berechnet, verschobene Objekte sind also gleich in der nächsten Runde zu sehen.": "Frame and Contour run in a loop until you click them again or stop. Every lap is recomputed, so moved objects show up on the next lap.",
+  "Wiederholen höchstens (min)": "Repeat for at most (min)",
+  "„Rahmen wiederholen“ endet nach dieser Zeit von selbst": "“Repeat frame” ends by itself after this time",
+  "Rahmen wiederholen: Rahmen und Kontur laufen in einer Schleife, bis man sie erneut anklickt oder stoppt": "Repeat frame: Frame and Contour run in a loop until you click them again or stop"
 }
