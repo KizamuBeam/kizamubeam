@@ -1,6 +1,7 @@
 import './core-fixtures-env';
 import assert from 'node:assert/strict';
 import { pathIslands, pathIslandPlan } from '../src/pathIslands';
+import { findIslandAt, ringsBoxMm } from '../src/pathIslandsDialog';
 import { bumpIds, defaultLayer, newDoc, Obj, SubPath } from '../src/model';
 import { Editor } from '../src/editor';
 import { History } from '../src/history';
@@ -128,6 +129,15 @@ test('strict mode refuses invalid islands without mutation or Undo',()=>{
   const obj=object(14,[ring(0,0,20),{...ring(0,0,10),closed:false}]),ed=editor([obj]),before=ed.state();
   assert.equal(ed.separateSelectedPathIslands([{obj,indexes:[0]}],{}),0);
   assert.equal(ed.state(),before);assert.equal(ed.history.position,0);
+});
+test('canvas pick uses mm boxes built from µm rings (unit regression)',()=>{
+  const sq=(x0:number,y0:number,x1:number,y1:number)=>[{X:x0*1000,Y:y0*1000},{X:x1*1000,Y:y0*1000},{X:x1*1000,Y:y1*1000},{X:x0*1000,Y:y1*1000}];
+  const outer={rings:[sq(0,0,100,100)],box:ringsBoxMm([sq(0,0,100,100)]),area:10000};
+  assert.deepEqual(outer.box,{x0:0,y0:0,x1:100,y1:100});
+  const inner={rings:[sq(40,40,60,60)],box:ringsBoxMm([sq(40,40,60,60)]),area:400};
+  assert.equal(findIslandAt([outer,inner],50,50),1);
+  assert.equal(findIslandAt([outer,inner],10,10),0);
+  assert.equal(findIslandAt([outer,inner],200,200),-1);
 });
 if(process.argv[3]){
   const {readFileSync}=await import('node:fs'),{loadDoc}=await import('../src/model');

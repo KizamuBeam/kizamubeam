@@ -37,6 +37,34 @@ const containsPoint = (rings: Path[], x: number, y: number): boolean => {
   return inside;
 };
 
+export interface IslandPickGroup {
+  rings: Path[];
+  box: { x0: number; y0: number; x1: number; y1: number };
+  area: number;
+}
+
+/** Hüllbox eines Insel-Ringsatzes in mm (Ringe liegen in µm vor). */
+export const ringsBoxMm = (rings: Path[]): IslandPickGroup['box'] => {
+  const box = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
+  for (const ring of rings) for (const p of ring) {
+    box.x0 = Math.min(box.x0, p.X); box.y0 = Math.min(box.y0, p.Y);
+    box.x1 = Math.max(box.x1, p.X); box.y1 = Math.max(box.y1, p.Y);
+  }
+  box.x0 /= 1000; box.y0 /= 1000; box.x1 /= 1000; box.y1 /= 1000;
+  return box;
+};
+
+/** Kleinste Insel am Punkt (mm); -1 wenn keine trifft. */
+export const findIslandAt = (groups: IslandPickGroup[], x: number, y: number): number => {
+  let best = -1, bestArea = Infinity;
+  for (let i = 0; i < groups.length; i++) {
+    const g = groups[i];
+    if (!(g.area > 0) || x < g.box.x0 || x > g.box.x1 || y < g.box.y0 || y > g.box.y1) continue;
+    if (containsPoint(g.rings, x, y) && g.area < bestArea) { best = i; bestArea = g.area; }
+  }
+  return best;
+};
+
 export function openPathIslandsDialog(ed: Editor): void {
   if (open.has(ed) || ed.outlinePreview || document.querySelector('dialog[open]')) return;
   if (ed.drag || ed.draft || ed.pickHandler) return;
@@ -85,11 +113,7 @@ export function openPathIslandsDialog(ed: Editor): void {
           const group = plan.groups[pi];
           const world = transformSubs(group, m);
           const rings = world.map((sp) => flattenSub(sp, IDENT));
-          const box = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
-          for (const ring of rings) for (const p of ring) {
-            box.x0 = Math.min(box.x0, p.X); box.y0 = Math.min(box.y0, p.Y);
-            box.x1 = Math.max(box.x1, p.X); box.y1 = Math.max(box.y1, p.Y);
-          }
+          const box = ringsBoxMm(rings);
           groups.push({ leaf, m, group, world, rings, box, pi, area: (box.x1 - box.x0) * (box.y1 - box.y0) });
         }
       }
@@ -102,21 +126,11 @@ export function openPathIslandsDialog(ed: Editor): void {
     const preview: OutlinePreview = {
       subs: [], holes: [], hover: -1, excluded: [],
       pick: (p) => {
-        let best = -1, bestArea = Infinity;
-        for (let i = 0; i < groups.length; i++) {
-          const g = groups[i];
-          if (!(g.area > 0) || p.x < g.box.x0 || p.x > g.box.x1 || p.y < g.box.y0 || p.y > g.box.y1) continue;
-          if (containsPoint(g.rings, p.x, p.y) && g.area < bestArea) { best = i; bestArea = g.area; }
-        }
+        const best = findIslandAt(groups, p.x, p.y);
         if (best >= 0) toggleIsland(best);
       },
       move: (p) => {
-        let hover = -1, bestArea = Infinity;
-        for (let i = 0; i < groups.length; i++) {
-          const g = groups[i];
-          if (!(g.area > 0) || p.x < g.box.x0 || p.x > g.box.x1 || p.y < g.box.y0 || p.y > g.box.y1) continue;
-          if (containsPoint(g.rings, p.x, p.y) && g.area < bestArea) { hover = i; bestArea = g.area; }
-        }
+        const hover = findIslandAt(groups, p.x, p.y);
         if (preview.hover !== hover) { preview.hover = hover; ed.redraw(); }
       },
       cancel: () => dismiss(),
