@@ -144,11 +144,45 @@ export function createEditorToolbarControls(ed: Editor, refresh: () => void): {
   const currentRot = () => ed.sel.length === 1 ? (-Math.atan2(ed.sel[0].m[1], ed.sel[0].m[0]) * 180) / Math.PI : 0;
   register('snap-options', t('Fangziele'), () => true, () => {
     let open = false;
+    // Langes Halten wie bei den Werkzeuggruppen (renderer.ts, 350 ms): öffnet das
+    // Menü, ohne den Hauptschalter umzulegen. Loslassen danach wählt nichts aus.
+    let pressTimer = 0;
+    let suppressNextClick = false;
+    const cancelPress = () => {
+      if (pressTimer) { clearTimeout(pressTimer); pressTimer = 0; }
+    };
     const magnet = h('button', {
       class: 'ib', title: t('Fangen ein-/ausschalten'), 'aria-label': t('Fangen ein-/ausschalten'),
-      onclick: () => { toggleSnapMaster(ed); refresh(); },
+      onclick: () => {
+        if (suppressNextClick) { suppressNextClick = false; return; }
+        toggleSnapMaster(ed); refresh();
+      },
     }) as HTMLButtonElement;
     setIcon(magnet, 'snap');
+    magnet.addEventListener('pointerdown', (e: PointerEvent) => {
+      if (e.button !== 0 || !e.isPrimary) return;
+      suppressNextClick = false;
+      if (open) return;
+      cancelPress();
+      pressTimer = window.setTimeout(() => {
+        pressTimer = 0;
+        open = true;
+        suppressNextClick = true;
+        refresh();
+      }, 350);
+    });
+    magnet.addEventListener('pointerup', cancelPress);
+    magnet.addEventListener('pointercancel', cancelPress);
+    magnet.addEventListener('pointerleave', cancelPress);
+    magnet.addEventListener('contextmenu', (e: Event) => {
+      if (open) return;
+      e.preventDefault();
+      e.stopPropagation();
+      cancelPress();
+      open = true;
+      suppressNextClick = true;
+      refresh();
+    });
     const toggle = h('button', {
       class: 'ib-more', title: t('Fangziele'), 'aria-label': t('Fangziele'), 'aria-haspopup': 'dialog', 'aria-expanded': 'false',
       onclick: (e: Event) => {
@@ -250,6 +284,7 @@ export function createEditorToolbarControls(ed: Editor, refresh: () => void): {
     window.addEventListener('resize', onLayout);
     window.addEventListener('scroll', onLayout, true);
     return { el, update: refresh, dispose() {
+      cancelPress();
       pop.remove();
       document.removeEventListener('pointerdown', onDoc, true);
       document.removeEventListener('keydown', onKey, true);
