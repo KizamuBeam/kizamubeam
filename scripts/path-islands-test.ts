@@ -99,6 +99,36 @@ test('preserved source retains its original ID and all spans through Apply and U
   assert.equal(ed.doc.objs[0].id,a.id);assert.deepEqual((ed.doc.objs[0].shape as {subs:SubPath[]}).subs,[bad]);
   assert.equal(ed.doc.objs.flatMap(o=>(o.shape as {subs:SubPath[]}).subs).length,3);ed.doUndo();assert.equal(ed.state(),before);
 });
+test('selected islands split partially, id retained, single Undo',()=>{
+  const obj=object(10,[ring(0,0,20),ring(40,0,20),ring(80,0,20)]),ed=editor([obj]);
+  const plan=pathIslandPlan(obj.shape.subs as SubPath[],{matrix:obj.m});assert.equal(plan.groups.length,3);
+  const before=ed.state();
+  assert.equal(ed.separateSelectedPathIslands([{obj,indexes:[0,2]}],{}),2);
+  assert.equal(ed.doc.objs.length,3);assert.equal(ed.history.position,1);
+  assert.ok(ed.doc.objs.some(o=>o.id===10));
+  const moved=ed.doc.objs.filter(o=>o.id!==10).map(o=>JSON.stringify((o.shape as {subs:SubPath[]}).subs)).sort();
+  assert.deepEqual(moved,[plan.groups[0],plan.groups[2]].map(g=>JSON.stringify(g)).sort());
+  ed.doUndo();assert.equal(ed.state(),before);
+});
+test('full selection keeps the original id and round-trips Undo/Redo',()=>{
+  const obj=object(11,[ring(0,0,20),ring(40,0,20)]),ed=editor([obj]);
+  const before=ed.state(),after=(()=>{assert.equal(ed.separateSelectedPathIslands([{obj,indexes:[0,1]}],{}),2);return ed.state();})();
+  assert.ok(ed.doc.objs.some(o=>o.id===11));assert.equal(ed.history.position,1);
+  ed.doUndo();assert.equal(ed.state(),before);ed.doRedo();assert.equal(ed.state(),after);
+});
+test('invalid indexes and single-island selections are no-ops without Undo',()=>{
+  const obj=object(12,[ring(0,0,20),ring(40,0,20)]),ed=editor([obj]),before=ed.state();
+  assert.equal(ed.separateSelectedPathIslands([{obj,indexes:[7,-1]}],{}),0);
+  assert.equal(ed.state(),before);assert.equal(ed.history.position,0);
+  const single=object(13,[ring(0,0,10)]),ed2=editor([single]);
+  assert.equal(ed2.separateSelectedPathIslands([{obj:single,indexes:[0]}],{}),0);
+  assert.equal(ed2.history.position,0);
+});
+test('strict mode refuses invalid islands without mutation or Undo',()=>{
+  const obj=object(14,[ring(0,0,20),{...ring(0,0,10),closed:false}]),ed=editor([obj]),before=ed.state();
+  assert.equal(ed.separateSelectedPathIslands([{obj,indexes:[0]}],{}),0);
+  assert.equal(ed.state(),before);assert.equal(ed.history.position,0);
+});
 if(process.argv[3]){
   const {readFileSync}=await import('node:fs'),{loadDoc}=await import('../src/model');
   const file=process.argv[3],bytes=readFileSync(file),doc=loadDoc(JSON.parse(bytes.toString('utf8'))),source=doc.objs.find(o=>o.id===233)!;

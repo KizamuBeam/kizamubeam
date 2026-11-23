@@ -41,17 +41,33 @@ window.runFeatureChecks=async()=>{
  ed.doc=newDoc();ed.history=new History();ed.doc.layers[0]=defaultLayer(0);
  const obj2={id:newId(),m:[1,0,0,1,0,0],layer:0,name:'retained',shape:{kind:'path',subs:[ring(40,40),ring(50,10,50),ring(82,40)]}};
  ed.doc.objs=[obj2];ed.setSel([obj2]);const before2=ed.state();openPathIslandsDialog(ed);
- let dialog2=[...document.querySelectorAll('dialog')].at(-1),inputs=dialog2.querySelectorAll('input');
- check(dialog2.querySelectorAll('svg path').length===2,'preview groups holes with exterior: '+dialog2.querySelector('[role=status]').textContent);
- check(ed.state()===before2&&ed.history.position===0,'preview does not modify source/history');
- inputs[0].value='3';inputs[0].dispatchEvent(new Event('input'));check(dialog2.querySelectorAll('svg path').length===1,'distance setting keeps nearby islands together');
- inputs[0].value='0';inputs[0].dispatchEvent(new Event('input'));
- [...dialog2.querySelectorAll('button')].find(b=>b.textContent==='Abbrechen').click();check(ed.state()===before2,'Cancel preserves exact source');
- openPathIslandsDialog(ed);dialog2=[...document.querySelectorAll('dialog')].at(-1);[...dialog2.querySelectorAll('button')].find(b=>b.textContent==='Übernehmen').click();
- check(ed.doc.objs.length===2&&ed.doc.objs[0].shape.subs.length===2&&ed.history.position===1,'Apply creates separate islands with holes and one Undo');
- ed.doUndo();check(ed.state()===before2,'Undo exact restoration');ed.doRedo();check(ed.doc.objs.length===2,'Redo restores split');
- ed.setSel([ed.doc.objs[0]]);openPathIslandsDialog(ed);dialog2=[...document.querySelectorAll('dialog')].at(-1);ed.emit('doc');check([...dialog2.querySelectorAll('button')].find(b=>b.textContent==='Übernehmen').disabled,'changed source invalidates preview');dialog2.close();
- }
+ let dialog2=document.querySelector('.path-islands-dialog');
+check(!!dialog2&&!dialog2.matches(':modal'),'islands dialog opens as non-modal tool window');
+check(!!ed.outlinePreview,'canvas preview attaches while open');
+check(dialog2.querySelector('#path-islands-preserve').checked,'preserve defaults to on');
+check(dialog2.querySelectorAll('[data-island-group]').length===2,'plan groups exterior with hole and separate island: '+dialog2.querySelector('[role=status]').textContent);
+check(ed.state()===before2&&ed.history.position===0,'preview does not modify source/history');
+const dist=dialog2.querySelector('#path-islands-distance');
+dist.value='3';dist.dispatchEvent(new Event('input'));
+check(dialog2.querySelectorAll('[data-island-group]').length===1,'distance setting merges nearby islands');
+dist.value='0';dist.dispatchEvent(new Event('input'));
+check(dialog2.querySelectorAll('[data-island-group]').length===2,'distance reset restores two islands');
+[...dialog2.querySelectorAll('.dialog-buttons button')].find(b=>b.textContent==='Abbrechen').click();
+check(!document.body.contains(dialog2)&&ed.state()===before2,'Cancel preserves exact source');
+openPathIslandsDialog(ed);dialog2=document.querySelector('.path-islands-dialog');
+dialog2.querySelector('[data-island-group] input').click();
+check(dialog2.querySelector('[role=status]').textContent.includes('1/2'),'unchecking updates counter');
+dialog2.querySelector('.primary').click();
+check(ed.doc.objs.length===2&&ed.history.position===1,'partial apply splits only checked island in one Undo');
+ed.doUndo();check(ed.state()===before2,'Undo exact restoration');ed.doRedo();check(ed.doc.objs.length===2,'Redo restores split');
+ed.doc=newDoc();ed.history=new History();ed.doc.layers[0]=defaultLayer(0);
+ed.doc.objs=[obj2];ed.setSel([obj2]);openPathIslandsDialog(ed);dialog2=document.querySelector('.path-islands-dialog');
+ed.emit('doc');check(!document.body.contains(dialog2),'changed source closes dialog');
+ed.doc=newDoc();ed.history=new History();ed.doc.layers[0]=defaultLayer(0);
+ed.doc.objs=[obj2];ed.setSel([obj2]);openPathIslandsDialog(ed);dialog2=document.querySelector('.path-islands-dialog');
+dialog2.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));
+check(!document.body.contains(dialog2)&&!ed.outlinePreview,'Escape closes dialog and clears preview');
+}
 
  return {errors,passed};};`;
 const result=await build({stdin:{contents,resolveDir:process.cwd(),loader:'ts'},bundle:true,write:false,outfile:'fixture.js',format:'esm',external:['node:module'],metafile:true,loader:{'.woff':'empty','.woff2':'empty'},plugins:[{name:'offline',setup(b){
