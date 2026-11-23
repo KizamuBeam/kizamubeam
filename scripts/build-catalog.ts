@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 const { setQuickJSWasm } = await import('../src/plugins/engine');
 const qjs = readFileSync(new URL('../node_modules/@jitl/quickjs-wasmfile-release-sync/dist/emscripten-module.wasm', import.meta.url));
 setQuickJSWasm(qjs.buffer.slice(qjs.byteOffset, qjs.byteOffset + qjs.byteLength));
-const { buildCatalog } = await import('../src/catalog');
+const { buildCatalog, catalogImageFiles } = await import('../src/catalog');
 const { parsePack } = await import('../src/packs');
 const { checkPlugin } = await import('../src/plugins/headless');
 const { loadNetFixtures } = await import('./net-fixtures.mjs');
@@ -61,5 +61,7 @@ for (const [name, text] of files) {
 const json = await buildCatalog(files, new Date().toISOString(), sources);
 mkdirSync(out, { recursive: true });
 for (const [from, n] of copies) copyFileSync(from, join(out, n));
+// Plugin icons and previews next to the packs (the catalogue entry names them with their checksum)
+for (const [, text] of files) for (const f of catalogImageFiles(text)) writeFileSync(join(out, f.file), f.bytes);
 writeFileSync(join(out, 'catalog.json'), json);
 console.log(`Katalog mit ${files.length} Paket(en) in ${out}`);

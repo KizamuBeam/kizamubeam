@@ -5412,5 +5412,12 @@
   "Kategorien (Schneiden, Gravieren, Markieren und eigene) bearbeiten und den Layern 00–29 zuordnen. Auch über das Zahnrad im Fenster Schnitte / Layer.": "Editar las categorías (Cortar, Grabar, Marcar y propias) y asignarlas a las capas 00–29. También con el engranaje de la ventana Cortes / Capas.",
   "Geändert: {layers} (rückgängig mit Ctrl+Z).": "Cambiadas: {layers} (Ctrl+Z lo deshace).",
   "Speichert die Vorgaben und setzt die Layer 00–29 dieses Projekts auf die Einstellungen ihrer Kategorien (ein Undo-Schritt). Geänderte Layer bekommen wieder ihren Standardnamen (C03). Layer mit Bildern bleiben, wie sie sind.": "Guarda los ajustes por defecto y pone las capas 00–29 de este proyecto con los ajustes de sus categorías (un paso de deshacer). Las capas cambiadas recuperan su nombre estándar (C03). Las capas con imágenes se quedan como están.",
-  "Nicht geändert, weil Bilder darauf liegen: {layers}.": "Sin cambiar porque tienen imágenes: {layers}."
+  "Nicht geändert, weil Bilder darauf liegen: {layers}.": "Sin cambiar porque tienen imágenes: {layers}.",
+  "Vorschau von „{name}“": "Vista previa de «{name}»",
+  "„{key}“ ist größer als {kb} KB": "«{key}» ocupa más de {kb} KB",
+  "„{key}“ muss ein {types}-Bild sein": "«{key}» debe ser una imagen {types}",
+  "„{key}“ ist {w} × {h} Pixel, erlaubt sind {min} bis {max} Pixel je Seite": "«{key}» mide {w} × {h} píxeles; se permiten de {min} a {max} píxeles por lado",
+  "„{key}“ muss quadratisch sein (ist {w} × {h} Pixel)": "«{key}» debe ser cuadrada (mide {w} × {h} píxeles)",
+  "„{key}“ ist zu schmal (Seitenverhältnis höchstens {r}:1)": "«{key}» es demasiado estrecha (proporción máxima {r}:1)",
+  "„{key}“ muss ein {types}-Bild als data:-Adresse mit Base64 sein": "«{key}» debe ser una imagen {types} como dirección data: con Base64"
 }

@@ -20,6 +20,8 @@ const P = await import('../src/packs');
 const { pluginGenerator, PENDING, onPluginResult, setPluginSpawn } = await import('../src/plugins/generator');
 const { initPlugins, pluginGenerators, pluginProblems, testLoadPlugins } = await import('../src/plugins/registry');
 const { inProcess } = await import('../src/plugins/client');
+const { imageSize, IMAGE_LIMITS } = await import('../src/plugins/images');
+const { png, jpegHeader, dataUrl } = await import('./test-images');
 // Endless loops below should not wait for the full generate limit
 (await import('../src/plugins/contract')).LIMITS.callMs.generate = 3000;
 const G = await import('../src/generators/index');
@@ -107,6 +109,57 @@ await test('pack format 2: refused manifests', () => {
   // A data-only pack in format 1 stays valid
   const old = { format: 'kizamubeam-pack', id: 'com.example.old', version: '1.0.0', name: 'Old', devices: [{ name: 'Old laser', fw: 'grbl', bedW: 400, bedH: 400 }] };
   assert.equal(P.parsePack(JSON.stringify(old)).plugins.length, 0);
+});
+
+await test('own icon and preview picture: optional, checked, built from files', async () => {
+  const parse = (extra: Record<string, unknown>) => P.parsePack(jsPack(SQUARE, extra)).plugins[0];
+  // Without them nothing changes
+  const plain = parse({});
+  assert.equal(plain.iconImage, undefined);
+  assert.equal(plain.previewImage, undefined);
+  // A square PNG icon and a PNG or JPEG preview are kept as data: URLs
+  const icon = dataUrl(png(64, 64));
+  const m = parse({ iconImage: icon, previewImage: dataUrl(png(320, 200)) });
+  assert.equal(m.iconImage, icon);
+  assert.match(m.previewImage!, /^data:image\/png;base64,/);
+  assert.match(parse({ previewImage: dataUrl(jpegHeader(640, 480), 'image/jpeg') }).previewImage!, /^data:image\/jpeg;base64,/);
+  assert.deepEqual(imageSize(jpegHeader(640, 480)), { mime: 'image/jpeg', width: 640, height: 480 });
+  // Everything else refuses the pack with a message that names the field
+  const refused = (extra: Record<string, unknown>, re: RegExp) => throws(() => parse(extra), re);
+  refused({ iconImage: dataUrl(png(64, 48)) }, /iconImage.*quadratisch.*64 × 48/);
+  refused({ iconImage: dataUrl(png(16, 16)) }, /iconImage.*16 × 16 Pixel, erlaubt sind 32 bis 512/);
+  refused({ iconImage: dataUrl(png(600, 600)) }, /iconImage.*600 × 600/);
+  refused({ iconImage: dataUrl(jpegHeader(64, 64), 'image/jpeg') }, /iconImage.*PNG/);
+  refused({ iconImage: dataUrl(png(64, 64), 'image/jpeg') }, /iconImage.*PNG/);
+  refused({ iconImage: 'rect' }, /iconImage.*data:/);
+  refused({ iconImage: 'data:image/svg+xml;base64,PHN2Zy8+' }, /iconImage.*data:/);
+  refused({ iconImage: 'https://example.com/icon.png' }, /iconImage.*data:/);
+  refused({ iconImage: dataUrl(Buffer.alloc(IMAGE_LIMITS.icon.bytes + 1)) }, /iconImage.*größer als 128 KB/);
+  refused({ previewImage: dataUrl(png(1300, 400)) }, /previewImage.*Seitenverhältnis/);
+  refused({ previewImage: dataUrl(png(100, 100)) }, /previewImage.*100 × 100/);
+  refused({ previewImage: dataUrl(Buffer.from('not a picture at all, just some text bytes')) }, /previewImage.*PNG\/JPEG/);
+  // The pack builder turns "@file" into a data: URL
+  const { mkdtempSync, writeFileSync, mkdirSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = mkdtempSync(join(tmpdir(), 'kzb-img-'));
+  mkdirSync(join(dir, 'dist'));
+  writeFileSync(join(dir, 'dist/p.js'), SQUARE);
+  writeFileSync(join(dir, 'icon.png'), png(48, 48));
+  writeFileSync(join(dir, 'preview.jpg'), jpegHeader(800, 600));
+  const src = JSON.parse(jsPack(SQUARE));
+  Object.assign(src.plugins[0], { code: '@dist/p.js', iconImage: '@icon.png', previewImage: '@preview.jpg' });
+  delete src.plugins[0].sha256;
+  writeFileSync(join(dir, 'plugin.json'), JSON.stringify(src));
+  const built = P.parsePack(buildPluginPack(dir)).plugins[0];
+  assert.equal(built.iconImage, dataUrl(png(48, 48)));
+  assert.equal(built.previewImage, dataUrl(jpegHeader(800, 600), 'image/jpeg'));
+  src.plugins[0].iconImage = '@icon.gif';
+  writeFileSync(join(dir, 'plugin.json'), JSON.stringify(src));
+  assert.throws(() => buildPluginPack(dir), /only \.png/);
+  src.plugins[0].iconImage = '@../icon.png';
+  writeFileSync(join(dir, 'plugin.json'), JSON.stringify(src));
+  assert.throws(() => buildPluginPack(dir), /inside/);
 });
 
 await test('plugin generator: texts, pending result, cache, issues and labels (JavaScript)', async () => {

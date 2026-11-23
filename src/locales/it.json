@@ -5412,5 +5412,12 @@
   "Kategorien (Schneiden, Gravieren, Markieren und eigene) bearbeiten und den Layern 00–29 zuordnen. Auch über das Zahnrad im Fenster Schnitte / Layer.": "Modifica le categorie (Taglia, Incidi, Marca e proprie) e assegnale ai livelli 00–29. Anche con l’ingranaggio nella finestra Tagli / Livello.",
   "Geändert: {layers} (rückgängig mit Ctrl+Z).": "Modificati: {layers} (Ctrl+Z annulla).",
   "Speichert die Vorgaben und setzt die Layer 00–29 dieses Projekts auf die Einstellungen ihrer Kategorien (ein Undo-Schritt). Geänderte Layer bekommen wieder ihren Standardnamen (C03). Layer mit Bildern bleiben, wie sie sind.": "Salva le impostazioni predefinite e imposta i livelli 00–29 di questo progetto sulle impostazioni delle loro categorie (un passo di annullamento). I livelli modificati riprendono il nome standard (C03). I livelli con immagini restano come sono.",
-  "Nicht geändert, weil Bilder darauf liegen: {layers}.": "Non modificati perché contengono immagini: {layers}."
+  "Nicht geändert, weil Bilder darauf liegen: {layers}.": "Non modificati perché contengono immagini: {layers}.",
+  "Vorschau von „{name}“": "Anteprima di «{name}»",
+  "„{key}“ ist größer als {kb} KB": "«{key}» supera {kb} KB",
+  "„{key}“ muss ein {types}-Bild sein": "«{key}» deve essere un'immagine {types}",
+  "„{key}“ ist {w} × {h} Pixel, erlaubt sind {min} bis {max} Pixel je Seite": "«{key}» misura {w} × {h} pixel; sono ammessi da {min} a {max} pixel per lato",
+  "„{key}“ muss quadratisch sein (ist {w} × {h} Pixel)": "«{key}» deve essere quadrata (misura {w} × {h} pixel)",
+  "„{key}“ ist zu schmal (Seitenverhältnis höchstens {r}:1)": "«{key}» è troppo stretta (rapporto massimo {r}:1)",
+  "„{key}“ muss ein {types}-Bild als data:-Adresse mit Base64 sein": "«{key}» deve essere un'immagine {types} come indirizzo data: in Base64"
 }

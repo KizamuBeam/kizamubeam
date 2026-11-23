@@ -33,6 +33,8 @@ interface Tile {
   icon?: string;
   /** Vorschaubild (SVG) einer Vorlage */
   img?: string;
+  /** Own icon of a plugin (iconImage, a checked PNG data: URL); shown instead of `icon` */
+  png?: string;
   isNew: boolean;
   /** Suchtext für Vorlagen (gefaltet); Werkzeuge sucht apps.ts */
   text: string;
@@ -123,13 +125,13 @@ export function buildAppsPanel(ed: Editor) {
   const packTiles = (): Tile[] => [
     // Generators from extension plugins
     ...pluginGenerators().map((g): Tile => ({
-      key: g.id, group: 'pack', name: g.name, desc: g.desc ? `${g.desc} (${g.pack.name})` : g.pack.name, icon: g.icon, isNew: false,
+      key: g.id, group: 'pack', name: g.name, desc: g.desc ? `${g.desc} (${g.pack.name})` : g.pack.name, icon: g.icon, png: g.manifest.iconImage, isNew: false,
       text: fold(`${g.name} ${g.desc} ${g.keys} ${g.pack.name}`),
       run: () => openGenerator(ed, g),
     })),
     // Path tools and image filters from extension plugins; they work on the selection
     ...pluginTools().map((x): Tile => ({
-      key: x.id, group: 'pack', name: x.name, desc: x.desc ? `${x.desc} (${x.pack.name})` : x.pack.name, icon: x.icon, isNew: false,
+      key: x.id, group: 'pack', name: x.name, desc: x.desc ? `${x.desc} (${x.pack.name})` : x.pack.name, icon: x.icon, png: x.manifest.iconImage, isNew: false,
       text: fold(`${x.name} ${x.desc} ${x.keys} ${x.pack.name}`),
       run: () => {
         const need = toolNeeds(ed, x);
@@ -203,7 +205,11 @@ export function buildAppsPanel(ed: Editor) {
       },
     },
       h('span', { class: `app-art${tile.img ? ' img' : ''}` },
-        tile.img ? h('img', { src: svgUrl(tile.img), alt: '' }) : h('span', { class: 'app-icon', icon: tile.icon ?? '' }),
+        tile.img
+          ? h('img', { src: svgUrl(tile.img), alt: '' })
+          : tile.png
+            ? h('img', { class: 'app-png', src: tile.png, alt: '', draggable: 'false' })
+            : h('span', { class: 'app-icon', icon: tile.icon ?? '' }),
         isNew ? h('span', { class: 'app-new' }, t('NEU')) : null,
         fav ? h('span', { class: 'app-fav', icon: 'star' }) : null,
       ),

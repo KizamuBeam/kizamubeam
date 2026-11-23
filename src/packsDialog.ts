@@ -3,7 +3,7 @@ import { h, showDialog } from './dom';
 import { openText } from './files';
 import { entryLabel } from './materials';
 import { FIRMWARES, LaserModule, LaserType } from './gcode';
-import { Catalog, CatalogEntry, CatalogFetchProgress, catalogState, fetchCatalog, fetchCatalogPack } from './catalog';
+import { Catalog, CatalogEntry, CatalogFetchProgress, catalogState, fetchCatalog, fetchCatalogImage, fetchCatalogPack } from './catalog';
 import { version as APP_VERSION } from '../package.json';
 import { lang, t, tn } from './i18n';
 import {
@@ -17,6 +17,34 @@ import { clearNetCache, netAllowed, netLog, netOff, setNetAllowed, setNetOff } f
 import { netHostList } from './plugins/netUi';
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
+/** Small picture in front of a pack: the own icon of its first plugin that has one (iconImage) */
+const packIcon = (url: string | undefined) => (url ? h('img', { class: 'pack-icon', src: url, alt: '', draggable: 'false' }) : null);
+
+/** Picture of a catalogue entry, loaded and checked in the background; nothing while it is missing */
+function catalogPicture(e: CatalogEntry, kind: 'icon' | 'preview'): HTMLImageElement | null {
+  if (!(kind === 'icon' ? e.icon : e.preview)) return null;
+  const img = h('img', { class: kind === 'icon' ? 'pack-icon' : 'pack-preview', alt: '', draggable: 'false' }) as HTMLImageElement;
+  img.hidden = true;
+  void fetchCatalogImage(e, kind).then((url) => {
+    if (!url) return;
+    img.src = url;
+    img.hidden = false;
+  });
+  return img;
+}
+
+/** Plugins of a pack with their own icon, description and preview picture (details of an installed pack) */
+function pluginCards(p: Pack): HTMLElement[] {
+  return p.plugins.map((x) => {
+    const desc = pluginText(x.texts, lang, 'desc');
+    return h('div', { class: 'pack-plugin' },
+      h('div', { class: 'pack-plugin-head' }, packIcon(x.iconImage), h('b', {}, pluginText(x.texts, lang, 'name') ?? x.id)),
+      desc ? h('div', { class: 'muted' }, desc) : null,
+      x.previewImage ? h('img', { class: 'pack-preview', src: x.previewImage, alt: t('Vorschau von „{name}“', { name: pluginText(x.texts, lang, 'name') ?? x.id }), draggable: 'false' }) : null,
+    );
+  });
+}
 
 /** Bytegröße lesbar formatieren (B, KB, MB) */
 export function formatPackBytes(bytes: number, locale = lang): string {
@@ -160,7 +188,7 @@ function contentList(p: Pack): HTMLElement {
   for (const tp of p.templates) ul.append(h('li', {}, t('Vorlage: {name}', { name: tp.info.title })));
   for (const m of p.materials) ul.append(h('li', {}, t('Material: {name}', { name: entryLabel(m) })));
   for (const x of p.plugins)
-    ul.append(h('li', {}, t('Plugin: {name} ({runtime})', { name: pluginText(x.texts, lang, 'name') ?? x.id, runtime: x.runtime === 'js' ? 'JavaScript' : 'WebAssembly' })));
+    ul.append(h('li', {}, packIcon(x.iconImage), t('Plugin: {name} ({runtime})', { name: pluginText(x.texts, lang, 'name') ?? x.id, runtime: x.runtime === 'js' ? 'JavaScript' : 'WebAssembly' })));
   return ul;
 }
 
@@ -353,6 +381,7 @@ export async function openPacksDialog(doc?: Doc, opts?: { loadCatalog?: () => Pr
       selectCard(result, list);
       showInstalledDetails(ip);
     } },
+      packIcon(pack.plugins.map((x) => x.iconImage).find(Boolean)),
       h('div', { class: 'pack-text' },
         h('div', {}, h('b', {}, pack.name), ` ${pack.version}`, pack.author ? h('span', { class: 'muted' }, ` · ${pack.author}`) : null, ' ', ...badges),
         h('div', { class: 'muted' }, packSummary(pack)),
@@ -398,6 +427,7 @@ export async function openPacksDialog(doc?: Doc, opts?: { loadCatalog?: () => Pr
       h('p', { class: 'muted' }, packSummary(pack)),
       ...(pack.description ? [h('p', {}, pack.description)] : []),
       ...(pack.homepage ? [h('p', { class: 'pack-url muted' }, pack.homepage)] : []),
+      ...pluginCards(pack),
       h('div', { class: 'pack-details-actions' },
         h('button', { class: 'btn primary', onclick: act(() => setPackDisabled(pack.id, !ip.disabled)) }, ip.disabled ? t('Einschalten') : t('Ausschalten')),
         h('button', { class: 'btn', onclick: act(() => removePack(ip.file)) }, t('Entfernen')),
@@ -425,6 +455,7 @@ export async function openPacksDialog(doc?: Doc, opts?: { loadCatalog?: () => Pr
       h('p', { class: 'muted' }, countSummary(e.devices, e.templates, e.materials, e.assets, e.plugins)),
       ...(localText(e.description) ? [h('p', {}, localText(e.description))] : []),
       ...(e.source ? [h('p', { class: 'pack-url muted' }, t('Quellcode: {url}', { url: e.source }))] : []),
+      ...[catalogPicture(e, 'preview')].filter((x) => x !== null),
       h('div', { class: 'pack-details-actions' }, action),
     );
   };
@@ -640,6 +671,7 @@ export async function openPacksDialog(doc?: Doc, opts?: { loadCatalog?: () => Pr
       const kinds = e.plugins ? [badge(t('Plugins'), 'plugins', (e.runtimes ?? []).map((r) => (r === 'js' ? 'JavaScript' : 'WebAssembly')).join(', '))] : [];
       if (e.network?.length) kinds.push(badge(t('Netzwerk'), 'network', e.network.join(', ')));
       const card = h('div', { class: 'pack-card', tabIndex: 0 },
+        catalogPicture(e, 'icon'),
         h('div', { class: 'pack-text' },
           h('div', {}, h('b', {}, name), ` ${e.version}`, e.author ? h('span', { class: 'muted' }, ` · ${e.author}`) : null, ' ', ...kinds),
           h('div', { class: 'muted' }, countSummary(e.devices, e.templates, e.materials, e.assets, e.plugins)),

@@ -15,7 +15,7 @@ The built-in generators (boxes, gears, drawers and the others) are plugins too: 
 
 ## The Extensions window
 
-Open **File → Extensions …** (or **Edit → Settings → Extensions and fonts**). The window has three panes: the list on the left (**Installed**, **Catalogue** and **Updates**, with a search and a filter for **All**, **Content** and **Plugins**), the selected extension in the middle and its details on the right: what it contains, its version, where it comes from and which servers it may contact.
+Open **File → Extensions …** (or **Edit → Settings → Extensions and fonts**). The window has three panes: the list on the left (**Installed**, **Catalogue** and **Updates**, with a search and a filter for **All**, **Content** and **Plugins**), the selected extension in the middle and its details on the right: what it contains, its version, where it comes from and which servers it may contact. A plugin can bring its own icon and a preview picture: the icon appears in front of the extension and on its tile in the Toolbox, the preview in the details.
 
 ### Installing
 

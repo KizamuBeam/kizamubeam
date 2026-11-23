@@ -5412,5 +5412,12 @@
   "Kategorien (Schneiden, Gravieren, Markieren und eigene) bearbeiten und den Layern 00–29 zuordnen. Auch über das Zahnrad im Fenster Schnitte / Layer.": "Edit categories (Cut, Engrave, Mark and your own) and assign them to layers 00–29. Also via the gear in the Cuts / Layers window.",
   "Geändert: {layers} (rückgängig mit Ctrl+Z).": "Changed: {layers} (Ctrl+Z undoes it).",
   "Speichert die Vorgaben und setzt die Layer 00–29 dieses Projekts auf die Einstellungen ihrer Kategorien (ein Undo-Schritt). Geänderte Layer bekommen wieder ihren Standardnamen (C03). Layer mit Bildern bleiben, wie sie sind.": "Saves the defaults and sets layers 00–29 of this project to the settings of their categories (one undo step). Changed layers get their standard name back (C03). Layers holding images stay as they are.",
-  "Nicht geändert, weil Bilder darauf liegen: {layers}.": "Not changed because they hold images: {layers}."
+  "Nicht geändert, weil Bilder darauf liegen: {layers}.": "Not changed because they hold images: {layers}.",
+  "Vorschau von „{name}“": "Prévia de “{name}”",
+  "„{key}“ ist größer als {kb} KB": "“{key}” tem mais de {kb} KB",
+  "„{key}“ muss ein {types}-Bild sein": "“{key}” deve ser uma imagem {types}",
+  "„{key}“ ist {w} × {h} Pixel, erlaubt sind {min} bis {max} Pixel je Seite": "“{key}” tem {w} × {h} pixels; são permitidos de {min} a {max} pixels por lado",
+  "„{key}“ muss quadratisch sein (ist {w} × {h} Pixel)": "“{key}” deve ser quadrada (tem {w} × {h} pixels)",
+  "„{key}“ ist zu schmal (Seitenverhältnis höchstens {r}:1)": "“{key}” é estreita demais (proporção no máximo {r}:1)",
+  "„{key}“ muss ein {types}-Bild als data:-Adresse mit Base64 sein": "“{key}” deve ser uma imagem {types} como endereço data: em Base64"
 }
