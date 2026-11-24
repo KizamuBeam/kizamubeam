@@ -52,7 +52,7 @@ body:
     id: version
     attributes:
       label: KizamuBeam version and OS
-      placeholder: e.g. 2.9.4 on Windows 11
+      placeholder: e.g. 2.9.5 on Windows 11
     validations:
       required: true
   - type: input

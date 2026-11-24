@@ -1,7 +1,7 @@
 {
   "lang": "it",
   "locale": "it_IT",
-  "version": "2.9.4",
+  "version": "2.9.5",
   "meta": {
     "title": "KizamuBeam – software laser gratuito per incidere e tagliare",
     "description": "Software laser gratuito e open source per macOS, Windows e Linux. Progetta, incidi foto, genera scatole e ingranaggi e invia i lavori direttamente a laser con FluidNC, GRBL, grblHAL, Marlin e Smoothieware.",
