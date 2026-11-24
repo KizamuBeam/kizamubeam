@@ -18,6 +18,8 @@ export interface OutlinePreview {
   subGroups?: { subs: SubPath[]; color: string; dim?: boolean }[];
   original?: SubPath[];
   excluded?: SubPath[]; removed?: SubPath[]; markers?: Pt[];
+  /** Ergebnis zusätzlich flächig füllen und durchgezogen umranden (geführte Formerstellung). */
+  accentResult?: boolean;
   pick: (point: Pt) => void; move: (point: Pt) => void; cancel: () => void;
 }
 

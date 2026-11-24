@@ -168,4 +168,9 @@ export const ICONS: Record<string, string> = {
   devices: svg('<rect x="3" y="3" width="13" height="14" rx="1"/><path d="M18 7h3M18 11h3M18 15h3"/>'),
   islands: svg('<path d="M3 9l4-4 4 2 3-1 2 5-2 4-5 1-4-3z"/><path d="M15 17l3-2 3 1 1 3-2 2-3-1-2-2z" opacity=".65"/>'),
   imageedit: svg('<rect x="3" y="5" width="15" height="14" rx="1"/><circle cx="8" cy="10" r="1.6"/><path d="M3 16l4.5-3.5 3 2.5 3.5-3 4 3.5"/><path d="M16.5 15.5l2.5-2.5 2 2-2.5 2.5z"/><path d="M19 13l1.5-1.5"/>'),
+  // Geführte Formerstellung: überlappende Quadrate wie in der Buttonleiste (A links, B rechts versetzt)
+  boolUnion: svg('<rect x="3.5" y="7" width="9" height="9" fill="currentColor" fill-opacity=".15"/><rect x="11.5" y="9" width="9" height="9" fill="currentColor" fill-opacity=".15"/>'),
+  boolIntersect: svg('<rect x="3.5" y="7" width="9" height="9" stroke-dasharray="2 1.6"/><rect x="11.5" y="9" width="9" height="9" stroke-dasharray="2 1.6"/><rect x="11.5" y="9" width="1" height="7" fill="currentColor" fill-opacity=".5" stroke="none"/>'),
+  boolSubAB: svg('<path d="M3.5 7H12.5V9H11.5V16H3.5Z" fill="currentColor" fill-opacity=".3"/><rect x="11.5" y="9" width="9" height="9" stroke-dasharray="2 1.6"/>'),
+  boolSubBA: svg('<rect x="3.5" y="7" width="9" height="9" stroke-dasharray="2 1.6"/><path d="M12.5 9H20.5V18H11.5V16H12.5Z" fill="currentColor" fill-opacity=".3"/>'),
 };

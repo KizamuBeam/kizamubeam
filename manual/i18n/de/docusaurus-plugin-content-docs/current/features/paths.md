@@ -20,6 +20,8 @@ Wähle zwei oder mehr Formen aus und dann eine der Operationen unter **Werkzeuge
 
 Die **Booleschen Optionen** (in der Schaltflächengruppe oder unter **Werkzeuge → Boolesche Operationen**) legen fest, welche Form die Basis ist (zuerst gewählt, hinterste oder vorderste) und ob die Originale erhalten bleiben. Im selben Menü stehen auch **Vordere vom hinteren abziehen** und **Hintere vom vorderen abziehen**.
 
+Die **Geführte Formerstellung** (**Werkzeuge → Geführte Formerstellung …**, die Schaltflächengruppe oder das Kontextmenü der Arbeitsfläche) bietet dieselben Operationen in einem modeless Werkzeugfenster: Vereinen, Schnittmenge, A−B oder B−A per Symbol-Schaltflächen wählen und die Live-Vorschau auf der Arbeitsfläche verfolgen — das Ergebnis gefüllt, ausgeschlossene Teile markiert. **Originale behalten** (Standard an) erhält die Auswahl und kann die behaltenen Originale auf „Nicht lasern“ legen; **Zurücksetzen** stellt die unveränderte Ansicht wieder her. Übernehmen erzeugt einen einzigen Undo-Schritt.
+
 Gut zu wissen:
 
 - Formen in einer Gruppe zählen als eine Fläche, Überlappungen innerhalb einer Gruppe werden also keine Löcher.
