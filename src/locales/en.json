@@ -5429,7 +5429,7 @@
   "Geführte Formerstellung …": "Guided Shape Builder…",
   "Formerstellung wird berechnet …": "Computing Shape Builder…",
   "Behaltene Originale auf „Nicht lasern“ setzen": "Set kept originals to \"Don't laser\"",
-  "Originale werden erhalten, aber auf „Nicht lasern“ gelegt.": "Originals are kept but set to \"Don't laser\".",
+  "Originale bleiben erhalten, aber auf „Nicht lasern“ gelegt.": "Originals are kept but set to \"Don't laser\".",
   "Operation auswählen": "Select operation",
   "Mindestens zwei Formen auswählen. Bilder sind nicht unterstützt.": "Select at least two shapes. Images are not supported.",
   "Für diese Auswahl ist die Operation nicht anwendbar.": "This operation cannot be applied to the current selection.",

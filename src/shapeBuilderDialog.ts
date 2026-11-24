@@ -21,7 +21,7 @@ export async function openShapeBuilderDialog(ed: Editor): Promise<void> {
   try {
     const keep = h('input', { type: 'checkbox', checked: true, id: 'shape-builder-keep', 'aria-label': t('Originale behalten') });
     const noLaser = h('input', { type: 'checkbox', checked: true, id: 'shape-builder-noLaser', 'aria-label': t('Behaltene Originale auf „Nicht lasern“ setzen') });
-    const enabledNote = h('p', { class: 'note', id: 'shape-builder-noLaser-note' }, t('Originale werden erhalten, aber auf „Nicht lasern“ gelegt.'));
+    const enabledNote = h('p', { class: 'note', id: 'shape-builder-noLaser-note' }, t('Originale bleiben erhalten, aber auf „Nicht lasern“ gelegt.'));
     const syncNoLaser = () => {
       const kept = keep.checked;
       noLaser.disabled = !kept;
