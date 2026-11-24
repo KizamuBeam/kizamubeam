@@ -20,6 +20,8 @@ Select two or more shapes and choose one of the operations under **Tools → Boo
 
 **Boolean Options** (in the button group or under **Tools → Boolean Operations**) set which shape is the base (first selected, backmost or frontmost) and whether the originals are kept. The same menu also has **Subtract front from back** and **Subtract back from front**.
 
+**Guided Shape Builder** (**Tools → Guided Shape Builder…**, the boolean button group, or the workspace context menu) offers the same operations in a modeless tool window: choose weld, intersection, A−B or B−A from icon buttons and watch a live preview on the canvas — the result filled, excluded parts marked. **Keep originals** (on by default) preserves the selection and can set the kept originals to “Don't laser”; **Reset** restores the unmodified view. Applying creates a single undo step.
+
 Good to know:
 
 - Shapes in a group count as one area, so overlaps inside a group do not turn into holes.

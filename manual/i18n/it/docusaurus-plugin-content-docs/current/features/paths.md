@@ -20,6 +20,8 @@ Seleziona due o più forme e scegli una delle operazioni in **Strumenti → Oper
 
 Le **Opzioni booleane** (nel gruppo di pulsanti o in **Strumenti → Operazioni booleane**) stabiliscono quale forma fa da base (la prima selezionata, quella più in fondo o quella più in primo piano) e se gli originali vengono mantenuti. Lo stesso menu contiene anche **Sottrai il primo piano dallo sfondo** e **Sottrai lo sfondo dal primo piano**.
 
+La **Creazione forme guidata** (**Strumenti → Creazione forme guidata…**, il gruppo di pulsanti o il menu contestuale dell’area di lavoro) offre le stesse operazioni in una finestra di strumento non modale: scegli unione, intersezione, A−B o B−A dai pulsanti con icona e segui l’anteprima dal vivo sull’area di lavoro — il risultato riempito, le parti escluse evidenziate. **Mantieni originali** (attivo per impostazione) conserva la selezione e può impostare gli originali conservati su «Non laserare»; **Ripristina** mostra di nuovo la vista invariata. L’applicazione crea un unico passo di annullamento.
+
 Da sapere:
 
 - Le forme in un gruppo contano come un’unica area, quindi le sovrapposizioni all’interno di un gruppo non diventano fori.
