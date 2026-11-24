@@ -3,7 +3,7 @@ import { ICONS } from '../icons';
 import type { BarcodeShape, GenShape, ImageShape, Obj, ObjBindKey, RectCorners, TextShape } from '../model';
 import { rectCorners } from '../model';
 import { evaluate, formatNumber, namesIn } from '../params';
-import { isFallbackFont, onFontListChanged, refreshFonts, requestLocalFonts, systemFonts } from '../fonts';
+import { hasFontManager, isFallbackFont, localFontStatus, onFontListChanged, refreshFonts, requestLocalFonts, systemFonts } from '../fonts';
 import { openFontManager } from '../fontManager';
 import { createFontPicker } from '../fontPicker';
 import { f2, h, iconBtn, numInput, sep, setIcon, setVal } from '../dom';
@@ -514,12 +514,31 @@ export function createEditorToolbarControls(ed: Editor, refresh: () => void): {
         void requestLocalFonts().then((ok) => { if (ok && available()) refreshFonts(); });
       },
       openManager: () => { if (available()) void openFontManager(ed); },
+      // Browser: Schriftzugriff schon beim Öffnen der Liste anstoßen (Nutzer-Geste → Rückfrage erscheint),
+      // damit die Auswahl danach echte Schriften lädt statt still bei Roboto zu bleiben.
+      onOpen: async () => {
+        if (hasFontManager() || !available()) return;
+        if (await requestLocalFonts() && available()) refreshFonts();
+      },
     });
     // Fehlende Schrift (#233): Roboto springt still ein — Warnung mit Weg zum Font-Manager
     const fbWarn = h('button', {
       type: 'button', class: 'fontpick-fallback', hidden: true,
       title: '',
-      onclick: () => { if (available()) void openFontManager(ed); },
+      // Desktop öffnet den Font-Manager, Browser fordert den Schriftzugriff an (Manager gibt es nur in der App).
+      onclick: async () => {
+        if (!available()) return;
+        if (hasFontManager()) { void openFontManager(ed); return; }
+        const st = await localFontStatus();
+        if (st === 'unsupported') {
+          ed.hint = t('Dieser Browser gibt keine installierten Schriften frei — Chrome oder Edge verwenden (Desktop-App geht immer).');
+        } else if (!(await requestLocalFonts())) {
+          ed.hint = st === 'denied'
+            ? t('Schriftzugriff ist blockiert — in den Website-Einstellungen (Schloss-Symbol) erlauben und erneut wählen.')
+            : t('Schriftzugriff wurde nicht erteilt — Text bleibt bei Roboto.');
+        } else refreshFonts();
+        ed.emit('tool');
+      },
     }) as HTMLButtonElement;
     pickers.add(fontPicker);
     const fSize = numInput('small', plain(['size'], (v) => v > 0 && ed.updateTexts({ size: v })), t('Schriftgröße (mm)'), formula('size'));

@@ -96,6 +96,22 @@ export async function requestLocalFonts(): Promise<boolean> {
   }
 }
 
+/** Stand des lokalen Schriftzugriffs im Browser, ohne eine Rückfrage auszulösen (Permissions-Query fragt nicht). */
+export type LocalFontStatus = 'granted' | 'prompt' | 'denied' | 'unsupported';
+export async function localFontStatus(): Promise<LocalFontStatus> {
+  if (isTauri()) return 'granted';
+  const w = window as unknown as { queryLocalFonts?: () => Promise<LocalFontData[]> };
+  if (!w.queryLocalFonts) return 'unsupported';
+  try {
+    const perm = await navigator.permissions.query({ name: 'local-fonts' as PermissionName });
+    if (perm.state === 'granted') return 'granted';
+    if (perm.state === 'denied') return 'denied';
+  } catch {
+    /* Unbekannter Stand: Rückfrage zulassen. */
+  }
+  return 'prompt';
+}
+
 export function loadFont(family: string, bold: boolean, italic: boolean): Promise<LoadedFont> {
   const key = fontKey(family, bold, italic);
   let p = cache.get(key);

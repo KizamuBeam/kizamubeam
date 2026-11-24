@@ -5489,5 +5489,7 @@
   "Erneut laden": "Reintentar descarga",
   "Sprachen …": "Idiomas …",
   "Nicht mehr fragen": "No volver a preguntar",
-  "Wörterbuch ({lang}) für Rechtschreibprüfung laden?": "¿Descargar el diccionario ({lang}) para el corrector ortográfico?"
-}
+  "Wörterbuch ({lang}) für Rechtschreibprüfung laden?": "¿Descargar el diccionario ({lang}) para el corrector ortográfico?",
+"Dieser Browser gibt keine installierten Schriften frei — Chrome oder Edge verwenden (Desktop-App geht immer).": "Este navegador no expone las fuentes instaladas: use Chrome o Edge (la aplicación de escritorio siempre funciona).",
+  "Schriftzugriff ist blockiert — in den Website-Einstellungen (Schloss-Symbol) erlauben und erneut wählen.": "El acceso a las fuentes está bloqueado: permítalo en la configuración del sitio (icono de candado) y vuelva a elegir.",
+  "Schriftzugriff wurde nicht erteilt — Text bleibt bei Roboto.": "No se concedió el acceso a las fuentes: el texto sigue en Roboto."}

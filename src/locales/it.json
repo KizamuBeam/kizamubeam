@@ -5489,5 +5489,7 @@
   "Erneut laden": "Riprova download",
   "Sprachen …": "Lingue …",
   "Nicht mehr fragen": "Non chiedere più",
-  "Wörterbuch ({lang}) für Rechtschreibprüfung laden?": "Scaricare il dizionario ({lang}) per il controllo ortografico?"
-}
+  "Wörterbuch ({lang}) für Rechtschreibprüfung laden?": "Scaricare il dizionario ({lang}) per il controllo ortografico?",
+"Dieser Browser gibt keine installierten Schriften frei — Chrome oder Edge verwenden (Desktop-App geht immer).": "Questo browser non espone i font installati — usare Chrome o Edge (l’app desktop funziona sempre).",
+  "Schriftzugriff ist blockiert — in den Website-Einstellungen (Schloss-Symbol) erlauben und erneut wählen.": "L’accesso ai font è bloccato — consentirlo nelle impostazioni del sito (icona del lucchetto) e riselezionare.",
+  "Schriftzugriff wurde nicht erteilt — Text bleibt bei Roboto.": "Accesso ai font non concesso — il testo resta in Roboto."}
