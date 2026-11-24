@@ -37,7 +37,7 @@ KizamuBeam ti accompagna dalla prima idea al pezzo finito in un’unica app: dis
 | **Windows** (64 bit) | `KizamuBeam_…_x64-setup.exe` |
 | **Linux** (64 bit) | `KizamuBeam_…_amd64.AppImage`, `.deb` o `.rpm` |
 
-Scarica l’ultima versione dalla [pagina delle release](https://github.com/KizamuBeam/kizamubeam/releases) o dal [sito web](https://kizamubeam.github.io/kizamubeam/it/#download). Versione attuale: **2.9.5** (stabile). Una volta installato, KizamuBeam si aggiorna da solo (Aiuto → Controlla aggiornamenti).
+Scarica l’ultima versione dalla [pagina delle release](https://github.com/KizamuBeam/kizamubeam/releases) o dal [sito web](https://kizamubeam.github.io/kizamubeam/it/#download). Versione attuale: **2.9.6** (stabile). Una volta installato, KizamuBeam si aggiorna da solo (Aiuto → Controlla aggiornamenti).
 
 > **Primo avvio su macOS:** se macOS dice che l’app non può essere verificata, apri Impostazioni di Sistema → Privacy e sicurezza e fai clic su “Apri comunque”.
 
