@@ -675,6 +675,15 @@ export class EditorRender {
         ctx.setLineDash([6 * px, 4 * px]);
         ctx.stroke(subsToPath2D(preview.subs));
       }
+      if (preview.accentResult && preview.subs.length) {
+        ctx.save();
+        ctx.fillStyle = 'rgba(13,148,136,0.22)';
+        ctx.fill(subsToPath2D(preview.subs), 'evenodd');
+        ctx.strokeStyle = '#14e0c8'; ctx.lineWidth = 3 * px;
+        ctx.setLineDash([]);
+        ctx.stroke(subsToPath2D(preview.subs));
+        ctx.restore();
+      }
       if (preview.removed?.length) {
         ctx.strokeStyle = '#c77414'; ctx.lineWidth = 3 * px;
         ctx.setLineDash([4 * px, 3 * px]); ctx.stroke(subsToPath2D(preview.removed));

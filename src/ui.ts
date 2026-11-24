@@ -1,4 +1,5 @@
 import { openOutlineDialog } from './outlineDialog';
+import { openShapeBuilderDialog } from './shapeBuilderDialog';
 import { canEnterIsolation } from './isolation';
 // Oberfläche: Menü, Leisten, Panels, Palette, Statusleiste.
 import { Editor, Tool } from './editor';
@@ -143,7 +144,7 @@ export function buildUI(ed: Editor) {
   buildLayers(ed);
   const contextCallbacks = {
     adjust: () => openAdjustDialog(ed), trace: () => openTraceDialog(ed), background: () => openBackgroundDialog(ed),
-    saveBitmap: () => saveProcessedBitmap(ed), vectorFit: () => openVectorFitDialog(ed), builder: () => beginShapeBuilder(ed),
+    saveBitmap: () => saveProcessedBitmap(ed), vectorFit: () => openVectorFitDialog(ed), builder: () => beginShapeBuilder(ed), builderGuided: () => openShapeBuilderDialog(ed),
     library: () => openAddSelectionDialog(ed), preview: () => openPreview(ed), objects: () => showWindow('objects'),
   };
   buildObjectsPanel(ed, contextCallbacks);
@@ -286,6 +287,7 @@ function buildMenu(ed: Editor) {
       [t('Isolation verlassen'), '', () => ed.leaveIsolation(), undefined, () => !!ed.isolation, () => !!ed.isolation],
       [t('Pfade vereinfachen / glätten…'), 'vectorfit', () => openVectorFitDialog(ed)],
       [t('Formerstellung …'), 'shape-builder', () => beginShapeBuilder(ed)],
+      [t('Geführte Formerstellung …'), 'shape-builder-guided', () => openShapeBuilderDialog(ed)],
       [t('Schlitze / Ausklinkungen platzieren …'), 'slotplace', () => openSlotPlacementDialog(ed)],
       [t('Rechteck'), 'tool:rect', () => ed.setTool('rect')],
       [t('Ellipse'), 'tool:ellipse', () => ed.setTool('ellipse')],
@@ -694,6 +696,7 @@ function buildBars(ed: Editor) {
     { id: 'isolate', cat: W, icon: 'isolate', label: t('Auswahl isolieren / Isolation verlassen'), run: () => { if (ed.isolation) ed.leaveIsolation(); else ed.isolateSelection(); }, enabled: () => !!ed.isolation || canEnterIsolation(ed), on: () => !!ed.isolation, dyn: () => ed.isolation ? { icon: 'isolateExit', label: t('Isolation verlassen') } : { icon: 'isolate', label: t('Auswahl isolieren') } },
     { id: 'vectorfit', cat: W, icon: 'vectorfit', label: t('Ausgewählte Pfade vereinfachen / glätten…'), run: () => openVectorFitDialog(ed), enabled: () => ed.vectorFitTargets().length > 0 },
     { id: 'shape-builder', cat: W, icon: 'shapeBuilder', label: t('Formerstellung …'), run: () => beginShapeBuilder(ed), enabled: sel1, on: () => ed.tool === 'builder' },
+    { id: 'shape-builder-guided', cat: W, icon: 'shapeBuilder', label: t('Geführte Formerstellung …'), run: () => openShapeBuilderDialog(ed), enabled: sel1 },
     tool('pencil', 'pencil', t('Freihand / Bleistift: Ziehen zeichnet einen angepassten Bézierpfad')),
   tool('shaper', 'shaper', t('Shaper: Geste formt Grundform, umfährt zum Vereinen, kreuzt zum Abziehen')),
     tool('curvature', 'curve', t('Kurven zeichnen: Klicken setzt Ecken, Ziehen formt Kurven')),
@@ -784,7 +787,7 @@ function buildBars(ed: Editor) {
     { id: 'grp:transform', cat: A, label: t('Spiegeln und drehen (Gruppe)'), items: ['mirrorh', 'mirrorv', 'rotccw', 'rotcw'], run: () => {} },
     { id: 'grp:align', cat: A, label: t('Ausrichten und verteilen (Gruppe)'), items: ['alignl', 'alignhc', 'alignr', 'alignt', 'alignvc', 'alignb', 'disth', 'distv'], run: () => {} },
     { id: 'grp:zoom', cat: V, label: t('Zoom (Gruppe)'), items: ['zoompage', 'zoomsel', 'zoomin', 'zoomout'], run: () => {} },
-    { id: 'grp:bool', cat: M, label: t('Boolesche Operationen (Gruppe)'), items: ['union', 'subtract', 'intersect', 'shape-builder', 'boolopts'], run: () => {} },
+    { id: 'grp:bool', cat: M, label: t('Boolesche Operationen (Gruppe)'), items: ['union', 'subtract', 'intersect', 'shape-builder', 'shape-builder-guided', 'boolopts'], run: () => {} },
     { id: 'grp:gen', cat: W, label: t('Generatoren (Gruppe)'), items: GENERATORS.filter((g) => g.tile).map((g) => g.id), run: () => {} },
     { id: 'grp:array', cat: M, label: t('Arrays (Gruppe)'), items: ['gridarray', 'circarray'], run: () => {} },
     { id: 'grp:relate', cat: A, label: t('Beziehungen (Gruppe)'), items: REL_MODES.map((m) => `rel:${m}`), run: () => {} },

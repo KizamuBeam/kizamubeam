@@ -1,5 +1,5 @@
 // Editor: In Pfad umwandeln, Boolesche Operationen, Offset und Arrays.
-import { clone, cloneObjs, homeLayer, IDENT, leaves, Mat, mul, newId, Obj, Pt, SubPath } from '../model';
+import { apply, clone, cloneObjs, homeLayer, IDENT, leaves, Mat, mul, newId, Node, Obj, Pt, SubPath } from '../model';
 import { BoolBase, BoolOp, booleanOp, closedCount, OffsetOptions, offsetOp, openSubs, orderForBoolean } from '../ops';
 import { loadFont, textGlyphSubs, textToSubs } from '../fonts';
 import { MAX_COPIES } from '../arrays';
@@ -8,6 +8,23 @@ import { t, tn } from '../i18n';
 import type { Editor } from '../editor';
 
 const BOOL_KEY = 'kizamubeam.boolean';
+
+/** Operationen des geführten Formerstellung-Fensters: Abziehen gibt es in beiden Richtungen (A−B / B−A). */
+export type AssistantOp = 'union' | 'subtractAB' | 'subtractBA' | 'intersect';
+
+
+function mapSub(sp: SubPath, m: Mat): SubPath {
+  const q = (p: Pt) => apply(m, p.x, p.y);
+  return {
+    closed: sp.closed,
+    nodes: sp.nodes.map((n) => {
+      const r: Node = q(n);
+      if (n.cin) r.cin = q(n.cin);
+      if (n.cout) r.cout = q(n.cout);
+      return r;
+    }),
+  };
+}
 
 export class EditorShapeOps {
   convertObjToPath(this: Editor, o: Obj) {
@@ -193,5 +210,72 @@ export class EditorShapeOps {
   async previewOffset(this: Editor, opt: OffsetOptions | null) {
     this.offsetPreview = opt && this.sel.length ? offsetOp(await this.withTextOutlines(this.sel), opt) : null;
     this.redraw();
+  }
+  /** Gemeinsame Kandidaten-Auswertung für das Formerstellung-Fenster (Auswahl -> Flächen und Linien). */
+  private async assistantCandidates(this: Editor, op: AssistantOp) {
+    const cands = this.sel.filter((o) => o.shape.kind !== 'image');
+    const outlined = await this.withTextOutlines(cands);
+    const calc = new Map(cands.map((o, i) => [o, outlined[i]]));
+    let areas = orderForBoolean(cands.filter((o) => closedCount(calc.get(o)!) > 0), this.doc.objs, 'selection');
+    // B−A: die ersten beiden gewählten Objekte tauschen die Rollen — das zweite wird zur Basis,
+    // alle übrigen (inkl. des ersten) werden davon abgezogen.
+    if (op === 'subtractBA' && areas.length >= 2) areas = [areas[1], areas[0], ...areas.slice(2)];
+    const lines = op === 'subtractAB' || op === 'subtractBA' || op === 'intersect' ? cands.filter((o) => !areas.includes(o) && openSubs(calc.get(o)!).length > 0) : [];
+    const inputs = [...areas, ...lines];
+    if (areas.length < 2 && !(areas.length && lines.length)) return null;
+    return { cands, outlined, calc, areas, lines, inputs };
+  }
+
+  /** Vorschau für das Formerstellung-Fenster: Ergebniskonturen und ausgeschlossene Teile (nicht union). */
+  async previewAssistant(this: Editor, op: AssistantOp): Promise<{ subs: SubPath[]; excluded: SubPath[] } | null> {
+    const r = await this.assistantCandidates(op);
+    if (!r) return null;
+    const boolOp = op === 'union' ? 'union' : op === 'intersect' ? 'intersect' : 'subtract';
+    const subs = booleanOp(boolOp, r.areas.map((o) => r.calc.get(o)!), r.lines.map((o) => r.calc.get(o)!));
+    const excluded: SubPath[] = [];
+    if (op !== 'union') {
+      for (const o of [...r.areas.slice(1), ...r.lines]) {
+        for (const [leaf, m] of leaves([r.calc.get(o)!])) {
+          for (const sp of shapeSubs(leaf.shape)) excluded.push(mapSub(sp, m));
+        }
+      }
+    }
+    return { subs, excluded };
+  }
+
+  /** Wendet die boolesche Operation für das Formerstellung-Fenster an (Undo in einem Schritt). */
+  async applyAssistant(this: Editor, op: AssistantOp, opts: { keepOriginals: boolean; noLaserOriginals: boolean }): Promise<boolean> {
+    const r = await this.assistantCandidates(op);
+    if (!r) return false;
+    const { areas, lines, inputs, calc } = r;
+    const skipped = r.cands.length - inputs.length;
+    const keep = opts.keepOriginals;
+    if (!keep && !(await this.guardGen(inputs, t('Formerstellung')))) return false;
+    const boolOp = op === 'union' ? 'union' : op === 'intersect' ? 'intersect' : 'subtract';
+    const subs = booleanOp(boolOp, areas.map((o) => calc.get(o)!), lines.map((o) => calc.get(o)!));
+    if (!subs.length && keep) {
+      this.hint = t('Ergebnis ist leer (keine gemeinsame Fläche).');
+      this.emit('tool');
+      return true;
+    }
+    this.snapshot(t('Formerstellung'));
+    const z = inputs.map((o) => this.doc.objs.indexOf(o));
+    let idx = keep ? Math.max(...z) + 1 : Math.min(...z);
+    if (!keep) this.doc.objs = this.doc.objs.filter((o) => !inputs.includes(o));
+    if (keep && opts.noLaserOriginals) for (const o of inputs) o.noLaser = true;
+    const note = skipped ? t('Offene Linien und Bilder wurden nicht verrechnet.') : '';
+    if (!subs.length) {
+      this.hint = t('Ergebnis ist leer (keine gemeinsame Fläche).');
+      this.setSel([]);
+      this.emit('doc'); this.emit('sel');
+      return true;
+    }
+    const res: Obj = { id: newId(), m: IDENT, layer: homeLayer(lines.length && areas.length === 1 ? lines[0] : areas[0]), shape: { kind: 'path', subs } };
+    idx = Math.min(idx, this.doc.objs.length);
+    this.doc.objs.splice(idx, 0, res);
+    this.setSel([res]);
+    this.hint = [keep ? t('Originale behalten, Ergebnis liegt davor.') : '', note].filter(Boolean).join(' ');
+    this.emit('doc'); this.emit('sel');
+    return true;
   }
 }
