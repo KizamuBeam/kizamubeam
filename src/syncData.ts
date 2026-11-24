@@ -11,7 +11,7 @@ export const SETTINGS_KEYS = [
   'workpieces', 'overlap-picker', 'rightPan', 'zoomInverted', 'rememberToolOptions', 'toolOptions',
   'selectAfterDraw', 'textDefaults', 'nudgeSteps', 'shortcuts', 'clickTolerance', 'snapTolerance', 'canvasDark', 'handleSize',
   'crosshair', 'bedCenterCross', 'importAutoSelect', 'importCenterInBed', 'importSkippedNote', 'importAutoGroup', 'svgDpi', 'dxfFallbackUnit', 'importCloseTolerance', 'importHiddenLayers', 'canvasFilled', 'imageSmoothing', 'curveQuality', 'cutOrderApply', 'patternfill', 'uiTypography', 'electricityTariff', 'electricityCurrency',
-  'cutSelectedDefault', 'jobOriginDefault', 'layerCategories',
+  'cutSelectedDefault', 'jobOriginDefault', 'layerCategories', 'spell',
 ].map((k) => PRE + k);
 /** Schlüssel mit diesem Anfang zählen auch zu den Einstellungen (letzte Werte der Generatoren und der Werkzeuge aus Erweiterungen) */
 export const SETTINGS_PREFIXES = [PRE + 'gen.', PRE + 'tool.'];
@@ -28,7 +28,7 @@ const PACKS_STORE = PRE + 'packs';
  * Sicherungen der FluidNC-Konfiguration, altes Einzelgerät, Abgleich selbst, Dialogpositionen und -größen (hängen am Bildschirm), ausgeschaltete und geprüfte Erweiterungen und ihre Netzwerk-Freigaben (je Rechner). Jeder Schlüssel im Code muss in
  * einer dieser Listen stehen (npm run test:sync prüft das).
  */
-export const LOCAL_KEYS = ['autosave', 'autosaveInterval', 'tabs', 'updateLastCheck', 'setupOffered', 'fluidBackups', 'materialtest.last', 'device', 'sync', 'syncKnown', 'syncFp', 'syncExport', 'dialogPos', 'dialogSize', 'previewSidebarWidth', 'packs.disabled', 'packs.verified', 'pluginNet', 'pluginNetOff', 'firePending', 'fireOverlayInPanel'].map(
+export const LOCAL_KEYS = ['autosave', 'autosaveInterval', 'tabs', 'updateLastCheck', 'setupOffered', 'fluidBackups', 'materialtest.last', 'device', 'sync', 'syncKnown', 'syncFp', 'syncExport', 'dialogPos', 'dialogSize', 'previewSidebarWidth', 'packs.disabled', 'packs.verified', 'pluginNet', 'pluginNetOff', 'firePending', 'fireOverlayInPanel', 'spellPromptDismissed'].map(
   (k) => PRE + k,
 );
 export const BROWSER_STORES = [TEMPLATES_STORE, PACKS_STORE];

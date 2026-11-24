@@ -10,6 +10,7 @@ mod plugin_net;
 mod remote;
 mod ruida_link;
 mod serial_transport;
+mod spell;
 mod stream;
 mod sync;
 mod templates;
@@ -218,6 +219,11 @@ pub fn run() {
             fonts::font_import,
             fonts::font_remove,
             fonts::font_open_folder,
+            spell::spell_list_installed,
+            spell::spell_download,
+            spell::spell_remove,
+            spell::spell_check_words,
+            spell::spell_suggest,
             machine::machine_ports,
             machine::machine_connect,
             machine::machine_disconnect,

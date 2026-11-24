@@ -9,7 +9,7 @@ import { SCALE } from './clip';
 import { copySub, joinSubs } from './pathtools';
 import type { Params } from './generators/types';
 
-export type CheckKind = 'double' | 'open' | 'unjoined' | 'web' | 'hole' | 'bed' | 'import' | 'fit' | 'thickness' | 'loose' | 'insert' | 'engrave' | 'image' | 'font' | 'order';
+export type CheckKind = 'double' | 'open' | 'unjoined' | 'web' | 'hole' | 'bed' | 'import' | 'fit' | 'thickness' | 'loose' | 'insert' | 'engrave' | 'image' | 'font' | 'order' | 'spelling';
 export type CheckLevel = 'error' | 'warn' | 'info';
 
 /** Korrektur zu einem Befund; ausgeführt vom Editor (src/editor/check.ts) */
@@ -27,7 +27,9 @@ export type CheckFix =
   /** Import-Hinweis ausblenden */
   | { kind: 'note'; objs: Obj[] }
   /** Parameter eines Generator-Bauteils ändern (Passung, Materialdicke); die Baugruppe wird neu berechnet */
-  | { kind: 'gen'; obj: Obj; patch: Partial<Params>; calibrated: boolean };
+  | { kind: 'gen'; obj: Obj; patch: Partial<Params>; calibrated: boolean }
+  /** Einzelnes Wort in einem Textobjekt durch einen Rechtschreibvorschlag ersetzen */
+  | { kind: 'spell'; obj: Obj; word: string; start: number; end: number; replacement: string };
 
 export interface CheckIssue {
   /** Bleibt bei erneutem Prüfen gleich (zum Ausblenden einzelner Befunde) */
@@ -59,9 +61,11 @@ export interface CheckSettings {
   beforeLaser: boolean;
   /** Formen außerhalb des Arbeitsbereichs kommentarlos ignorieren statt zu melden */
   ignoreOutOfBounds: boolean;
+  /** Rechtschreibung in Textobjekten als Hinweis prüfen (standardmäßig aus) */
+  checkSpelling?: boolean;
 }
 
-export const DEFAULT_CHECK: CheckSettings = { minWeb: 1, beam: 0.15, tol: 0.05, closeGap: 1, engraveLayers: [], beforeLaser: true, ignoreOutOfBounds: false };
+export const DEFAULT_CHECK: CheckSettings = { minWeb: 1, beam: 0.15, tol: 0.05, closeGap: 1, engraveLayers: [], beforeLaser: true, ignoreOutOfBounds: false, checkSpelling: false };
 
 /** A finding of the geometric checks: a message code and its numbers instead of a text */
 export type GeomCode = 'double' | 'double-whole' | 'unjoined' | 'open' | 'open-fill' | 'hole-lost' | 'hole-small' | 'web' | 'web-cut';

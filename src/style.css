@@ -723,20 +723,196 @@ select:focus {
   border-radius: 4px;
   box-shadow: 0 4px 14px var(--shadow);
   padding: 4px;
+  max-width: 420px;
 }
-#texteditor textarea {
-  width: 260px;
-  height: 64px;
-  font: calc(14px * var(--ty-interface)) system-ui, sans-serif;
+#texteditor .te-wrap {
+  position: relative;
+  background: var(--field);
   border: 1px solid var(--line);
   border-radius: 3px;
+  overflow: hidden;
+}
+#texteditor .te-backdrop,
+#texteditor textarea {
+  font: calc(14px * var(--ty-interface))/1.35 system-ui, sans-serif;
+  padding: 4px 6px;
+  margin: 0;
+  border: 0;
+  box-sizing: border-box;
+  letter-spacing: normal;
+  word-spacing: normal;
+  tab-size: 4;
+}
+#texteditor .te-backdrop {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  color: transparent;
+  user-select: none;
+}
+#texteditor .spell-err {
+  background: transparent;
+  color: transparent;
+  text-decoration-line: underline;
+  text-decoration-style: wavy;
+  text-decoration-color: #d93025;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 2px;
+}
+#texteditor textarea {
+  position: relative;
+  z-index: 1;
+  width: 280px;
+  height: 68px;
+  background: transparent;
+  color: var(--text);
+  caret-color: var(--text);
   resize: both;
   display: block;
+  outline: none;
+}
+#texteditor .te-spell-prompt,
+#texteditor .te-spell-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  padding: 3px 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--row-line);
+  border-radius: 3px;
+  font-size: calc(11px * var(--ty-supporting));
+}
+#texteditor .te-spell-prompt[hidden],
+#texteditor .te-spell-bar[hidden] {
+  display: none;
+}
+#texteditor .te-spell-prompt-text {
+  flex: 1 1 auto;
+  min-width: 140px;
+}
+#texteditor .te-spell-word {
+  font-weight: 600;
+  text-decoration: underline wavy #d93025;
+  margin-right: 2px;
+}
+#texteditor .te-spell-suggs,
+#texteditor .te-spell-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  align-items: center;
+}
+#texteditor .te-spell-actions {
+  margin-left: auto;
+}
+#texteditor .te-spell-bad {
+  background: transparent;
+  border: 0;
+  padding: 1px 4px;
+  border-radius: 3px;
+  color: var(--text);
+  text-decoration: underline wavy #d93025;
+  cursor: pointer;
+  font: inherit;
+}
+#texteditor .te-spell-bad:hover {
+  background: var(--accent-soft);
+}
+#texteditor .te-spell-sugg {
+  font-weight: 600;
 }
 #texteditor .hint {
   color: var(--muted);
   font-size: calc(11px * var(--ty-supporting));
   padding-top: 3px;
+}
+.spell-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+.spell-installed {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.spell-dict-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--row-line);
+  border-radius: 4px;
+}
+.spell-dict-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+  cursor: pointer;
+}
+.spell-dict-meta {
+  font-size: calc(11px * var(--ty-supporting));
+}
+.spell-add-row,
+.spell-user-add {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.spell-select,
+.spell-user-in {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.spell-license,
+.spell-status {
+  font-size: calc(11px * var(--ty-supporting));
+}
+.spell-user-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--row-line);
+}
+.spell-subhead {
+  font-weight: 600;
+}
+.spell-user-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.spell-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  font-size: calc(11px * var(--ty-supporting));
+}
+.spell-chip-x {
+  background: transparent;
+  border: 0;
+  padding: 0 2px;
+  cursor: pointer;
+  color: var(--muted);
+  font: inherit;
+}
+.spell-chip-x:hover {
+  color: var(--text);
 }
 
 /* Objekte-Fenster */

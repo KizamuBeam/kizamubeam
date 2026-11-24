@@ -7,6 +7,7 @@ import { dec, t, tn } from './i18n';
 import { dockWindow, isShown, onWindowShow, setBadge, showWindow } from './dock';
 import { CheckIssue, CheckKind, CheckSettings, fixLabel, loadCheckSettings, saveCheckSettings } from './check';
 import { onFontLoaded } from './fonts';
+import { onSpellUpdated } from './spell';
 import { objLabel } from './objectsPanel';
 import { onPluginResult } from './plugins/generator';
 import { isCutLayer, layerLabel, PALETTE } from './model';
@@ -27,6 +28,7 @@ const KIND_NAMES = (): Record<CheckKind, string> => ({
   image: t('Bildfehler'),
   font: t('Schrift'),
   order: t('Schnittreihenfolge'),
+  spelling: t('Rechtschreibung'),
 });
 
 let openPanel: (() => void) | null = null;
@@ -81,6 +83,13 @@ export function buildCheckPanel(ed: Editor) {
       cur.beforeLaser = before.checked;
       saveCheckSettings(cur);
     });
+    const spell = h('input', { type: 'checkbox', checked: s.checkSpelling === true });
+    spell.addEventListener('change', () => {
+      const cur = loadCheckSettings();
+      cur.checkSpelling = spell.checked;
+      saveCheckSettings(cur);
+      run(true);
+    });
     settingsBox.replaceChildren(
       num(t('Mindeststeg'), t('Schmalere Stege zwischen zwei Schnitten werden gemeldet'), (x) => x.minWeb, (x, v) => (x.minWeb = v), 0.1),
       num(t('Schnittbreite'), t('Breite der Schnittfuge, wenn der Layer keinen Kerf-Versatz hat (sonst doppelter Kerf)'), (x) => x.beam, (x, v) => (x.beam = v), 0.01),
@@ -91,6 +100,7 @@ export function buildCheckPanel(ed: Editor) {
             ...chips)
         : '',
       h('label', { class: 'chk-field' }, before, h('span', {}, t('Vor dem Lasern prüfen und bei Problemen nachfragen'))),
+      h('label', { class: 'chk-field', title: t('Unbekannte Wörter in Textobjekten als Hinweis melden (nutzt die geladenen Wörterbücher aus den Einstellungen)') }, spell, h('span', {}, t('Rechtschreibung in Texten prüfen (Hinweis)'))),
     );
   };
 
@@ -181,6 +191,10 @@ export function buildCheckPanel(ed: Editor) {
   // Ersatzschrift-Befunde (#233) stehen erst fest, wenn die Schrift geladen ist
   onFontLoaded(() => {
     if (isShown('check')) run();
+  });
+  // Rechtschreib-Befunde stehen erst fest, wenn Wörterbücher/Ergebnisse geladen sind
+  onSpellUpdated(() => {
+    if (isShown('check') && loadCheckSettings().checkSpelling) run();
   });
   onWindowShow('check', () => {
     ed.checkMarks = true;
