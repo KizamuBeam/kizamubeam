@@ -33,6 +33,8 @@ import { typographySettingsFields } from './typography';
 import { electricityCurrencyField, electricityTariffField } from '../energyUi';
 import { defaultLayerDefaults, loadLayerDefaults, saveLayerDefaults } from '../layerCategories';
 import { openLayerDefaultsDialog } from '../layerDefaultsDialog';
+import { loadSpellSettings, saveSpellSettings } from '../spell';
+import { spellSettingsWidget } from '../spellUi';
 
 export type ThemeMode = 'system' | 'light' | 'dark';
 
@@ -64,6 +66,19 @@ export function registerCoreSettings(ed: Editor, hooks: CoreSettingsHooks) {
         options: () => [['system', t('Wie System|Sprache')], ...LANGUAGES],
         get: () => langPref(),
         set: (v) => hooks.setLanguage(v as LangPref),
+      },
+      {
+        kind: 'toggle', id: 'general.spellEnabled', group: t('Rechtschreibprüfung'), label: t('Beim Tippen im Texteditor prüfen'), def: true,
+        keywords: t('Rechtschreibung Wörterbuch Spellcheck Hunspell Sprache'),
+        hint: t('Markiert unbekannte Wörter während der Texteingabe. In der Konstruktionsprüfung lässt sich die Prüfung getrennt als Hinweis einschalten.'),
+        get: () => loadSpellSettings().enabled,
+        set: (v) => saveSpellSettings({ ...loadSpellSettings(), enabled: v }),
+      },
+      {
+        kind: 'custom', id: 'general.spellDicts', group: t('Rechtschreibprüfung'), label: t('Wörterbücher'),
+        keywords: t('Rechtschreibung Wörterbuch Sprachen Hunspell Benutzerwörterbuch'),
+        hint: t('Wörterbücher werden lokal auf diesem Rechner gespeichert. Mehrere Sprachen können gleichzeitig aktiv sein.'),
+        render: () => spellSettingsWidget(),
       },
       {
         kind: 'select', id: 'general.updateChannel', group: t('Updates'), label: t('Update-Kanal'), keywords: t('Nightly Beta Stabil Version'), def: defaultUpdateChannel(),
@@ -455,6 +470,13 @@ export function registerCoreSettings(ed: Editor, hooks: CoreSettingsHooks) {
         hint: t('Formen außerhalb des Arbeitsbereichs werden in der Konstruktionsprüfung kommentarlos ignoriert statt gemeldet. Der Laser-Start prüft weiter.'),
         get: () => loadCheckSettings().ignoreOutOfBounds === true,
         set: (v) => saveCheckSettings({ ...loadCheckSettings(), ignoreOutOfBounds: v }),
+      },
+      {
+        kind: 'toggle', id: 'machines.checkSpelling', group: t('Laser'), label: t('Rechtschreibung in der Konstruktionsprüfung prüfen'), def: false,
+        keywords: t('Rechtschreibung Prüfung Hinweis Wörterbuch'),
+        hint: t('Meldet unbekannte Wörter in Textobjekten als Hinweis im Prüf-Fenster (blockiert nicht den Laser-Start).'),
+        get: () => loadCheckSettings().checkSpelling === true,
+        set: (v) => saveCheckSettings({ ...loadCheckSettings(), checkSpelling: v }),
       },
       { kind: 'action', id: 'machines.devices', group: t('Laser'), label: t('Geräte'), hint: t('Laser anlegen, wechseln, importieren und exportieren.'), button: t('Geräte …'), run: () => openDevicesDialog(ed) },
       { kind: 'action', id: 'machines.device', group: t('Laser'), label: t('Geräteeinstellungen'), hint: t('Anschluss, Arbeitsbereich, Firmware und Job-Vorgaben des aktuellen Geräts.'), button: t('Öffnen …'), run: () => openDeviceDialog(ed) },

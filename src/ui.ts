@@ -1760,14 +1760,31 @@ function buildTextEditor(ed: Editor) {
   const ta = box.querySelector('textarea')!;
   let target: import('./model').Obj | null = null;
   let snapDone = false;
+  const applyText = (val: string) => {
+    if (!target) return;
+    if (!snapDone) {
+      ed.snapshot(t('Text bearbeiten'));
+      snapDone = true;
+    }
+    ed.setText(target, val);
+  };
   const close = () => {
     if (!target) return;
-    const t = target;
+    const obj = target;
     target = null;
+    spell.onClose();
     box.hidden = true;
-    ed.removeIfEmptyText(t);
+    ed.removeIfEmptyText(obj);
     ed.canvas.focus();
   };
+  const spell = attachTextEditorSpell(box, ta, {
+    getTarget: () => target,
+    onReplace: applyText,
+    openSettings: () => {
+      close();
+      void openSettings('general', 'general.spellDicts');
+    },
+  });
   ed.textEditor = (o, isNew) => {
     close();
     target = o;
@@ -1775,19 +1792,16 @@ function buildTextEditor(ed: Editor) {
     ta.value = o.shape.kind === 'text' ? o.shape.text : '';
     const stage = $('#stage').getBoundingClientRect();
     const p = ed.toScreen({ x: o.m[4], y: o.m[5] });
-    box.style.left = `${Math.max(4, Math.min(stage.width - 290, p.x))}px`;
-    box.style.top = `${Math.max(4, Math.min(stage.height - 110, p.y + 12))}px`;
+    box.style.left = `${Math.max(4, Math.min(stage.width - 310, p.x))}px`;
+    box.style.top = `${Math.max(4, Math.min(stage.height - 150, p.y + 12))}px`;
     box.hidden = false;
+    spell.onOpen();
     ta.focus();
     setTimeout(() => ta.focus(), 0);
   };
   ta.addEventListener('input', () => {
-    if (!target) return;
-    if (!snapDone) {
-      ed.snapshot(t('Text bearbeiten'));
-      snapDone = true;
-    }
-    ed.setText(target, ta.value);
+    applyText(ta.value);
+    spell.onInput();
   });
   ta.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' || (e.key === 'Enter' && (e.ctrlKey || e.metaKey))) {
@@ -1799,8 +1813,9 @@ function buildTextEditor(ed: Editor) {
   ed.canvas.addEventListener('pointerdown', () => {
     if (target && ed.tool !== 'text') close();
   }, true);
-  ta.addEventListener('blur', () => setTimeout(() => document.activeElement !== ta && close(), 0));
+  ta.addEventListener('blur', () => setTimeout(() => !box.contains(document.activeElement) && close(), 0));
 }
+import { attachTextEditorSpell } from './spellUi';
 import { openSettings } from './settings/dialog';
 import { registerCoreSettings } from './settings/core';
 import { openFreehandEditDialog } from './freehandEditDialog';

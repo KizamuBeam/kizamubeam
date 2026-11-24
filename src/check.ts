@@ -14,6 +14,7 @@ import { copySub, extract } from './pathtools';
 import { t, tn } from './i18n';
 import { geomText } from './checkText';
 import { isFallbackFont } from './fonts';
+import { type CachedMisspelling, checkTextCached } from './spell';
 import { boxesOf, containsStrict } from './polyTopology';
 import { checkFits, FitFinding } from './fitcheck';
 import { AsmFinding, checkAssemblies } from './asmcheck';
@@ -58,6 +59,8 @@ export function fixLabel(f: CheckFix): string {
       return t('Hinweis ausblenden');
     case 'gen':
       return f.calibrated ? t('Kalibrierte Werte übernehmen') : 'thickness' in f.patch && Object.keys(f.patch).length === 1 ? t('Materialdicke übernehmen') : t('Spiel anpassen');
+    case 'spell':
+      return t('Durch „{word}“ ersetzen', { word: f.replacement });
   }
 }
 
@@ -325,6 +328,49 @@ function checkCutOrder(inp: CheckInput, cs: Contour[], out: CheckIssue[]) {
   }
 }
 
+/**
+ * Rechtschreibung in Textobjekten prüfen (nur wenn in den Prüf-Einstellungen aktiviert):
+ * Meldet unbekannte Wörter als Hinweis (`info`, blockiert also nicht den Laser-Start).
+ * Bleibt synchron über den Cache (checkTextCached); fehlende Ergebnisse laufen über onSpellUpdated nach.
+ */
+export function checkSpelling(
+  inp: CheckInput,
+  out: CheckIssue[],
+  checkFn: (text: string, hasVt?: boolean) => CachedMisspelling[] | null = checkTextCached,
+) {
+  if (!inp.settings.checkSpelling) return;
+  const parked = parkedObjs(inp.objs, inp.bed, inp.layer);
+  for (const top of inp.objs) {
+    if (parked.has(top)) continue;
+    for (const [o, m] of outputLeaves([top])) {
+      const s = o.shape;
+      if (s.kind !== 'text' || !inp.layer(o.layer).output || !s.text.trim()) continue;
+      const bad = checkFn(s.text, !!s.vt);
+      if (!bad || !bad.length) continue;
+      const b = boundsOf([o], mul(m, inv(o.m)));
+      const lines = b ? [boxLine(b)] : [];
+      for (const item of bad) {
+        const sugg = item.suggestions.slice(0, 3);
+        const msg = sugg.length
+          ? t('Unbekanntes Wort „{word}“ (Vorschlag: {list}).', { word: item.word, list: sugg.join(', ') })
+          : t('Unbekanntes Wort „{word}“.', { word: item.word });
+        out.push({
+          key: `spell:${o.id}:${item.start}:${item.word}`,
+          kind: 'spelling',
+          level: 'info',
+          msg,
+          objs: [top],
+          lines,
+          pts: [],
+          fix: sugg.length
+            ? { kind: 'spell', obj: o, word: item.word, start: item.start, end: item.end, replacement: sugg[0] }
+            : undefined,
+        });
+      }
+    }
+  }
+}
+
 /** Alle Prüfungen für die Objekte einer Seite; Ergebnis nach Schwere sortiert */
 export function checkDesign(inp: CheckInput): CheckIssue[] {
   const out: CheckIssue[] = [];
@@ -349,6 +395,7 @@ export function checkDesign(inp: CheckInput): CheckIssue[] {
   checkImport(inp, out);
   checkLooseEngravings(inp, out);
   checkFallbackFonts(inp, out);
+  checkSpelling(inp, out);
   checkCutOrder(inp, cs, out);
   const fits: FitFinding[] = [];
   checkFits(inp.objs, inp.layer, inp.settings.beam, fits);

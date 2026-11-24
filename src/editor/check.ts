@@ -7,6 +7,7 @@ import { t } from '../i18n';
 import { genLeaves } from './generators';
 import { buildGenAsync, getGenerator, normalizeParams } from '../generators/index';
 import type { Params } from '../generators/types';
+import { replaceWordSpan } from '../spell';
 
 export class EditorCheck {
   /** Aktuelle Seite prüfen; ausgeblendete Befunde fallen weg. Ergebnis steht danach in checkIssues. */
@@ -127,6 +128,16 @@ export class EditorCheck {
         this.snapshot(t('Import-Hinweis ausblenden'));
         for (const o of f.objs) delete o.importNote;
         break;
+      case 'spell': {
+        const o = f.obj;
+        if (o.shape.kind !== 'text' || !this.doc.objs.some((x) => contains(x, o))) return false;
+        const next = replaceWordSpan(o.shape.text, f.start, f.end, f.word, f.replacement);
+        if (next === null) return false;
+        this.snapshot(t('Rechtschreibung korrigieren'));
+        o.shape.text = next;
+        this.touch(o.shape);
+        break;
+      }
     }
     this.emit('doc');
     return this.afterFix();
