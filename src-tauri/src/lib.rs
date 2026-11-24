@@ -40,6 +40,12 @@ async fn save_text_file(
     Ok(Some(path.display().to_string()))
 }
 
+/// Schreibt Text still in eine bekannte Datei (Strg+S ohne Dialog). Fehler als Text.
+#[tauri::command]
+async fn write_text_file(path: String, contents: String) -> Result<(), String> {
+    std::fs::write(&path, contents).map_err(|e| e.to_string())
+}
+
 /// Öffnet eine Textdatei über einen nativen Öffnen-Dialog.
 #[tauri::command]
 async fn open_text_file(
@@ -197,6 +203,7 @@ pub fn run() {
             netcam::netcam_frame,
             netcam::netcam_close,
             save_text_file,
+            write_text_file,
             open_text_file,
             pick_file,
             pick_files,

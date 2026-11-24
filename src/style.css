@@ -5542,6 +5542,9 @@ input.jig-count {
 .outline-tool-window { position: fixed; top: 70px; left: auto; right: 16px; margin: 0; box-sizing: border-box; width: min(370px, calc(100vw - 16px)); z-index: 100; }
 .outline-tool-window h3 { cursor: move; touch-action: none; }
 .contour-offset-dialog > select, .contour-offset-dialog #contour-offset-assembly-owner { display: block; width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box; margin-bottom: 6px; }
+/* Richtung im .form-Grid (1fr/110px): Label und Select bekommen je eine volle Zeile, damit die langen Optionstexte nicht clippen. */
+.contour-offset-dialog .form label[for="contour-offset-direction"] { grid-column: 1 / -1; }
+.contour-offset-dialog .form #contour-offset-direction { grid-column: 1 / -1; min-width: 0; max-width: 100%; }
 .contour-offset-dialog .note { overflow-wrap: anywhere; }
 .outline-choices { max-height: 140px; overflow: auto; display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 8px 0; }
 .island-swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin: 0 6px 0 2px; vertical-align: baseline; flex: none; }

@@ -16,7 +16,7 @@ import { FallbackResolver, importPdfPages, isPdf } from './pdfimport';
 import { importRuida, isRuidaFile } from './ruida';
 import { applyDocJobSettings, device } from './laser';
 import { t, tn } from './i18n';
-import { tabNameFromPath } from './editor/tabs';
+import { keepProjectPath, tabNameFromPath, type ProjectTab } from './editor/tabs';
 import { installNativeFileDrop, installDomFileDrop, dispatchNativeFiles } from './nativeFileDrop';
 
 const isTauri = () => '__TAURI_INTERNALS__' in window;
@@ -60,15 +60,39 @@ export async function openText(filterName: string, extensions: string[]): Promis
   });
 }
 
-/** Projekt des aktiven Tabs speichern; der Tab übernimmt den Dateinamen */
-export async function saveProject(ed: Editor) {
+/** Projekt des aktiven Tabs speichern; stille Wiederholung ohne Dialog, wenn der Pfad bekannt ist (nur Desktop-App) */
+export async function saveProject(ed: Editor, saveAs = false) {
   const tab = ed.tab;
   const contents = ed.serialize({ cutSelected: device.cutSelected, jobOrigin: device.jobOrigin });
   const saved = ed.tabKey();
+  if (isTauri() && tab.path && !saveAs) {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke('write_text_file', { path: tab.path, contents });
+    } catch {
+      // Still fehlgeschlagen (z. B. Datei gelöscht): normal weiter mit Dialog
+      return saveProjectDialog(ed, tab, contents, saved);
+    }
+    // Während des Schreibens kann ein anderer Tab aktiv geworden sein
+    tab.saved = saved;
+    if (tab === ed.tab) ed.updateChanged();
+    else tab.changed = false;
+    ed.hint = t('Gespeichert: {name}', { name: tab.name ?? t('projekt') });
+    ed.emit('tool');
+    ed.onTabsChange?.();
+    ed.scheduleSave();
+    return;
+  }
+  await saveProjectDialog(ed, tab, contents, saved);
+}
+
+/** Projekt über den Speichern-Dialog (bzw. Download) sichern; der Tab übernimmt Dateiname und Pfad */
+async function saveProjectDialog(ed: Editor, tab: ProjectTab, contents: string, saved: string) {
   const path = await saveTextAs(`${tab.name ?? t('projekt')}.kzb`, t('KizamuBeam-Projekt'), 'kzb', 'application/json', contents);
   if (path === null) return;
-  // Während des Dialogs kann ein anderer Tab aktiv geworden sein
   tab.name = tabNameFromPath(path);
+  // Im Browser ist der „Pfad“ nur der Download-Name: kein stilles Speichern möglich
+  tab.path = '__TAURI_INTERNALS__' in window ? path : null;
   tab.saved = saved;
   if (tab === ed.tab) ed.updateChanged();
   else tab.changed = false;
@@ -101,11 +125,11 @@ const isLbrnName = (name: string) => /\.lbrn2?$/i.test(name);
 
 /** Projektdatei in einem neuen Tab öffnen (oder im aktiven, wenn er leer ist); LightBurn-Projekte werden übersetzt */
 export async function openProject(ed: Editor) {
-  const apply = async (text: string, name: string) => {
+  const apply = async (text: string, name: string, fullPath: string | null = null) => {
     try {
       if (isLbrnName(name) || isLbrn(text)) {
         const { json, notes, cutOrder } = await lbrnProjectJson(ed, text);
-        ed.openInTab(json, tabNameFromPath(name));
+        ed.openInTab(json, tabNameFromPath(name), null);
         // Erst als KizamuBeam-Projekt gespeichert gilt die Datei als gesichert
         ed.tab.saved = '';
         ed.updateChanged();
@@ -127,7 +151,7 @@ export async function openProject(ed: Editor) {
         ed.emit('tool');
         return;
       }
-      ed.openInTab(text, tabNameFromPath(name));
+      ed.openInTab(text, tabNameFromPath(name), keepProjectPath(name, fullPath));
       // Dateiwerte für Nur-Auswahl/Ursprung aufs Gerät (fehlen sie, bleibt das Gerät)
       applyDocJobSettings(ed);
       // Fehlende Schriften von Google Fonts nachladen (mit Rückfrage)
@@ -139,7 +163,7 @@ export async function openProject(ed: Editor) {
   if (isTauri()) {
     const { invoke } = await import('@tauri-apps/api/core');
     const res = await invoke<[string, string] | null>('open_text_file', { filterName: t('KizamuBeam- und LightBurn-Projekte'), extensions: ['kzb', 'kzt', 'lwk', 'json', 'lbrn2', 'lbrn'] });
-    if (res) await apply(res[1], res[0]);
+    if (res) await apply(res[1], res[0], res[0]);
     return;
   }
   const input = document.getElementById('fileinput') as HTMLInputElement;

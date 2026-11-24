@@ -92,7 +92,7 @@ export function installOverlapPicker(ed: Editor): () => void {
       button.addEventListener('pointerenter',highlight);button.addEventListener('focus',highlight);
       button.addEventListener('click',()=>{
         const canSelect=ed.doc===p.doc && ed.tool==='select' && overlapCandidates(ed,point).includes(obj);
-        close();if(canSelect)ed.setSel([obj]);
+        close();if(canSelect){ed.setSel([obj]);ed.overlapLock=obj}
       });menu!.append(button);
     });
     document.body.append(menu);

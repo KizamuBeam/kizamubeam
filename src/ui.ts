@@ -231,7 +231,8 @@ function buildMenu(ed: Editor) {
       [t('Neu'), 'new', () => (ed.newTab(), applyNewDocDefaults())],
       [t('Neu aus Vorlage …'), 'newtemplate', () => openTemplateLibrary(ed)],
       [t('Öffnen …'), 'open', () => openProject(ed)],
-      [t('Speichern …'), 'save', () => saveProject(ed)],
+      [t('Speichern'), 'save', () => saveProject(ed)],
+      [t('Speichern unter …'), 'saveas', () => saveProject(ed, true)],
       [t('Tab schließen'), '', () => closeTabAsk(ed)],
       'sep',
       [t('Als Vorlage speichern …'), '', () => openSaveTemplateDialog(ed)],
@@ -637,6 +638,7 @@ function buildBars(ed: Editor) {
     { id: 'new', cat: F, icon: 'new', label: t('Neues Projekt in neuem Tab'), run: () => (ed.newTab(), applyNewDocDefaults()) },
     { id: 'open', cat: F, icon: 'open', label: t('Öffnen'), run: () => openProject(ed) },
     { id: 'save', cat: F, icon: 'save', label: t('Speichern'), run: () => saveProject(ed) },
+    { id: 'saveas', cat: F, icon: 'save', label: t('Speichern unter …'), run: () => saveProject(ed, true) },
     { id: 'import', cat: F, icon: 'import', label: t('Importieren: Bilder, SVG, DXF, PDF, AI, LightBurn, 3D-Modelle'), run: () => importFile(ed) },
     { id: 'export', cat: F, icon: 'export', label: t('Als SVG exportieren'), run: () => exportSvg(ed) },
     { id: 'export-dxf', cat: F, icon: 'dxf', short: 'DXF', label: t('Als DXF exportieren'), run: () => exportDxf(ed) },
@@ -851,7 +853,7 @@ function buildBars(ed: Editor) {
 /** Commands that can get a shortcut, in toolbar order (Settings → Mouse and keyboard) */
 let shortcutCommands: KeyCommand[] = [];
 type KeyCommand = Pick<Action, 'id' | 'cat' | 'label' | 'run' | 'enabled'>;
-const OUTSIDE_DIALOGS = new Set(['new', 'open', 'save']);
+const OUTSIDE_DIALOGS = new Set(['new', 'open', 'save', 'saveas']);
 /** Commands offered by the main menu (filled by buildMenu) */
 const menuCommands = new Set<string>();
 

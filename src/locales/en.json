@@ -5425,6 +5425,8 @@
   "Wiederholen höchstens (min)": "Repeat for at most (min)",
   "„Rahmen wiederholen“ endet nach dieser Zeit von selbst": "“Repeat frame” ends by itself after this time",
   "Rahmen wiederholen: Rahmen und Kontur laufen in einer Schleife, bis man sie erneut anklickt oder stoppt": "Repeat frame: Frame and Contour run in a loop until you click them again or stop",
+  "Gespeichert: {name}": "Saved: {name}",
+  "Speichern unter …": "Save as…",
   "Formerstellung": "Shape Builder",
   "Geführte Formerstellung …": "Guided Shape Builder…",
   "Formerstellung wird berechnet …": "Computing Shape Builder…",

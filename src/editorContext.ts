@@ -2,13 +2,14 @@ import type { Editor } from './editor';
 import { t } from './i18n';
 import { ContextAction, showEditorMenu, closeEditorMenu } from './contextMenu';
 import { RULER } from './editor/shared';
-import { defaultLayer, homeLayer, layerLabel } from './model';
+import { defaultLayer, homeLayer, layerLabel, type Obj, type Pt } from './model';
 import { openGridDialog } from './gridDialog';
 import { guideContextGroups } from './guideDialog';
 import { selectAssembly } from './asmSelect';
 import { assignLayerAsk } from './layerAssign';
 import { EDIT_TITLE, runImageEdit } from './imageCropUi';
 import { openPathIslandsDialog } from './pathIslandsDialog';
+import { overlapCandidates } from './overlapPicker';
 
 export interface ContextCallbacks {
   adjust: () => void; trace: () => void; background: () => void; saveBitmap: () => void | Promise<unknown>;
@@ -155,6 +156,30 @@ export function openEditorContextMenu(ed: Editor, x: number, y: number, groups: 
   ed.on(changed);
 }
 
+/**
+ * Auswahlverhalten beim Rechtsklick (Weltpunkt): Klick auf ein bereits gewähltes Objekt
+ * lässt die Auswahl bestehen; sonst wird das oberste Objekt unter dem Zeiger gewählt.
+ * Nach einer Überlappungsauswahl (langer Rechtsklick) gilt das gewählte Objekt als getroffen,
+ * solange der Zeiger es noch trifft — die Wahl geht durch einen kurzen Rechtsklick an
+ * derselben Stelle nicht verloren. Klick anderswo hebt die Sperre auf und wählt normal.
+ */
+/**
+ * Das per Überlappungsauswahl (langer Rechtsklick + Chooser) gesperrte Objekt, solange es
+ * noch gewählt ist und den Weltpunkt trifft — sonst null. Reine Abfrage ohne Seiteneffekt,
+ * damit Links-Drücken (Verschieben) und Rechtsklick dieselbe Sperr-Semantik nutzen.
+ */
+export function lockedOverlapHit(ed: Editor, wp: Pt, candidates: (ed: Editor, p: Pt) => Obj[] = overlapCandidates): Obj | null {
+  const lock = ed.overlapLock;
+  return lock && ed.sel.includes(lock) && candidates(ed, wp).includes(lock) ? lock : null;
+}
+
+export function resolveContextHit(ed: Editor, wp: Pt, candidates: (ed: Editor, p: Pt) => Obj[] = overlapCandidates): void {
+  if (lockedOverlapHit(ed, wp, candidates)) return;
+  if (ed.overlapLock) ed.overlapLock = null;
+  const hit = ed.hitTest(wp);
+  if (hit && !ed.sel.includes(hit)) ed.setSel([hit]);
+}
+
 export function installEditorContext(ed: Editor, callbacks: ContextCallbacks) {
   ed.onCanvasContext = (event) => {
     if (document.querySelector('dialog[open]') || ed.drag || ed.draft || ed.pickHandler || ed.tool === 'sketch' || ed.tool === 'builder') return;
@@ -173,7 +198,7 @@ export function installEditorContext(ed: Editor, callbacks: ContextCallbacks) {
       return;
     }
     const hit = ed.hitTest(ed.toWorld(sx, sy));
-    if (hit && !ed.sel.includes(hit)) ed.setSel([hit]);
+    resolveContextHit(ed, ed.toWorld(sx, sy));
     if (ed.tool === 'node') ed.updateNodeHover(sx, sy);
     openEditorContextMenu(ed, event.clientX, event.clientY, editorContextGroups(ed, callbacks, !hit));
   };

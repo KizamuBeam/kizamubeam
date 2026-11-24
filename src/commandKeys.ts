@@ -10,7 +10,7 @@ const STORE = 'kizamubeam.shortcuts';
  * Changing one changes what existing users have; the shortcuts test pins them against the code before #453.
  */
 const DEFAULTS: Readonly<Record<string, readonly string[]>> = {
-  new: ['Ctrl+N'], open: ['Ctrl+O'], save: ['Ctrl+S'], import: ['Ctrl+I'],
+  new: ['Ctrl+N'], open: ['Ctrl+O'], save: ['Ctrl+S'], saveas: ['Ctrl+Shift+S'], import: ['Ctrl+I'],
   undo: ['Ctrl+Z'], redo: ['Ctrl+Y', 'Ctrl+Shift+Z'],
   cut: ['Ctrl+X'], copy: ['Ctrl+C'], paste: ['Ctrl+V'], duplicate: ['Ctrl+D'], selectall: ['Ctrl+A'], tolines: ['Ctrl+Shift+C'],
   join: ['Alt+J'], breakapart: ['Alt+B'],

@@ -15,6 +15,7 @@ import { DEFAULT_HANDLE_SIZE } from './render';
 import { deformGesture, gestureSpline, hitSpline } from '../shaperSpline';
 import { ARC_MIN_RADIUS, arcPoint, arcSpec, arcSubPath, newArcDraft, snapAngle, type ArcDraft, type ArcMode } from './arc';
 import { OVERLAP_MOVE_PX } from '../overlapPicker';
+import { lockedOverlapHit } from '../editorContext';
 import { hitImageCropHandle, pointerCropTo } from '../imageCropUi';
 import { rectCorners } from '../model';
 import { rectRadiusFromLocal } from '../radiusDrag';
@@ -163,7 +164,9 @@ export class EditorPointer {
           return;
         }
         if (this.hitRotateZone(sx, sy)) return this.startRotate(wp);
-        const o = this.hitTest(wp);
+        // Nach Überlappungsauswahl (langer Rechtsklick) greift Links-Drücken an derselben
+        // Stelle das gesperrte Objekt — statt das darüberliegende neu zu wählen.
+        const o = lockedOverlapHit(this, wp) ?? this.hitTest(wp);
         if (o) {
           const was = this.sel.includes(o);
           if (e.shiftKey && ctrl) this.setSel(this.sel.filter((x) => x !== o));
