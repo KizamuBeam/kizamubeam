@@ -5424,5 +5424,7 @@
   "Rahmen und Kontur laufen in einer Schleife, bis man sie erneut anklickt oder stoppt. Jede Runde wird neu berechnet, verschobene Objekte sind also gleich in der nächsten Runde zu sehen.": "Frame e Contorno girano in ciclo finché non li clicchi di nuovo o premi Stop. Ogni giro viene ricalcolato, quindi gli oggetti spostati si vedono già al giro successivo.",
   "Wiederholen höchstens (min)": "Ripeti al massimo (min)",
   "„Rahmen wiederholen“ endet nach dieser Zeit von selbst": "“Ripeti frame” termina da solo dopo questo tempo",
-  "Rahmen wiederholen: Rahmen und Kontur laufen in einer Schleife, bis man sie erneut anklickt oder stoppt": "Ripeti frame: Frame e Contorno girano in ciclo finché non li clicchi di nuovo o premi Stop"
+  "Rahmen wiederholen: Rahmen und Kontur laufen in einer Schleife, bis man sie erneut anklickt oder stoppt": "Ripeti frame: Frame e Contorno girano in ciclo finché non li clicchi di nuovo o premi Stop",
+  "Gespeichert: {name}": "Salvato: {name}",
+  "Speichern unter …": "Salva con nome…"
 }

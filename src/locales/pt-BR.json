@@ -5424,5 +5424,7 @@
   "Rahmen und Kontur laufen in einer Schleife, bis man sie erneut anklickt oder stoppt. Jede Runde wird neu berechnet, verschobene Objekte sind also gleich in der nächsten Runde zu sehen.": "Enquadramento e Contorno rodam em loop até você clicar neles de novo ou parar. Cada volta é recalculada, então objetos movidos aparecem já na próxima volta.",
   "Wiederholen höchstens (min)": "Repetir no máximo (min)",
   "„Rahmen wiederholen“ endet nach dieser Zeit von selbst": "“Repetir enquadramento” termina sozinho após esse tempo",
-  "Rahmen wiederholen: Rahmen und Kontur laufen in einer Schleife, bis man sie erneut anklickt oder stoppt": "Repetir enquadramento: Enquadramento e Contorno rodam em loop até você clicar neles de novo ou parar"
+  "Rahmen wiederholen: Rahmen und Kontur laufen in einer Schleife, bis man sie erneut anklickt oder stoppt": "Repetir enquadramento: Enquadramento e Contorno rodam em loop até você clicar neles de novo ou parar",
+  "Gespeichert: {name}": "Salvo: {name}",
+  "Speichern unter …": "Salvar como…"
 }

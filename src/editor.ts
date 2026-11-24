@@ -73,6 +73,12 @@ export { RULER, TOOL_HINTS } from './editor/shared';
 
 export class Editor {
   overlapHover: Obj | null = null;
+  /**
+   * Überlappungsauswahl-Sperre: nach einer Wahl aus dem Überlappungsmenü (langer Rechtsklick)
+   * behält ein kurzer Rechtsklick auf dieses Objekt die Auswahl, statt das oberste Objekt
+   * neu zu wählen. Wird bei Rechtsklick anderswo und sobald das Objekt nicht mehr gewählt ist aufgehoben.
+   */
+  overlapLock: Obj | null = null;
   freehandMode:FreehandMode='continue';
   freehandTolerance=0.2;
   handleSets=new Map<Obj,Set<string>>();

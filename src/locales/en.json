@@ -5424,5 +5424,7 @@
   "Rahmen und Kontur laufen in einer Schleife, bis man sie erneut anklickt oder stoppt. Jede Runde wird neu berechnet, verschobene Objekte sind also gleich in der nächsten Runde zu sehen.": "Frame and Contour run in a loop until you click them again or stop. Every lap is recomputed, so moved objects show up on the next lap.",
   "Wiederholen höchstens (min)": "Repeat for at most (min)",
   "„Rahmen wiederholen“ endet nach dieser Zeit von selbst": "“Repeat frame” ends by itself after this time",
-  "Rahmen wiederholen: Rahmen und Kontur laufen in einer Schleife, bis man sie erneut anklickt oder stoppt": "Repeat frame: Frame and Contour run in a loop until you click them again or stop"
+  "Rahmen wiederholen: Rahmen und Kontur laufen in einer Schleife, bis man sie erneut anklickt oder stoppt": "Repeat frame: Frame and Contour run in a loop until you click them again or stop",
+  "Gespeichert: {name}": "Saved: {name}",
+  "Speichern unter …": "Save as…"
 }

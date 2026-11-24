@@ -174,12 +174,15 @@ test('default bindings reproduce the keys from before #453', () => {
   resetAllBindings();
   const old = JSON.parse(readFileSync(FIXTURES, 'utf8')) as Record<string, Pressed>;
   const empty: Pressed = { calls: [], prevented: false };
+  // Deliberate additions after #453: new commands on previously free keys (fixtures stay historical)
+  const ADDED: Record<string, Pressed> = {};
+  for (const ctx of CONTEXTS) ADDED[caseId(ctx, 's', 'KeyS', 'Ctrl+Shift')] = { calls: ['run:saveas'], prevented: true };
   const dropped: string[] = [], gained: string[] = [], unavailable: string[] = [];
   for (const ctx of CONTEXTS) for (const [key, code] of KEYS) for (const mods of MODS) {
     const id = caseId(ctx, key, code, mods);
     const now = pressNew(ctx, key, code, mods);
     const elsewhere = formerlyElsewhere(ctx, key, mods);
-    const before = old[id] ?? empty;
+    const before = ADDED[id] ?? old[id] ?? empty;
     if (elsewhere) { assert.deepEqual(now, { calls: [elsewhere], prevented: true }, id); continue; }
     if (JSON.stringify(now) === JSON.stringify(before)) continue;
     // Shift on a symbol key is not part of a binding (it types another character on most layouts): acts as without Shift

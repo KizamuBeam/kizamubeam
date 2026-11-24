@@ -70,6 +70,8 @@ export interface ProjectTab {
   id: number;
   /** Dateiname ohne Endung; null = noch nie gespeichert oder geöffnet */
   name: string | null;
+  /** Voller Dateipfad (nur Desktop-App, nur .kzb); null = unbekannt (Browser, anderes Format, noch nie gespeichert) */
+  path: string | null;
   /** Stand beim letzten Öffnen/Speichern (ohne Seitenindex), um ungespeicherte Änderungen zu erkennen */
   saved: string;
   /** Ungespeicherte Änderungen (wird verzögert mit der automatischen Sicherung bestimmt) */
@@ -100,9 +102,10 @@ let nextTabId = 1;
 /** Vergleichsschlüssel eines Dokuments: Seitenwechsel allein zählt nicht als Änderung */
 export const docKey = (d: Doc) => JSON.stringify({ ...d, page: 0 });
 
-export const makeTab = (doc: Doc, name: string | null = null, changed = false, expanded = false): ProjectTab => ({
+export const makeTab = (doc: Doc, name: string | null = null, changed = false, expanded = false, path: string | null = null): ProjectTab => ({
   id: nextTabId++,
   name,
+  path,
   saved: changed ? '' : docKey(doc),
   changed,
   doc,
@@ -114,6 +117,9 @@ export const makeTab = (doc: Doc, name: string | null = null, changed = false, e
 
 /** Dateiname ohne Ordner und Endung */
 export const tabNameFromPath = (path: string) => (path.split(/[\\/]/).pop() ?? path).replace(/\.(kzb|kzt|lwk|json|lbrn2?)$/i, '');
+
+/** Welcher Pfad nach dem Öffnen für stilles Speichern bleibt: nur das native Format; lbrn/json/… erst nach Speichern-Dialog */
+export const keepProjectPath = (name: string, fullPath: string | null) => /\.kzb$/i.test(name) ? fullPath : null;
 
 export class EditorTabs {
   /** Angezeigter Name eines Tabs */
@@ -166,13 +172,13 @@ export class EditorTabs {
     this.saveNow();
   }
   /** Neuer Tab hinter dem aktiven; ohne doc ein leeres Projekt mit dem Bett des aktuellen Geräts */
-  newTab(this: Editor, doc?: Doc, name: string | null = null): ProjectTab {
+  newTab(this: Editor, doc?: Doc, name: string | null = null, path: string | null = null): ProjectTab {
     if (!doc) {
       doc = newDoc();
       doc.bed = { ...this.doc.bed };
       applyLayerDefaults(doc);
     }
-    const tab = makeTab(doc, name, false, false);
+    const tab = makeTab(doc, name, false, false, path);
     this.updateChanged();
     this.stashTab();
     this.tabs.splice(this.tabIndex + 1, 0, tab);
@@ -237,11 +243,12 @@ export class EditorTabs {
     this.saveNow();
   }
   /** Projektdatei in einem Tab öffnen: im aktiven, wenn er leer ist, sonst in einem neuen */
-  openInTab(this: Editor, json: string, name: string | null) {
+  openInTab(this: Editor, json: string, name: string | null, path: string | null = null) {
     const doc = this.parseProject(json);
     if (this.tabIsBlank()) {
       this.clearPageState();
       this.tab.name = name;
+      this.tab.path = path;
       this.doc = this.tab.doc = doc;
       this.sel = [];
       this.zoomPage();
@@ -249,7 +256,7 @@ export class EditorTabs {
       this.emit('doc');
       this.emit('sel');
     } else {
-      this.newTab(doc, name);
+      this.newTab(doc, name, path);
       this.markSaved(name);
     }
   }
