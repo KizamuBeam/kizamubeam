@@ -158,6 +158,41 @@ await test('edge: a joint that does not fit answers with an error code; the app 
   assert.deepEqual(r.ok, { v: 1, error: { code: 'joint-fingers-narrow' } });
 });
 
+await test('edge: chain: true puts fingers on a curved run; a circle is the ring, the strip gets the pattern from its start (#513)', () => {
+  // Circle of radius 40 from four Bézier quarters, and a strip 300 × 40 whose first edge runs from (0, 40) to (300, 40)
+  const k = 0.5522847498 * 40;
+  const circle: SubPath = { closed: true, nodes: [
+    { x: 40, y: 0, cin: { x: 40, y: -k }, cout: { x: 40, y: k } }, { x: 0, y: 40, cin: { x: k, y: 40 }, cout: { x: -k, y: 40 } },
+    { x: -40, y: 0, cin: { x: -40, y: k }, cout: { x: -40, y: -k } }, { x: 0, y: -40, cin: { x: -k, y: -40 }, cout: { x: k, y: -40 } },
+  ] };
+  const strip: SubPath = { closed: true, nodes: [{ x: 0, y: 40 }, { x: 300, y: 40 }, { x: 300, y: 0 }, { x: 0, y: 0 }] };
+  const options = { kind: 'finger', thickness: 3, fingerWidth: 10 };
+  const r = call({ op: 'edge', v: 2, options, parts: { a: [circle], b: [strip] }, edges: [{ part: 'a', seg: 1, chain: true }, { part: 'b', seg: 0 }] });
+  const ok = r.ok as { parts: Record<string, SubPath[]>; info: { code: string; values?: Record<string, number> }[] };
+  assert.ok(ok && ok.parts, JSON.stringify(r).slice(0, 300));
+  const strInfo = ok.info.find((i) => i.code === 'joint-curve-strip');
+  assert.ok(strInfo && strInfo.values!.loop === 1, JSON.stringify(ok.info));
+  // Measured on the wall middle: about 2π (40 − 1.5)
+  assert.ok(Math.abs(strInfo!.values!.len - 2 * Math.PI * 38.5) < 0.5, String(strInfo!.values!.len));
+  // The whole circle got fingers: many more nodes than four
+  assert.ok(ok.parts.a[0].nodes.length > 40, String(ok.parts.a[0].nodes.length));
+  // Same as the Joint tool with the same picks
+  const obj = (sub: SubPath, id: number): Obj => ({ id, m: IDENT, layer: 0, shape: { kind: 'path', subs: [sub] } });
+  const oa = obj(circle, 1), ob = obj(strip, 2);
+  const tool = computeJoint([{ obj: oa, m: IDENT, sub: 0, seg: 1, segs: 4 }, { obj: ob, m: IDENT, sub: 0, seg: 0 }], { ...DEFAULT_JOINT, kind: 'finger', thickness: 3, fingerWidth: 10 }, 2);
+  assert.ok(!tool.error, String(tool.error));
+  assert.deepEqual(round(ok.parts.a), round(tool.changes.get(oa)!.subs));
+  assert.deepEqual(round(ok.parts.b), round(tool.changes.get(ob)!.subs));
+  // Without chain a curved segment is still refused; on a straight segment chain changes nothing
+  assert.deepEqual(call({ op: 'edge', options, parts: { a: [circle] }, edges: [{ part: 'a', seg: 1 }] }), { error: 'host-bad-input' });
+  const plain = call({ op: 'edge', options, parts: { a: [rectSub(0, 0, 50, 50)] }, edges: [{ part: 'a', seg: 2 }] });
+  const chained = call({ op: 'edge', options, parts: { a: [rectSub(0, 0, 50, 50)] }, edges: [{ part: 'a', seg: 2, chain: true }] });
+  assert.deepEqual(chained, plain);
+  // Kinds other than fingers and tenons answer with the Joint tool's code
+  const lap = call({ op: 'edge', options: { kind: 'lap', thickness: 3 }, parts: { a: [circle], b: [strip] }, edges: [{ part: 'a', seg: 0, chain: true }, { part: 'b', seg: 0 }] });
+  assert.deepEqual((lap.ok as { error: unknown }).error, { code: 'joint-curve-kind' });
+});
+
 await test('bad input is refused', () => {
   const a = [rectSub(0, 0, 50, 50)];
   const curved: SubPath = { closed: true, nodes: [{ x: 0, y: 0, cout: { x: 10, y: -10 } }, { x: 50, y: 0, cin: { x: 40, y: -10 } }, { x: 50, y: 50 }] };
@@ -173,6 +208,7 @@ await test('bad input is refused', () => {
     { op: 'edge', options: { kind: 'finger' }, parts: { a }, edges: [{ part: 'b', seg: 0 }] },
     { op: 'edge', options: { kind: 'finger' }, parts: { a }, edges: [{ part: 'a', seg: 9 }] },
     { op: 'edge', options: { kind: 'finger' }, parts: { a: [curved] }, edges: [{ part: 'a', seg: 0 }] },
+    { op: 'edge', options: { kind: 'finger' }, parts: { a: [curved] }, edges: [{ part: 'a', seg: 0, chain: 1 }] },
     { op: 'edge', options: { kind: 'finger' }, parts: { a, b: a, c: a }, edges: [{ part: 'a', seg: 0 }] },
   ])
     assert.deepEqual(call(input), { error: 'host-bad-input' }, JSON.stringify(input)?.slice(0, 90));
