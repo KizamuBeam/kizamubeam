@@ -1,7 +1,7 @@
 // Editor: Projekt-Parameter anlegen, ändern, umbenennen und löschen. Nach jeder Änderung werden Texte und
 // QR-Codes mit Platzhaltern und Bauteile mit Formeln (GenShape.bind) auf allen Seiten neu berechnet.
 import { about, allObjs, clampRectCorners, GenShape, leaves, mul, Obj, OBJ_BIND_KEYS, ObjBindKey, ObjBinds, rotate, scale, translate } from '../model';
-import { boundsOf } from '../geom';
+import { bakeRectMatrix, boundsOf } from '../geom';
 import { buildGen, genReady, genUpgrading, getGenerator, resolveBinds } from '../generators';
 import type { Issue } from '../generators';
 import {
@@ -270,6 +270,7 @@ export class EditorParams {
           if (axisAligned && (s.kind === 'rect' || s.kind === 'ellipse')) {
             // Rechteck und Ellipse ohne Drehung: Maße der Form ändern, damit Eckenradius und Kreis rund bleiben
             if (s.kind === 'rect') {
+              bakeRectMatrix(o);
               s.w *= sx;
               s.h *= sy;
             } else {

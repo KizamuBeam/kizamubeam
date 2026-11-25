@@ -3,7 +3,7 @@
 import { strict as assert } from 'node:assert';
 import { clampRectCorners, isRectSynced, loadDoc, newDoc, normalizeRect, rectCorners } from '../src/model';
 import type { RectShape } from '../src/model';
-import { shapeSubs } from '../src/geom';
+import { shapeSubs, boundsOf, bakeRectMatrix, resizeRectWH } from '../src/geom';
 import { Editor } from '../src/editor';
 
 let failed = 0;
@@ -25,6 +25,7 @@ function stubEditor(sel: never[] | { shape: { kind: string } }[]): Editor {
   Object.assign(ed, {
     doc: newDoc(), sel, rectRadius: 0,
     snapshot() {}, touch() {}, emit() {}, saveToolOptions() {},
+    selBounds() { return boundsOf((this as unknown as { sel: never[] }).sel as never); },
   });
   return ed;
 }
@@ -207,6 +208,97 @@ test('loadDoc: alte Rechtecke ohne chamfer bleiben rund', () => {
   const s = legacy.pages[0].objs[0].shape;
   assert.equal(s.kind, 'rect');
   if (s.kind === 'rect') assert.equal(s.chamfer, undefined);
+});
+
+test('resizeRectWH: Breite verdoppeln lässt Eckenmaß und Fase unverändert (Anker links)', () => {
+  const o = { id: 1, m: [1, 0, 0, 1, 0, 0], layer: 0, shape: { kind: 'rect', w: 20, h: 10, r: 3, chamfer: true } } as never;
+  assert.ok(resizeRectWH(o, 40, 10, 0, 1));
+  const s = (o as unknown as { shape: RectShape }).shape;
+  assert.equal(s.w, 40);
+  assert.equal(s.h, 10);
+  assert.equal(s.r, 3);
+  assert.equal(s.chamfer, true);
+  // Anker links (ax=0): linke Kante bleibt bei x=0.
+  assert.deepEqual((o as unknown as { m: number[] }).m, [1, 0, 0, 1, 0, 0]);
+  // Fase bleibt 45°: Kante von [37,0] nach [40,3].
+  const n = shapeSubs(s)[0].nodes;
+  assert.deepEqual([n[1].x, n[1].y], [37, 0]);
+  assert.deepEqual([n[2].x, n[2].y], [40, 3]);
+});
+
+test('resizeRectWH: Anker rechts schiebt die Matrix, Einzelradien bleiben', () => {
+  const o = { id: 2, m: [1, 0, 0, 1, 0, 0], layer: 0, shape: { kind: 'rect', w: 20, h: 10, r: 0, corners: [1, 2, 3, 4] } } as never;
+  assert.ok(resizeRectWH(o, 40, 20, 1, 1));
+  const s = (o as unknown as { shape: RectShape }).shape;
+  assert.deepEqual(s.corners, [1, 2, 3, 4]);
+  // Rechte/untere Kante fix: 20 -> -20, 10 -> -10.
+  assert.deepEqual((o as unknown as { m: number[] }).m, [1, 0, 0, 1, -20, -10]);
+});
+
+test('resizeRectWH: gedreht, kein Rechteck oder ungültige Maße → false', () => {
+  const rot = { id: 3, m: [0, 1, -1, 0, 0, 0], layer: 0, shape: { kind: 'rect', w: 20, h: 10, r: 3 } } as never;
+  assert.equal(resizeRectWH(rot, 40, 10, 0, 0), false);
+  assert.equal((rot as unknown as { shape: RectShape }).shape.w, 20);
+  const ell = { id: 4, m: [1, 0, 0, 1, 0, 0], layer: 0, shape: { kind: 'ellipse', rx: 10, ry: 5 } } as never;
+  assert.equal(resizeRectWH(ell, 20, 5, 0, 0), false);
+  const bad = { id: 5, m: [1, 0, 0, 1, 0, 0], layer: 0, shape: { kind: 'rect', w: 20, h: 10, r: 1 } } as never;
+  assert.equal(resizeRectWH(bad, 0, 10, 0, 0), false);
+  assert.equal(resizeRectWH(bad, -5, 10, 0, 0), false);
+  assert.equal((bad as unknown as { shape: RectShape }).shape.w, 20);
+});
+
+test('setSelBox: einzelnes Rechteck über Maßfeld behält Eckenmaß (kein Matrix-Verzug)', () => {
+  const o = { id: 6, m: [1, 0, 0, 1, 0, 0], layer: 0, shape: { kind: 'rect', w: 20, h: 10, r: 3, chamfer: true } } as never;
+  const ed = stubEditor([o] as never[]);
+  (ed as unknown as { setSelBox: (n: object, ax: number, ay: number, lock: boolean) => void }).setSelBox({ w: 40 }, 0, 1, false);
+  const s = (o as unknown as { shape: RectShape }).shape;
+  assert.equal(s.w, 40);
+  assert.equal(s.h, 10);
+  assert.equal(s.r, 3);
+  assert.equal(s.chamfer, true);
+  assert.deepEqual((o as unknown as { m: number[] }).m, [1, 0, 0, 1, 0, 0]);
+});
+
+test('bakeRectMatrix: Skalierung wird geometrie-erhaltend in w/h gefaltet', () => {
+  const o = { id: 7, m: [3, 0, 0, 2, 50, 60], layer: 0, shape: { kind: 'rect', w: 20, h: 10, r: 3, chamfer: true } } as never;
+  const before = boundsOf([o] as never);
+  assert.ok(bakeRectMatrix(o));
+  const s = (o as unknown as { shape: RectShape }).shape;
+  const m = (o as unknown as { m: number[] }).m;
+  assert.equal(s.w, 60);
+  assert.equal(s.h, 20);
+  assert.equal(s.r, 3);
+  assert.equal(s.chamfer, true);
+  assert.deepEqual(m, [1, 0, 0, 1, 50, 60]);
+  // Welt-Begrenzung exakt gleich.
+  assert.deepEqual(boundsOf([o] as never), before);
+  // Danach rendern die Ecken kreisrund: Fase bleibt 45° (Kante [57,0] → [60,3], lokal).
+  const n = shapeSubs(s)[0].nodes;
+  assert.deepEqual([n[1].x, n[1].y], [57, 0]);
+  assert.deepEqual([n[2].x, n[2].y], [60, 3]);
+});
+
+test('bakeRectMatrix: Spiegelung tauscht Einzelradien, reine Translation bleibt', () => {
+  const o = { id: 8, m: [-1, 0, 0, 1, 70, 50], layer: 0, shape: { kind: 'rect', w: 20, h: 10, r: 1, corners: [1, 2, 3, 4] } } as never;
+  const before = boundsOf([o] as never);
+  assert.ok(bakeRectMatrix(o));
+  const s = (o as unknown as { shape: RectShape }).shape;
+  assert.deepEqual((o as unknown as { m: number[] }).m, [1, 0, 0, 1, 50, 50]);
+  assert.deepEqual(s.corners, [2, 1, 4, 3]);
+  assert.equal(s.r, 2);
+  assert.deepEqual(boundsOf([o] as never), before);
+  // Saubere Matrix: true, unverändert.
+  const m0 = (o as unknown as { m: number[] }).m.slice();
+  assert.ok(bakeRectMatrix(o));
+  assert.deepEqual((o as unknown as { m: number[] }).m, m0);
+});
+
+test('bakeRectMatrix: gedreht oder kein Rechteck → false, unberührt', () => {
+  const rot = { id: 9, m: [0, 1, -1, 0, 0, 0], layer: 0, shape: { kind: 'rect', w: 20, h: 10, r: 3 } } as never;
+  assert.equal(bakeRectMatrix(rot), false);
+  assert.equal((rot as unknown as { shape: RectShape }).shape.w, 20);
+  const ell = { id: 10, m: [2, 0, 0, 1, 0, 0], layer: 0, shape: { kind: 'ellipse', rx: 10, ry: 5 } } as never;
+  assert.equal(bakeRectMatrix(ell), false);
 });
 
 if (failed) {

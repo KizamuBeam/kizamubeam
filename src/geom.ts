@@ -1,6 +1,6 @@
 // Geometrie: Formen in Pfade umwandeln, Begrenzungsrahmen, Text-Layout, Treffertest.
-import { apply, IDENT, inv, mul, Mat, Node, Obj, Pt, Shape, SubPath, TextShape } from './model';
-import { clampRectCorners, rectCorners } from './model';
+import { apply, IDENT, inv, mul, Mat, Node, Obj, Pt, Shape, SubPath, TextShape, translate } from './model';
+import { clampRectCorners, normalizeRect, rectCorners } from './model';
 import { fitText, loadedFont, onFontLoaded, textLines, textToSubs, wrapParagraph, wrapWidth } from './fonts';
 import { bezierPt, segments } from './curves';
 import { shownText } from './vartext';
@@ -500,6 +500,58 @@ export function boundsOf(objs: Iterable<Obj>, parent: Mat = IDENT): Box | null {
   for (const o of objs) objExtents(o, parent, b);
   if (!isFinite(b.x0)) return null;
   return { x: b.x0, y: b.y0, w: b.x1 - b.x0, h: b.y1 - b.y0 };
+}
+
+/**
+ * Skalierung/Spiegelung aus der Matrix eines (achsparallelen) Rechtecks in die Form falten,
+ * damit die Matrix wieder reine Translation ist und Ecken kreisrund rendern. Geometrie-erhaltend:
+ * Beträge gehen in w/h, Spiegelungen in vertauschte Einzelradien (mit normalizeRect kanonisiert).
+ * Heilt Altlasten (z. B. vor dem formstabilen Ziehen gestreckte Objekte, Gruppen-Skalierung).
+ * Gibt false zurück, wenn nicht anwendbar (kein Rechteck, gedreht/geschert, entartet).
+ */
+export function bakeRectMatrix(o: Obj): boolean {
+  const s = o.shape;
+  if (s.kind !== 'rect') return false;
+  const m = o.m;
+  if (Math.abs(m[1]) > 1e-12 || Math.abs(m[2]) > 1e-12) return false;
+  const sx = m[0], sy = m[3];
+  if (!Number.isFinite(sx) || !Number.isFinite(sy) || sx === 0 || sy === 0) return false;
+  if (!(s.w > 0) || !(s.h > 0) || !Number.isFinite(s.w) || !Number.isFinite(s.h)) return false;
+  if (Math.abs(Math.abs(sx) - 1) <= 1e-9 && Math.abs(Math.abs(sy) - 1) <= 1e-9 && sx > 0 && sy > 0) return true;
+  const w0 = s.w, h0 = s.h;
+  s.w = w0 * Math.abs(sx);
+  s.h = h0 * Math.abs(sy);
+  // Spiegelung: Ecken links/rechts bzw. oben/unten tauschen, damit das Bild gleich bleibt.
+  if (s.corners && Array.isArray(s.corners) && s.corners.length === 4) {
+    const c = [...s.corners];
+    if (sx < 0) { const t = c[0]; c[0] = c[1]; c[1] = t; const u = c[2]; c[2] = c[3]; c[3] = u; }
+    if (sy < 0) { const t = c[0]; c[0] = c[3]; c[3] = t; const u = c[1]; c[1] = c[2]; c[2] = u; }
+    s.corners = [c[0], c[1], c[2], c[3]];
+    s.r = c[0];
+  }
+  // Translation so anpassen, dass die Welt-Begrenzung exakt gleich bleibt.
+  o.m = [1, 0, 0, 1, sx >= 0 ? m[4] : m[4] + w0 * sx, sy >= 0 ? m[5] : m[5] + h0 * sy];
+  normalizeRect(s);
+  return true;
+}
+/**
+ * Einzelnes, nicht gedrehtes Rechteck auf absolute Maße bringen (Anker ax/ay in 0..1 bleibt fix).
+ * Eckenradius, Einzelradien und Fase bleiben absolute mm — anders als eine Matrix-Skalierung,
+ * die Rundungen elliptisch verzerrt und Fasenwinkel verändert. Gibt false zurück, wenn nicht
+ * anwendbar (kein Rechteck, gedreht/geschert, entartet) — dann Matrix-Skalierung nehmen.
+ */
+export function resizeRectWH(o: Obj, wNew: number, hNew: number, ax: number, ay: number): boolean {
+  const s = o.shape;
+  if (s.kind !== 'rect') return false;
+  if (!(wNew > 0) || !(hNew > 0) || !Number.isFinite(wNew) || !Number.isFinite(hNew)) return false;
+  if (Math.abs(o.m[1]) > 1e-12 || Math.abs(o.m[2]) > 1e-12) return false;
+  const bx = boundsOf([o]);
+  if (!bx || !(bx.w > 1e-9) || !(bx.h > 1e-9)) return false;
+  s.w = wNew;
+  s.h = hNew;
+  const nb = boundsOf([o])!;
+  o.m = mul(translate(bx.x + ax * bx.w - (nb.x + ax * nb.w), bx.y + ay * bx.h - (nb.y + ay * nb.h)), o.m);
+  return true;
 }
 
 // ---------- Treffertest ----------

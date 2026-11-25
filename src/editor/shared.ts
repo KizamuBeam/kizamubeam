@@ -38,7 +38,7 @@ export type Drag =
       /** Fangpunkt der Auswahl, an dem gegriffen wurde (sonst null: Ecken und Mitte der Auswahl fangen) */
       anchor: Pt | null; box: Box; snapSet: SnapSet;
     }
-  | { type: 'scale'; handle: number; box: Box; orig: Mat[] }
+  | { type: 'scale'; handle: number; box: Box; orig: Mat[]; rectBase: { w: number; h: number } | null }
   | { type: 'image-crop'; mode: 'crop'; handle: import('./imageHandles').ImageCropHandle }
   | { type: 'image-crop'; mode: 'perspective'; handle: number }
   | { type: 'image-crop'; mode: 'rounding'; handle: number }

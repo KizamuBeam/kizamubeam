@@ -1,7 +1,7 @@
 import { canvasWheelFactor, pinchGestureActive } from '../canvasZoom';
 // Editor: Maus- und Stifteingaben auf der Arbeitsfläche (Ziehen, Zeichnen, Werkzeuge).
 import { about, apply, clone, IDENT, inv, Mat, mul, newId, Node, Obj, Pt, rotate, scale, Shape, SubPath, TextShape, translate, visibleLeaves } from '../model';
-import { Box, boundsOf, leafIntersectsBox, segments, shapeSubs, textLayout } from '../geom';
+import { Box, boundsOf, bakeRectMatrix, leafIntersectsBox, resizeRectWH, segments, shapeSubs, textLayout } from '../geom';
 import { wrapWidth } from '../fonts';
 import { buildSnapSet, findSnap } from '../snap';
 import { t, dec } from '../i18n';
@@ -161,7 +161,11 @@ export class EditorPointer {
             return;
           }
           this.snapshot(t('Größe ändern'));
-          this.drag = { type: 'scale', handle: h, box: this.selBounds()!, orig: this.sel.map((o) => o.m) };
+          // Einzelnes Rechteck: Ausgangsmaße merken, damit der Drag absolute w/h setzt
+          // (Eckenradius/Fase bleiben mm-stabil) statt die Matrix zu skalieren.
+          const single = this.sel.length === 1 ? this.sel[0].shape : null;
+          this.drag = { type: 'scale', handle: h, box: this.selBounds()!, orig: this.sel.map((o) => o.m),
+            rectBase: single?.kind === 'rect' ? { w: single.w, h: single.h } : null };
           return;
         }
         if (this.hitRotateZone(sx, sy)) return this.startRotate(wp);
@@ -660,6 +664,31 @@ export class EditorPointer {
           return;
         }
         const clampS = (v: number) => (Math.abs(v) < 1e-3 ? (v < 0 ? -1e-3 : 1e-3) : v);
+        // Einzelnes Rechteck ohne Drehung: absolute Breite/Höhe setzen, damit Eckenradius
+        // und Fase in mm stabil bleiben (Matrix-Skalierung würde sie verzerren).
+        // Ausgangsmaße zuerst wiederherstellen: Der Drag rechnet absolut ab Dragstart,
+        // und der Matrix-Rückfall (Spiegeln) braucht die unveränderte Form.
+        const ro = this.sel.length === 1 && d.rectBase ? this.sel[0] : null;
+        if (ro && ro.shape.kind === 'rect') {
+          // Ausgangsstand ab Dragstart wiederherstellen (Form UND Matrix): Der Drag rechnet
+          // absolut — die Anker-Korrektur des vorherigen Moves darf nicht in die nächste
+          // Rechnung eingehen, sonst driftet der Anker pro Move (sichtbar an Griffen mit
+          // Anker ungleich links). Der Matrix-Rückfall (Spiegeln) braucht den Stand ohnehin.
+          ro.m = [...d.orig[0]] as Mat;
+          ro.shape.w = d.rectBase!.w;
+          ro.shape.h = d.rectBase!.h;
+          this.touch(ro.shape);
+        }
+        if (ro && fx > 0 && fy > 0 && ro.shape.kind === 'rect') {
+          // Altlasten heilen (skalierte Matrix streckt Ecken elliptisch), dann absolut setzen.
+          bakeRectMatrix(ro);
+          const rs = ro.shape;
+          if (resizeRectWH(ro, rs.w * clampS(fx), rs.h * clampS(fy), ax, ay)) {
+            this.touch(ro.shape);
+            this.emit('doc');
+            return;
+          }
+        }
         const D = about(scale(clampS(fx), clampS(fy)), A.x, A.y);
         this.sel.forEach((o, i) => (o.m = mul(D, d.orig[i])));
         this.emit('doc');
