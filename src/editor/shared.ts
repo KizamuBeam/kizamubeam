@@ -5,7 +5,7 @@ import { SnapSet } from '../snap';
 import { t } from '../i18n';
 import type { ArcDraft } from './arc';
 
-export type Tool = 'freehand-edit' | 'lasso' | 'select' | 'node' | 'line' | 'curvature' | 'arc' | 'pencil' | 'builder' | 'rect' | 'ellipse' | 'polygon' | 'text' | 'joint' | 'trim' | 'start' | 'relate' | 'measure' | 'sketch' | 'shaper';
+export type Tool = 'freehand-edit' | 'lasso' | 'select' | 'node' | 'line' | 'curvature' | 'arc' | 'pencil' | 'builder' | 'rect' | 'ellipse' | 'polygon' | 'text' | 'joint' | 'fillet' | 'trim' | 'start' | 'relate' | 'measure' | 'sketch' | 'shaper';
 
 export const RULER = 22; // px
 
@@ -125,6 +125,7 @@ export const TOOL_HINTS: Record<Tool, string> = {
   polygon: t('Von der Mitte aus ziehen. Shift: nicht drehen.'),
   text: t('Klicken, um Text zu setzen, Ziehen für einen Textrahmen mit Zeilenumbruch, oder vorhandenen Text anklicken.'),
   joint: t('Verbindung: erste Kante anklicken, gerade oder gebogen (Zinken, Zapfen oder Schlitze). Esc hebt die Wahl auf.'),
+  fillet: t('Kanten: zwei Kanten anklicken, Runden/Innenrunden/Fasen mit Vorschau. Enter übernimmt, Esc bricht ab.'),
   trim: t('Trimmen: Abschnitt bis zu den nächsten Schnittpunkten anklicken (rot) zum Entfernen. Shift: Stück auf aktuellem Layer behalten, Ctrl: nicht verbinden.'),
   start: t('Startpunkt: Knoten oder Kante anklicken, dort beginnt der Schnitt (auf einer Kante geschlossener Konturen entsteht ein neuer Knoten). Shift+Klick: Richtung umkehren, Ctrl+Klick: zurücksetzen (Optimierung wählt).'),
   relate: t('Beziehung: zuerst das Element anklicken, das stehen bleibt, dann das Element des Objekts, das sich anpasst.'),

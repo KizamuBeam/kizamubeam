@@ -759,6 +759,50 @@ export class EditorRender {
       ctx.restore();
     }
 
+    // Kanten-Werkzeug: gewählte Kanten (nummeriert), Kante unter dem Mauszeiger und Vorschau
+    if (this.tool === 'fillet') {
+      ctx.save();
+      const edge = (p: EdgePick) => {
+        const pts = pickPoints(p);
+        ctx.beginPath();
+        pts.forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)));
+        ctx.stroke();
+        return pts;
+      };
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      if (this.filletHover) {
+        ctx.strokeStyle = SNAP_COLOR;
+        ctx.lineWidth = 4 * px;
+        edge(this.filletHover);
+      }
+      this.validFilletPicks().forEach((p, i) => {
+        ctx.strokeStyle = '#ff6020';
+        ctx.lineWidth = 4 * px;
+        const pts = edge(p);
+        const a = pts[0], b = pts[pts.length - 1];
+        const mid = pts.length > 2 ? pts[Math.floor(pts.length / 2)] : { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+        const fWs = groupFactor(this.typo, 'workspace');
+        ctx.fillStyle = '#ff6020';
+        ctx.beginPath();
+        ctx.arc(mid.x, mid.y, 8 * px * fWs, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `bold ${11 * px * fWs}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(String(i + 1), mid.x, mid.y + 0.5 * px);
+      });
+      if (this.filletPreview) {
+        ctx.strokeStyle = '#ff6020';
+        ctx.setLineDash([4 * px, 2 * px]);
+        ctx.lineWidth = 1.5 * px;
+        ctx.stroke(subsToPath2D(this.filletPreview));
+        ctx.setLineDash([]);
+      }
+      ctx.restore();
+    }
+
     // Trimmen: Abschnitt unter dem Mauszeiger rot
     if (this.tool === 'trim' && this.trimHover) {
       ctx.save();

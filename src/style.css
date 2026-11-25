@@ -6198,3 +6198,70 @@ label.settings-label input {
 }
 /* Tool-window drag handles (toolWindow.ts): keyboard-focusable via tabindex. */
 dialog h3[tabindex]:focus-visible { outline: 2px solid var(--accent, #6bafff); outline-offset: 2px; }
+/* Interaktives Kanten-Werkzeug: modelles Panel (Modus, Wert, Angebot, Kantensätze) */
+.fillet-panel {
+  position: fixed;
+  right: 12px;
+  top: 120px;
+  z-index: 75;
+  width: 264px;
+  max-height: calc(100vh - 160px);
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.25);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.fillet-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.fillet-head strong {
+  flex: 1;
+}
+.fillet-modes {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.fillet-panel .form {
+  grid-template-columns: 1fr 76px;
+}
+.fillet-status {
+  min-height: 1.2em;
+}
+.fillet-actions {
+  display: flex;
+  gap: 6px;
+}
+.fillet-sets-head {
+  font-weight: bold;
+}
+.fillet-sets {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.fillet-set {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.fillet-set-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fillet-set.on .fillet-set-label {
+  font-weight: bold;
+}
+.fillet-foot {
+  color: var(--muted);
+}
