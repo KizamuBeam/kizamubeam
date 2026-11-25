@@ -1,7 +1,7 @@
 {
   "lang": "de",
   "locale": "de_DE",
-  "version": "2.9.6",
+  "version": "2.9.7",
   "meta": {
     "title": "KizamuBeam – freie Lasersoftware zum Gravieren und Schneiden",
     "description": "Kostenlose Open-Source-Lasersoftware für macOS, Windows und Linux. Entwerfen, Bilder gravieren, Boxen und Zahnräder erzeugen und direkt an FluidNC-, GRBL-, grblHAL-, Marlin- und Smoothieware-Laser senden.",
