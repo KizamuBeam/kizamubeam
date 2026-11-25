@@ -6,7 +6,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import type { Pt } from '../model';
 import type { Overlap, Solid } from './solids';
 import type { Engraving } from './engrave';
-import { outlineSegments, solidBounds } from './solids';
+import { outlineSegments, partKey, solidBounds } from './solids';
 import { Pose, rotatePose } from './poses';
 import { DEFAULT_LOOK, LookPreset, lookTexture, resolveLook, shadeHex } from './looks';
 import { BlueprintLabels, BlueprintViewport, computeBlueprintLayout, computeOrthoScale, drawBlueprintOverlay } from './blueprint';
@@ -99,7 +99,7 @@ function slabGeometry(s: Solid) {
 /** Outline lines from the 2D contours, independent of the cap triangulation (issue #182) */
 function outlineGeometry(s: Solid) {
   const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(outlineSegments(s.polys.filter((p) => p.length > 2), s.th), 3));
+  g.setAttribute('position', new THREE.Float32BufferAttribute(outlineSegments(s.polys.filter((p) => p.length > 2), s.th, 25, s.seams), 3));
   return g;
 }
 
@@ -424,7 +424,12 @@ export class Viewer3D {
       const b = solidBounds(s);
       return new THREE.Box3(new THREE.Vector3(...b.min), new THREE.Vector3(...b.max));
     };
-    for (const s of sc.solids) centers.set(s.group, (centers.get(s.group) ?? new THREE.Box3()).union(boxOf(s)));
+    // Strips of a bent part move apart as one part
+    const partBoxes = new Map<string, THREE.Box3>();
+    for (const s of sc.solids) {
+      centers.set(s.group, (centers.get(s.group) ?? new THREE.Box3()).union(boxOf(s)));
+      partBoxes.set(partKey(s), (partBoxes.get(partKey(s)) ?? new THREE.Box3()).union(boxOf(s)));
+    }
     sc.solids.forEach((s, i) => {
       const geo = slabGeometry(s);
       const look = s.look ?? resolveLook(DEFAULT_LOOK);
@@ -447,7 +452,7 @@ export class Viewer3D {
       const holder = new THREE.Group();
       holder.add(mesh);
       this.root.add(holder);
-      const c = boxOf(s).getCenter(new THREE.Vector3()).sub(centers.get(s.group)!.getCenter(new THREE.Vector3()));
+      const c = partBoxes.get(partKey(s))!.getCenter(new THREE.Vector3()).sub(centers.get(s.group)!.getCenter(new THREE.Vector3()));
       this.parts.push({ s, holder, mesh, outline, hiddenOutline: null, engrave, engravePbrMat, engraveAlphaMap, pbrMats, pbrLineColor, pbrLineOpacity, away: c });
     });
     const red = new THREE.MeshBasicMaterial({ color: 0xe53935, transparent: true, opacity: 0.85, depthTest: false });

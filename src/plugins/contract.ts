@@ -8,7 +8,7 @@
 import type { Node, Pt, SubPath } from '../model';
 import { fromBase64, toBase64 } from '../base64';
 import type { GenDrawing, GenEvent, GenItem, GenLayer, GenSideField, GenStyle, Params, PlanSheet } from '../generators/types';
-import type { AsmPoses, Pose, V3 } from '../generators/pose';
+import type { AsmPoses, Bend, Pose, V3 } from '../generators/pose';
 
 /** Version of the call protocol; a plugin built for a newer one is refused with an update hint */
 export const PLUGIN_API = 1;
@@ -48,6 +48,8 @@ export const LIMITS = {
   /** Shapes on the surface (items of one drawing or layer) and their points, triangles of a layer */
   items: 20_000,
   points: 1_000_000,
+  /** Points of the path of a bent part (pose.bend) */
+  bendPoints: 2000,
   tris: 2_000_000,
   layers: 4,
   /** Fields a drawing puts in the right column, parts it marks in the preview (#411) */
@@ -172,7 +174,19 @@ export function checkText(v: unknown, depth = 0): PluginText {
 
 function checkPose(v: unknown): Pose {
   if (!isObj(v)) return fail('pose');
-  return { o: v3(v.o, 'pose'), u: v3(v.u, 'pose'), v: v3(v.v, 'pose'), n: v3(v.n, 'pose') };
+  const out: Pose = { o: v3(v.o, 'pose'), u: v3(v.u, 'pose'), v: v3(v.v, 'pose'), n: v3(v.n, 'pose') };
+  if (v.bend !== undefined) out.bend = checkBend(v.bend);
+  return out;
+}
+
+/** Bend of a pose: 2 … LIMITS.bendPoints points, consecutive points apart */
+function checkBend(v: unknown): Bend {
+  if (!isObj(v) || !Array.isArray(v.path) || v.path.length < 2 || v.path.length > LIMITS.bendPoints) return fail('pose bend');
+  const path = v.path.map((q): [number, number] => (Array.isArray(q) && q.length === 2 ? [num(q[0], 'pose bend'), num(q[1], 'pose bend')] : fail('pose bend')));
+  for (let i = 1; i < path.length; i++) if (Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]) < 1e-6) fail('pose bend');
+  const out: Bend = { path };
+  if (v.x0 !== undefined) out.x0 = num(v.x0, 'pose bend');
+  return out;
 }
 
 /** Check and copy the answer of generate() */

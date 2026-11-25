@@ -86,6 +86,12 @@ test('Überschneidungen: Rundungsrauschen (1 µm) gilt als Berührung, echte Dur
   assert.equal(findOverlaps([a, { ...b, pose: { ...b.pose, o: [0, 0, 2.995] as [number, number, number] } }]).length, 0);
 });
 
+test('Overlaps: plates in one plane that meet edge to edge count as touching up to the tolerance', () => {
+  const plate = (key: string, x: number): Solid => ({ key, label: '', th: 3, pose: { o: [x, 0, 0], u: [1, 0, 0], v: [0, 1, 0], n: [0, 0, 1] }, polys: [[{ x: 0, y: 0 }, { x: 20, y: 0 }, { x: 20, y: 50 }, { x: 0, y: 50 }]] });
+  assert.equal(findOverlaps([plate('a', 0), plate('b', 19.995)]).length, 0, '5 µm');
+  assert.equal(findOverlaps([plate('a', 0), plate('b', 19.9)]).length, 1, '0.1 mm');
+});
+
 test('Box mit Trennwänden: offene und geschlossene Kisten mit individuellen Trennwänden', () => {
   const cases: Params[] = [
     { top: 'open' }, { top: 'closed' },
@@ -927,6 +933,114 @@ test('Blueprint-Layout: 4 Ansichten ohne Überlappung und einheitlicher Orthogra
   assert.ok(size.x * s <= layout.top.w * 0.65 && size.y * s <= layout.top.h * 0.65);
   assert.ok(size.y * s <= layout.side.w * 0.65 && size.z * s <= layout.side.h * 0.65);
 });
+
+// ---------- Bent parts (pose.bend, #513) ----------
+{
+  type V = [number, number, number];
+  const { bentSolids, partKey } = solidsMod;
+  const { analyzeAssembly } = await import('../src/view3d/assembly');
+  const { checkGenResult } = await import('../src/plugins/contract');
+  const at = (s: Solid, x: number, y: number, z = 0): V => [0, 1, 2].map((k) => s.pose.o[k] + x * s.pose.u[k] + y * s.pose.v[k] + z * s.pose.n[k]) as V;
+  const strip = (len: number, h: number): Pt[][] => [[{ x: 0, y: 0 }, { x: len, y: 0 }, { x: len, y: h }, { x: 0, y: h }]];
+  type Pt = { x: number; y: number };
+  // Wall standing up: local x along X, y down the height (v = −Z), n towards +Y; the path bends it in the XY plane
+  const wall = (path: [number, number][], len: number, x0?: number): Solid => ({
+    key: 'wall',
+    label: 'Box: Wall',
+    th: 3,
+    polys: strip(len, 40),
+    pose: { o: [0, 0, 40], u: [1, 0, 0], v: [0, 0, -1], n: [0, 1, 0], bend: { path, ...(x0 !== undefined && { x0 }) } },
+  });
+  /** Quarter arc of radius r from (0, 0) turning towards +n, then straight on */
+  const arc = (r: number, steps: number): [number, number][] => Array.from({ length: steps + 1 }, (_, i) => [r * Math.sin((i / steps) * (Math.PI / 2)), r - r * Math.cos((i / steps) * (Math.PI / 2))]);
+
+  test('Bent part: a straight path gives the unbent plate', () => {
+    const s = bentSolids(wall([[0, 1.5], [50, 1.5], [100, 1.5]], 100));
+    assert.equal(s.length, 1, 'collinear segments merge');
+    assert.deepEqual([s[0].pose.o, s[0].pose.u, s[0].pose.n], [[0, 0, 40], [1, 0, 0], [0, 1, 0]]);
+    assert.equal(s[0].part, 'wall');
+    assert.equal(partKey(s[0]), 'wall');
+    assert.deepEqual(s[0].seams, []);
+  });
+
+  test('Bent part: strips follow the arc, local x is the arc length and the strips join edge to edge', () => {
+    const r = 30,
+      steps = 18;
+    const path = arc(r, steps);
+    const chord = 2 * r * Math.sin(Math.PI / 4 / steps);
+    const len = steps * chord + 50;
+    const s = bentSolids(wall([...path, [r + 50 * 0, r + 50]], len));
+    assert.equal(s.length, steps + 1);
+    s.forEach((x, i) => {
+      assert.equal(x.key, `wall~${i}`);
+      // u, n stay orthonormal and v is unchanged
+      near(Math.hypot(...x.pose.u), 1, 1e-12, 'u');
+      near(x.pose.u[0] * x.pose.n[0] + x.pose.u[1] * x.pose.n[1] + x.pose.u[2] * x.pose.n[2], 0, 1e-12, 'u·n');
+      assert.deepEqual(x.pose.v, [0, 0, -1]);
+    });
+    // Each path point lies where its local x says, in the middle of the plate
+    for (let i = 0; i <= steps; i++) {
+      const p = at(s[Math.min(i, steps)], i * chord, 0, 1.5);
+      near(p[0], path[i][0], 1e-9, `x ${i}`);
+      near(p[1], path[i][1], 1e-9, `y ${i}`);
+      if (i > 0) {
+        // The middle of the plate is continuous (a thin wedge opens outside the bend, and closes inside)
+        const q = at(s[i - 1], i * chord, 7, 1.5);
+        const w = at(s[i], i * chord, 7, 1.5);
+        near(Math.hypot(q[0] - w[0], q[1] - w[1], q[2] - w[2]), 0, 1e-9, `seam ${i}`);
+      }
+    }
+    // After the arc the wall runs along +Y
+    near(s[steps].pose.u[1], 1, 1e-12, 'last strip along Y');
+    const end = at(s[steps], len, 0, 1.5);
+    near(end[0], r, 1e-9);
+    near(end[1], r + 50, 1e-9);
+    // Outlines: the strips cover the plate and no seam is drawn
+    const area = s.reduce((a, x) => a + x.polys.reduce((b, poly) => b + Math.abs(poly.reduce((c, q, k) => c + q.x * poly[(k + 1) % poly.length].y - poly[(k + 1) % poly.length].x * q.y, 0)) / 2, 0), 0);
+    near(area, len * 40, 0.05, 'area (coordinates rounded to 1 µm)');
+    const segs = solidsMod.outlineSegments(s[3].polys, 3, 25, s[3].seams);
+    for (let k = 0; k < segs.length; k += 6) assert.ok(!(Math.abs(segs[k] - segs[k + 3]) < 1e-9 && s[3].seams!.some((x) => Math.abs(segs[k] - x) < 1e-6)), 'no edge along a seam');
+  });
+
+  test('Bent part: x0 shifts the start of the path along the plate', () => {
+    const s = bentSolids(wall([[0, 0], [10, 0], [10, 10]], 40, -5));
+    // x = −5 at the first point, the corner at x = 5
+    const p = at(s[0], 0, 0, 1.5);
+    near(p[0], 5, 1e-9);
+    near(p[1], 0, 1e-9);
+    const c = at(s[1], 5, 0, 1.5);
+    near(c[0], 10, 1e-9);
+    near(c[1], 0, 1e-9);
+    const e = at(s[1], 15, 0, 1.5);
+    near(e[0], 10, 1e-9);
+    near(e[1], 10, 1e-9);
+  });
+
+  test('Bent part: no overlaps between its own strips; an overlap with another part is reported once by part key', () => {
+    const s = bentSolids(wall(arc(30, 12).concat([[30, 80]]), 12 * 2 * 30 * Math.sin(Math.PI / 48) + 50));
+    assert.deepEqual(findOverlaps(s), []);
+    const plate: Solid = { key: 'floor', label: 'Box: Floor', th: 3, polys: [[{ x: -10, y: -10 }, { x: 60, y: -10 }, { x: 60, y: -90 }, { x: -10, y: -90 }]], pose: { o: [0, 0, 1], u: [1, 0, 0], v: [0, -1, 0], n: [0, 0, 1] } };
+    const ov = findOverlaps([...s, plate]);
+    assert.equal(ov.length, 1, ov.map((o) => `${o.a}/${o.b}`).join(' '));
+    assert.equal(`${ov[0].a}/${ov[0].b}`, 'wall/floor');
+    assert.ok(ov[0].pieces.length > 1 && ov[0].volume > 0);
+    // The assembly check sees one part: all strips hang together
+    const r = analyzeAssembly(s);
+    assert.equal(r.groups.length, 1);
+    assert.ok(r.pieces.every((p) => p.key === 'wall' && p.island === 0));
+    assert.deepEqual(r.conflicts, []);
+  });
+
+  test('Plugin contract: pose.bend is checked and copied', () => {
+    const pose = { o: [0, 0, 0], u: [1, 0, 0], v: [0, 1, 0], n: [0, 0, 1] };
+    const res = (bend: unknown) => ({ parts: [{ key: 'a', subs: [], at: { x: 0, y: 0 } }], poses: { poses: { a: { ...pose, bend } } } });
+    const ok = checkGenResult(res({ path: [[0, 0], [10, 0], [20, 5]], x0: -3, junk: 1 }));
+    assert.deepEqual(ok.poses!.poses.a.bend, { path: [[0, 0], [10, 0], [20, 5]], x0: -3 });
+    assert.equal(checkGenResult({ parts: [], poses: { poses: { a: pose } } }).poses!.poses.a.bend, undefined);
+    for (const bad of [{ path: [[0, 0]] }, { path: [[0, 0], [0, 0]] }, { path: [[0, 0], [1]] }, { path: [[0, 0], [1, NaN]] }, { path: [[0, 0], [1, 0]], x0: 'a' }, { path: Array.from({ length: 2001 }, (_, i) => [i, 0]) }])
+      assert.throws(() => checkGenResult(res(bad)), JSON.stringify(bad).slice(0, 60));
+  });
+}
 
 if (failed) {
   console.log(`\n${failed} Test(s) fehlgeschlagen`);

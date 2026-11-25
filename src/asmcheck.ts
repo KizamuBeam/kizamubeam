@@ -6,7 +6,7 @@ import { boundsOf } from './geom';
 import { t } from './i18n';
 import type { Params } from './generators/types';
 import { getGenerator } from './generators/index';
-import { asmSolids, Solid } from './view3d/solids';
+import { asmSolids, partKey, Solid } from './view3d/solids';
 import { collectCutters, Cutter, cutPlate } from './view3d/cuts';
 import { SCALE } from './clip';
 import { analyzeAssembly, AssemblyReport } from './view3d/assembly';
@@ -83,7 +83,7 @@ function asmCuts(parts: Obj[], mats: Map<Obj, Mat>, pageOf: Map<Obj, number>, cu
     sig: JSON.stringify(rel.map((r) => [r.key, r.page, r.toLocal, r.cs.map((c) => [c.id, c.paths])])),
     apply: (solids) => {
       for (const s of solids) {
-        const r = rel.find((x) => x.key === s.key);
+        const r = rel.find((x) => x.key === partKey(s));
         const cut = r && cutPlate(s.polys, r.page, r.toLocal, r.cs);
         if (cut) s.polys = cut.polys;
       }

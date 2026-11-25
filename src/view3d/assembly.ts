@@ -220,7 +220,8 @@ export function analyzeAssembly(solids: Solid[]): AssemblyReport {
   const pieces: Piece[] = [];
   for (const s of solids) {
     const isl = islandsOf(s);
-    isl.forEach((x, i) => pieces.push({ key: s.key, label: s.label, island: isl.length > 1 ? i + 1 : 0, solid: { ...s, polys: x.polys }, area: x.area }));
+    // A strip of a bent part is named after its part
+    isl.forEach((x, i) => pieces.push({ key: s.part ?? s.key, label: s.label, island: isl.length > 1 && s.part === undefined ? i + 1 : 0, solid: { ...s, polys: x.polys }, area: x.area }));
   }
   const boxes = pieces.map(box);
   const contacts: [number, number][] = [];
@@ -234,6 +235,15 @@ export function analyzeAssembly(solids: Solid[]): AssemblyReport {
       if ([0, 1, 2].some((k) => Math.min(p.max[k], q.max[k]) - Math.max(p.min[k], q.min[k]) < -2 * TOUCH)) continue;
       const A = pieces[i].solid,
         B = pieces[j].solid;
+      // Adjacent strips of one bent part (common seam) are one piece of material: joined, without a direction
+      if (A.part !== undefined && A.part === B.part) {
+        if (A.seams?.some((x) => B.seams?.some((y) => Math.abs(x - y) < 1e-6))) {
+          contacts.push([i, j]);
+          adj[i].push(j);
+          adj[j].push(i);
+        }
+        continue;
+      }
       const par = Math.abs(dot(A.pose.n, B.pose.n)) > 1 - 1e-6;
       let touch: boolean,
         dir: V3 | null = null;
