@@ -5499,5 +5499,6 @@
   "Der Streifen ist zu kurz: {len} mm, um die Kurve braucht er {need} mm (gemessen auf der Wandmitte).": "A tira é curta demais: {len} mm, para contornar a curva ela precisa de {need} mm (medido no meio da parede).",
   ". Streifen für die ganze Runde: {len} mm (auf der Wandmitte), Anfang am Beginn der gewählten Kurve": ". Tira para a volta completa: {len} mm (no meio da parede), começando onde começa a curva escolhida",
   ". Länge der Kurve auf der Wandmitte: {len} mm": ". Comprimento da curva no meio da parede: {len} mm",
-  ". Streifen länger als die Runde ({len} / {pattern} mm): Muster ab Streifenanfang, der Rest bleibt glatt": ". Tira mais longa que a volta ({len} / {pattern} mm): padrão a partir do início da tira, o resto fica liso"
+  ". Streifen länger als die Runde ({len} / {pattern} mm): Muster ab Streifenanfang, der Rest bleibt glatt": ". Tira mais longa que a volta ({len} / {pattern} mm): padrão a partir do início da tira, o resto fica liso",
+  "Fase": "Chanfro"
 }

@@ -144,6 +144,23 @@ export class EditorCommands {
   /** Formparameter (Eckenradius, Seiten …) der Auswahl ändern */
   updateShapes(this: Editor, kind: 'rect' | 'polygon', patch: Record<string, number | boolean | readonly (number | null | undefined)[]>) {
     if (kind === 'rect') {
+      if (typeof patch.chamfer === 'boolean') {
+        const ch = patch.chamfer;
+        this.rectChamfer = ch;
+        this.saveToolOptions();
+        const objs = this.sel.filter((o) => o.shape.kind === kind);
+        if (!objs.length) return;
+        this.snapshot(ch ? t('Ecken fasen') : t('Ecken runden'));
+        objs.forEach((o) => {
+          if (o.shape.kind !== 'rect') return;
+          if (ch) o.shape.chamfer = true;
+          else delete o.shape.chamfer;
+          this.touch(o.shape);
+        });
+        this.emit('doc');
+        this.emit('sel');
+        return;
+      }
       if (Array.isArray(patch.corners)) {
         const raw = (patch.corners as readonly unknown[]).slice(0, 4);
         // Leereinträge (null/undefined/keine Zahl) behalten den bisherigen Wert je Objekt.

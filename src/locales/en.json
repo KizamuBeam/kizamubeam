@@ -5499,5 +5499,6 @@
   "Der Streifen ist zu kurz: {len} mm, um die Kurve braucht er {need} mm (gemessen auf der Wandmitte).": "The strip is too short: {len} mm, going round the curve takes {need} mm (measured on the middle of the wall).",
   ". Streifen für die ganze Runde: {len} mm (auf der Wandmitte), Anfang am Beginn der gewählten Kurve": ". Strip for the whole loop: {len} mm (on the middle of the wall), starting where the picked curve starts",
   ". Länge der Kurve auf der Wandmitte: {len} mm": ". Length of the curve on the middle of the wall: {len} mm",
-  ". Streifen länger als die Runde ({len} / {pattern} mm): Muster ab Streifenanfang, der Rest bleibt glatt": ". Strip longer than the loop ({len} / {pattern} mm): pattern from the start of the strip, the rest stays plain"
+  ". Streifen länger als die Runde ({len} / {pattern} mm): Muster ab Streifenanfang, der Rest bleibt glatt": ". Strip longer than the loop ({len} / {pattern} mm): pattern from the start of the strip, the rest stays plain",
+  "Fase": "Chamfer"
 }

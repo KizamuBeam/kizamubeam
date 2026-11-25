@@ -333,9 +333,15 @@ export function createEditorToolbarControls(ed: Editor, refresh: () => void): {
   });
   register('rectangle', t('Radius'), () => ed.tool === 'rect' || ed.sel.some((o) => o.shape.kind === 'rect'), () => {
     // Gemeinsamer Radius + Dropdown mit Synchron-Checkbox und vier Einzelradien (wie die Bild-Abrundung).
+    // Runden/Fasen-Umschalter: derselbe Wert ist Radius oder Fasenabstand, Geometrie in shapeSubs.
     let unlocked = false;
     let open = false;
     const rects = () => ed.sel.filter((o) => o.shape.kind === 'rect');
+    const rectMode = (): 'round' | 'chamfer' => {
+      const list = rects();
+      if (!list.length) return ed.rectChamfer ? 'chamfer' : 'round';
+      return list.every((o) => o.shape.kind === 'rect' && o.shape.chamfer === true) ? 'chamfer' : 'round';
+    };
     const tuples = (): RectCorners[] => rects()
       .map((o) => (o.shape.kind === 'rect' ? rectCorners(o.shape) : [0, 0, 0, 0] as RectCorners));
     const sameTuple = (): RectCorners | null => {
@@ -384,7 +390,20 @@ export function createEditorToolbarControls(ed: Editor, refresh: () => void): {
     });
     const rows = fCorners.map((inp, i) => h('div', { class: 'form' }, h('label', { for: `rect-corner-${i}` }, t('Ecke {number} (mm)', { number: String(i + 1) })), inp));
     const pop = h('div', { class: 'toolbar-popup rect-corners-pop', role: 'dialog', 'aria-label': t('Einzelne Eckenradien') }, syncLabel, ...rows);
-    const el = h('span', { class: 'field rect-radius-wrap' }, h('label', {}, t('Radius'), fRad), toggle);
+    const radLabel = h('span', {}, t('Radius'));
+    const modeSel = h('select', {
+      class: 'small', 'aria-label': t('Ecken runden oder fasen …'),
+      onchange: () => {
+        const ch = modeSel.value === 'chamfer';
+        if (rects().length) ed.updateShapes('rect', { chamfer: ch });
+        else {
+          ed.rectChamfer = ch;
+          ed.saveToolOptions();
+        }
+        refresh();
+      },
+    }, h('option', { value: 'round' }, t('Runden')), h('option', { value: 'chamfer' }, t('Fasen'))) as HTMLSelectElement;
+    const el = h('span', { class: 'field rect-radius-wrap' }, h('label', {}, radLabel, fRad), modeSel, toggle);
     const positionPop = () => {
       const anchor = toggle.getBoundingClientRect();
       const { width, height } = pop.getBoundingClientRect();
@@ -399,6 +418,13 @@ export function createEditorToolbarControls(ed: Editor, refresh: () => void): {
       const list = rects();
       el.hidden = !(list.length || ed.tool === 'rect');
       if (el.hidden) open = false;
+      const mode = rectMode();
+      const ch = mode === 'chamfer';
+      modeSel.value = mode;
+      radLabel.textContent = ch ? t('Fase') : t('Radius');
+      // Auch dataset.title nachführen: bindField restauriert daraus den Title (Formel-Anhang inklusive).
+      fRad.dataset.title = ch ? t('Abstand von der Ecke (mm)') : t('Eckenradius (mm)');
+      fRad.title = fRad.dataset.title;
       const same = sameTuple();
       const uniform = same !== null && same[0] === same[1] && same[0] === same[2] && same[0] === same[3];
       const synced = uniform && !unlocked;

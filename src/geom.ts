@@ -76,6 +76,7 @@ export function shapeSubs(s: Shape): SubPath[] {
       return [{ closed: true, nodes: [{ x: 0, y: 0 }, { x: s.w, y: 0 }, { x: s.w, y: s.h }, { x: 0, y: s.h }] }];
     case 'rect': {
       const { w, h } = s;
+      const ch = s.chamfer === true;
       const [tl, tr, br, bl] = clampRectCorners(rectCorners(s), w, h);
       if (tl <= 0 && tr <= 0 && br <= 0 && bl <= 0)
         return [{ closed: true, nodes: [{ x: 0, y: 0 }, { x: w, y: 0 }, { x: w, y: h }, { x: 0, y: h }] }];
@@ -87,6 +88,7 @@ export function shapeSubs(s: Shape): SubPath[] {
       const kTL = tl * K, kTR = tr * K, kBR = br * K, kBL = bl * K;
       const at = (p: Pt, extra?: Partial<Node>): Node => ({ ...p, ...extra });
       // Je Ecke: Austritt der Vorgängerkante (cout) und Eintritt der Folgekante (cin) für den Viertelkreis.
+      // Als Fase (chamfer) gerade Schnitte ohne Bézier-Handles.
       const nodes: Node[] = [];
       const push = (p: Node) => {
         const last = nodes[nodes.length - 1];
@@ -94,14 +96,14 @@ export function shapeSubs(s: Shape): SubPath[] {
           && !last.cin && !last.cout && !p.cin && !p.cout) return;
         nodes.push(p);
       };
-      push(at({ ...S0 }, tl > 0 ? { cin: { x: S0.x - kTL, y: 0 } } : {}));
-      push(at({ ...E0 }, tr > 0 ? { cout: { x: E0.x + kTR, y: 0 } } : {}));
-      push(at({ ...S1 }, tr > 0 ? { cin: { x: w, y: S1.y - kTR } } : {}));
-      push(at({ ...E1 }, br > 0 ? { cout: { x: w, y: E1.y + kBR } } : {}));
-      push(at({ ...S2 }, br > 0 ? { cin: { x: S2.x + kBR, y: h } } : {}));
-      push(at({ ...E2 }, bl > 0 ? { cout: { x: E2.x - kBL, y: h } } : {}));
-      push(at({ ...S3 }, bl > 0 ? { cin: { x: 0, y: S3.y + kBL } } : {}));
-      push(at({ ...E3 }, tl > 0 ? { cout: { x: 0, y: E3.y - kTL } } : {}));
+      push(at({ ...S0 }, tl > 0 && !ch ? { cin: { x: S0.x - kTL, y: 0 } } : {}));
+      push(at({ ...E0 }, tr > 0 && !ch ? { cout: { x: E0.x + kTR, y: 0 } } : {}));
+      push(at({ ...S1 }, tr > 0 && !ch ? { cin: { x: w, y: S1.y - kTR } } : {}));
+      push(at({ ...E1 }, br > 0 && !ch ? { cout: { x: w, y: E1.y + kBR } } : {}));
+      push(at({ ...S2 }, br > 0 && !ch ? { cin: { x: S2.x + kBR, y: h } } : {}));
+      push(at({ ...E2 }, bl > 0 && !ch ? { cout: { x: E2.x - kBL, y: h } } : {}));
+      push(at({ ...S3 }, bl > 0 && !ch ? { cin: { x: 0, y: S3.y + kBL } } : {}));
+      push(at({ ...E3 }, tl > 0 && !ch ? { cout: { x: 0, y: E3.y - kTL } } : {}));
       // Zusammenfallende Eckpunkte (Radius 0) zu einem scharfen Knoten vereinen.
       const merged: Node[] = [];
       for (const n of nodes) {

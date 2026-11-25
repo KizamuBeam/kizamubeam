@@ -699,7 +699,7 @@ export class EditorPointer {
           o.shape.r = r;
           this.touch(o.shape);
           d.moved = true;
-          this.hint = `${t('Eckenradius')}: ${r.toFixed(1)} mm`;
+          this.hint = `${o.shape.chamfer === true ? t('Fase') : t('Eckenradius')}: ${r.toFixed(1)} mm`;
           this.emit('doc');
         }
         return;
@@ -1137,7 +1137,7 @@ export class EditorPointer {
   }
 
   newShape(this: Editor): Shape {
-    if (this.tool === 'rect') return { kind: 'rect', w: 0, h: 0, r: this.rectRadius };
+    if (this.tool === 'rect') return { kind: 'rect', w: 0, h: 0, r: this.rectRadius, ...(this.rectChamfer ? { chamfer: true as const } : {}) };
     if (this.tool === 'ellipse') return { kind: 'ellipse', rx: 0, ry: 0 };
     return { kind: 'polygon', sides: this.polySides, r: 0, star: this.polyStar, inner: 0.5 };
   }

@@ -161,6 +161,54 @@ test('updateShapes: Ecken werden je Objekt auf min(w,h)/2 geklemmt', () => {
   assert.equal(s.r, 2);
 });
 
+test('normalizeRect: chamfer-Flag bleibt nur als echtes true erhalten', () => {
+  const a = { kind: 'rect', w: 20, h: 10, r: 3, chamfer: true } as unknown as RectShape;
+  normalizeRect(a);
+  assert.equal(a.chamfer, true);
+  assert.equal(a.r, 3);
+  const b = { kind: 'rect', w: 20, h: 10, r: 3, chamfer: 'yes' } as unknown as RectShape;
+  normalizeRect(b);
+  assert.equal(b.chamfer, undefined);
+  const c = { kind: 'rect', w: 20, h: 10, r: 3 } as unknown as RectShape;
+  normalizeRect(c);
+  assert.equal(c.chamfer, undefined);
+});
+
+test('shapeSubs: Fase gibt dieselben 8 Punkte wie rund, aber ohne Bézier-Handles', () => {
+  const round = shapeSubs({ kind: 'rect', w: 20, h: 20, r: 4 });
+  const flat = shapeSubs({ kind: 'rect', w: 20, h: 20, r: 4, chamfer: true });
+  const n = flat[0].nodes;
+  assert.equal(n.length, 8);
+  assert.deepEqual(n.map((x) => [x.x, x.y]), round[0].nodes.map((x) => [x.x, x.y]));
+  for (const x of n) {
+    assert.equal(x.cin, undefined);
+    assert.equal(x.cout, undefined);
+  }
+  // r=0 mit Fase bleibt vier scharfe Ecken.
+  const sharp = shapeSubs({ kind: 'rect', w: 20, h: 10, r: 0, chamfer: true });
+  assert.deepEqual(sharp[0].nodes.map((x) => [x.x, x.y]), [[0, 0], [20, 0], [20, 10], [0, 10]]);
+});
+
+test('updateShapes: chamfer setzt Flag und Werkzeug-Default, zurück auf rund löscht es', () => {
+  const o = { id: 1, m: [1, 0, 0, 1, 0, 0], layer: 0, shape: { kind: 'rect', w: 20, h: 20, r: 3 } } as never;
+  const ed = stubEditor([o] as never[]);
+  (ed as unknown as { updateShapes: (k: string, p: unknown) => void }).updateShapes('rect', { chamfer: true });
+  const s = (o as unknown as { shape: RectShape }).shape;
+  assert.equal(s.chamfer, true);
+  assert.equal(s.r, 3);
+  assert.equal(ed.rectChamfer, true);
+  (ed as unknown as { updateShapes: (k: string, p: unknown) => void }).updateShapes('rect', { chamfer: false });
+  assert.equal(s.chamfer, undefined);
+  assert.equal(ed.rectChamfer, false);
+});
+
+test('loadDoc: alte Rechtecke ohne chamfer bleiben rund', () => {
+  const legacy = loadDoc({ version: 2, bed: { w: 400, h: 400 }, pages: [{ name: 'S1', objs: [{ id: 1, m: [1, 0, 0, 1, 0, 0], layer: 0, shape: { kind: 'rect', w: 20, h: 10, r: 3 } }] }], page: 0, layers: {} });
+  const s = legacy.pages[0].objs[0].shape;
+  assert.equal(s.kind, 'rect');
+  if (s.kind === 'rect') assert.equal(s.chamfer, undefined);
+});
+
 if (failed) {
   console.log(`\n${failed} Test(s) fehlgeschlagen`);
   process.exit(1);

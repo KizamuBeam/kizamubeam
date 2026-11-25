@@ -140,6 +140,8 @@ export class Editor {
   polySides = 6;
   polyStar = false;
   rectRadius = 0;
+  /** Rechteck-Ecken als Fase statt Rundung anlegen/umschalten */
+  rectChamfer = false;
   textDefaults: Omit<TextShape, 'kind' | 'text'> = { ...DEFAULT_TEXT_DEFAULTS };
   cursor: Pt = { x: 0, y: 0 };
   /** Linienwerkzeug: Pfad im Entstehen (Weltkoordinaten) */
