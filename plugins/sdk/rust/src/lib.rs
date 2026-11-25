@@ -253,7 +253,9 @@ pub fn mesh(data: &str) -> Option<(Vec<f32>, Vec<u32>)> {
 /// `{ "name", "thickness", "kerf", "pairPlay" (per side, deprecated), "pairPlayTotal", "slotPlay" }` or `{ "width", "height" }` in mm, `null` when the app
 /// does not know it) or `"check"` (`{ "parts": [{ "key", "subs", "at"? }], "placed"?, "minWeb"?, "kerf"?,
 /// "workArea"? }`: findings of the design check as `check-*` codes with values, to pass on as issues) or `"joints"` (`{ "op":
-/// "panel" | "edge", "v"?, … }`: the app's wood joints, #398; `"v": 2` = clearance is the total play, #402). See docs/plugins.md
+/// "panel" | "edge", "v"?, … }`: the app's wood joints, #398; `"v": 2` = clearance is the total play, #402) or `"hinge"`
+/// (`{ "area": [sub-paths], "kind", "cutLength"?, "bridge"?, "spacing"?, "margin"?, "orient"?, … }`: the living hinge
+/// patterns of the app as open sub-paths, or an error code `hinge-…`). See docs/plugins.md
 /// for the details. The manifest must list it under `"host"`. `Err(code)` on failure, e.g.
 /// `host-not-allowed` or `host-bad-input`.
 pub fn host(name: &str, input: &Value) -> Result<Value, String> {
