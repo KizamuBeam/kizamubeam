@@ -1,7 +1,8 @@
 // Editor: Verbindungen (Fingerzinken, Schlitz und Zapfen).
 import { apply, IDENT, inv, leaves, Mat, newId, Obj, Pt, SubPath, visibleLeaves } from '../model';
 import { transformSubs } from '../importers';
-import { computeJoint, EdgePick, isStraight, jointMate, JointOptions } from '../joints';
+import { computeJoint, EdgePick, edgePickAt, jointMate, JointOptions, samePick, validEdge } from '../joints';
+import { bezierPt } from '../curves';
 import { JOINT_GEOMETRY_VERSION } from '../jointsGeom';
 import { region } from '../ops';
 import { SCALE } from '../clip';
@@ -18,7 +19,7 @@ function isGuide(o: Obj, opt: JointOptions): boolean {
 }
 
 export class EditorJoints {
-  /** Nächste gerade Kante eines sichtbaren Objekts unter dem Mauszeiger */
+  /** Nächste Kante eines sichtbaren Objekts unter dem Mauszeiger: eine gerade Kante oder eine Kurve mit ihrem glatten Zug (#513) */
   updateJointHover(this: Editor, sx: number, sy: number) {
     const prev = this.jointHover;
     let best = 7;
@@ -28,32 +29,42 @@ export class EditorJoints {
       if (k === 'text' || k === 'image' || k === 'barcode' || k === 'gen' || !this.layer(leaf.layer).show) continue;
       shapeSubs(leaf.shape).forEach((sp, si) =>
         segments(sp).forEach((sg, gi) => {
-          if (sg.curve) return;
-          const a = this.toScreen(apply(m, sg.a.x, sg.a.y)),
-            b = this.toScreen(apply(m, sg.b.x, sg.b.y));
-          const dx = b.x - a.x,
-            dy = b.y - a.y;
-          const l2 = dx * dx + dy * dy;
-          if (l2 < 1) return;
-          const t = Math.max(0, Math.min(1, ((sx - a.x) * dx + (sy - a.y) * dy) / l2));
-          const d = Math.hypot(a.x + dx * t - sx, a.y + dy * t - sy);
-          if (d < best) {
-            best = d;
-            this.jointHover = { obj: leaf, m, sub: si, seg: gi };
+          // Curves as short pieces
+          const k = sg.curve ? 16 : 1;
+          let prev = this.toScreen(apply(m, sg.a.x, sg.a.y));
+          for (let j = 1; j <= k; j++) {
+            const q = sg.curve ? bezierPt(sg.a, sg.c1, sg.c2, sg.b, j / k) : sg.b;
+            const b = this.toScreen(apply(m, q.x, q.y));
+            const a = prev;
+            prev = b;
+            const dx = b.x - a.x,
+              dy = b.y - a.y;
+            const l2 = dx * dx + dy * dy;
+            if (l2 < (sg.curve ? 1e-6 : 1)) continue;
+            const t = Math.max(0, Math.min(1, ((sx - a.x) * dx + (sy - a.y) * dy) / l2));
+            const d = Math.hypot(a.x + dx * t - sx, a.y + dy * t - sy);
+            if (d < best) {
+              best = d;
+              this.jointHover = { obj: leaf, m, sub: si, seg: gi };
+            }
           }
         }),
       );
     }
     // im forEach gesetzt: TypeScript sieht das nicht
+    if (this.jointHover) {
+      const j = this.jointHover as EdgePick;
+      this.jointHover = edgePickAt(j.obj, j.m, j.sub, j.seg);
+    }
     const h = this.jointHover as EdgePick | null;
     this.canvas.style.cursor = h ? 'pointer' : 'crosshair';
-    if (!h !== !prev || (h && prev && (h.obj !== prev.obj || h.sub !== prev.sub || h.seg !== prev.seg))) this.redraw();
+    if (!h !== !prev || (h && prev && (!samePick(h, prev) || h.seg !== prev.seg || h.segs !== prev.segs))) this.redraw();
   }
 
   /** Gewählte Kanten, die es im Dokument noch gibt */
   validJointPicks(this: Editor): EdgePick[] {
     const alive = new Set([...leaves(this.doc.objs)].map(([o]) => o));
-    return this.jointPicks.filter((p) => alive.has(p.obj) && isStraight(p.obj, p.sub, p.seg));
+    return this.jointPicks.filter((p) => alive.has(p.obj) && validEdge(p));
   }
   /** Scharnier-Generator: Werkzeug „Verbindung“ mit der Art „Scharnier für Deckel“ */
   startHingeTool(this: Editor) {

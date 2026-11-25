@@ -712,7 +712,7 @@ function buildBars(ed: Editor) {
       id: `rel:${m}`, cat: A, icon: REL_ICONS[m], label: `${REL_LABELS[m]}: ${REL_HINTS[m]}`, short: REL_LABELS[m],
       run: () => ed.startRelation(m), on: () => ed.tool === 'relate' && ed.relMode === m,
     })),
-    tool('joint', 'joint', t('Verbindung: Fingerzinken, Zapfen, Überblattung, Schnapp-, Haken-, Keil- oder T-Slot-Verbindung auf gerade Kanten anwenden')),
+    tool('joint', 'joint', t('Verbindung: Fingerzinken, Zapfen, Überblattung, Schnapp-, Haken-, Keil- oder T-Slot-Verbindung auf Kanten anwenden (Fingerzinken und Zapfen auch an Kurven)')),
     {
       id: 'lidhinge', cat: W, icon: 'lidhinge', label: t('Scharnier für Deckel: Oberkante der Rückwand und Hinterkante des Deckels anklicken; erzeugt Knöchel, Schlitze und Stiftlöcher'),
       run: () => ed.startHingeTool(), on: () => ed.tool === 'joint' && ed.jointHingeMode,

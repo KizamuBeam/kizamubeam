@@ -19,6 +19,7 @@ import { lockedOverlapHit } from '../editorContext';
 import { hitImageCropHandle, pointerCropTo } from '../imageCropUi';
 import { rectCorners } from '../model';
 import { rectRadiusFromLocal } from '../radiusDrag';
+import { samePick } from '../joints';
 
 const RIGHT_PAN_KEY = 'kizamubeam.rightPan';
 /** Right-drag panning is opt-in: off unless switched on in the settings */
@@ -329,7 +330,7 @@ export class EditorPointer {
       case 'joint': {
         const h = this.jointHover;
         if (!h) return;
-        const i = this.jointPicks.findIndex((p) => p.obj === h.obj && p.sub === h.sub && p.seg === h.seg);
+        const i = this.jointPicks.findIndex((p) => samePick(p, h));
         if (i >= 0) this.jointPicks.splice(i, 1);
         else this.jointPicks = [...this.jointPicks.slice(-1), h];
         this.hint = this.jointHingeMode

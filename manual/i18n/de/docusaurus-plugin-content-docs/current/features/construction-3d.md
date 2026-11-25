@@ -10,7 +10,7 @@ KizamuBeam macht aus gewöhnlichen Formen Teile, die sich zusammenstecken oder v
 
 ## Das Werkzeug Verbindung {#the-joint-tool}
 
-Das Werkzeug **Verbindung** (die Verbindungs-Schaltfläche in der Werkzeugleiste oder **Werkzeugkasten → Verbindungen und Biegen → Verbindungen**) setzt eine Verbindung zwischen zwei geraden Kanten:
+Das Werkzeug **Verbindung** (die Verbindungs-Schaltfläche in der Werkzeugleiste oder **Werkzeugkasten → Verbindungen und Biegen → Verbindungen**) setzt eine Verbindung zwischen zwei geraden Kanten (Fingerzinken und Zapfen auch an [gebogenen Kanten](#curved-edges)):
 
 1. Wähle das Werkzeug. Die Statusleiste fragt nach der ersten Kante.
 2. Klicke die erste gerade Kante an. Sie bekommt die Zinken oder Zapfen.
@@ -31,6 +31,15 @@ Das Ergebnis bleibt ein gewöhnlicher, bearbeitbarer Pfad. Die Verbindung merkt 
 | **Scharnier für Deckel (mit Stift)** | Siehe [Deckelscharnier](#lid-hinge) unten. |
 
 Gemeinsame Einstellungen sind die Materialdicke, die **Schnittfuge (Kerf)** (Zinken und Zapfen werden breiter, Lücken und Schlitze schmaler gezeichnet, damit die Teile nach dem Schneiden ihr Nennmaß haben) und das **Spiel gesamt**, das Gesamtspiel der Verbindung auf beiden Seiten zusammen (negative Werte ergeben eine Presspassung). Ist das Material [kalibriert](materials-tests.md#calibrate-fit), schlägt das Werkzeug Kerf und Spiel für die gewählte Art vor.
+
+### Gebogene Kanten {#curved-edges}
+
+Fingerzinken sowie Schlitz und Zapfen gehen auch an gebogenen Kanten, zum Beispiel an einem runden Deckel oder Boden, um den ein Streifen gebogen wird:
+
+1. Klicke zuerst die Kurve an (Kreis, Ellipse, runde Ecke oder Bogen). Ein glatter Abschnitt der Kontur zählt als eine Kante, ein ganzer Kreis wird als Ring gewählt.
+2. Klicke danach eine gerade Kante an, meist die Kante des Streifens. Bei Zapfen kommen die Schlitze stattdessen in die gebogene Platte.
+
+Zinken, Zapfen und Schlitze werden auf der Wandmitte gemessen, damit die Teile nach dem Biegen passen; ihre Flanken zeigen zur Kurvenmitte. Der Dialog nennt die Streifenlänge zum Zuschneiden. Ein längerer Streifen bekommt das Muster ab seinem Anfang und bleibt am Ende glatt, ein zu kurzer wird gemeldet. Biegeschnitte setzt du danach mit [Biegeschnitte](#living-hinges) in den Streifen. Gebogene Verbindungen werden in der 3D-Ansicht noch nicht zusammengesetzt.
 
 ## Deckelscharnier {#lid-hinge}
 

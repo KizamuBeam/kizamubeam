@@ -185,6 +185,204 @@ test('Fingerzinken nach außen bleiben, wie sie waren', () => {
   sameRing(r.changes.get(b)!.subs[0].nodes, [[0, 0], [40, 0], [40, 50], [0, 50], [0, 40], [-3, 40], [-3, 30], [0, 30], [0, 20], [-3, 20], [-3, 10], [0, 10]]);
 });
 
+// ---------- Joints on curved edges (#513) ----------
+{
+  const { smoothChain } = await import('../src/jointsCurve');
+  const K = 0.5522847498;
+  /** Circle as four Bézier quarters (like the ellipse tool) */
+  const circle = (cx: number, cy: number, r: number): Obj => {
+    const k = r * K;
+    return {
+      id: Math.random(), m: IDENT, layer: 0,
+      shape: { kind: 'path', subs: [{ closed: true, nodes: [
+        { x: cx + r, y: cy, cin: { x: cx + r, y: cy - k }, cout: { x: cx + r, y: cy + k } },
+        { x: cx, y: cy + r, cin: { x: cx + k, y: cy + r }, cout: { x: cx - k, y: cy + r } },
+        { x: cx - r, y: cy, cin: { x: cx - r, y: cy + k }, cout: { x: cx - r, y: cy - k } },
+        { x: cx, y: cy - r, cin: { x: cx - k, y: cy - r }, cout: { x: cx + k, y: cy - r } },
+      ] }] },
+    };
+  };
+  /** Rounded rectangle: lines and quarter arcs, corners tangent */
+  const rounded = (w: number, h: number, r: number): Obj => {
+    const k = r * K;
+    return {
+      id: Math.random(), m: IDENT, layer: 0,
+      shape: { kind: 'path', subs: [{ closed: true, nodes: [
+        { x: r, y: 0 }, { x: w - r, y: 0, cout: { x: w - r + k, y: 0 } }, { x: w, y: r, cin: { x: w, y: r - k } },
+        { x: w, y: h - r, cout: { x: w, y: h - r + k } }, { x: w - r, y: h, cin: { x: w - r + k, y: h } },
+        { x: r, y: h, cout: { x: r - k, y: h } }, { x: 0, y: h - r, cin: { x: 0, y: h - r + k } },
+        { x: 0, y: r, cout: { x: 0, y: r - k } }, { x: r, y: 0, cin: { x: r - k, y: 0 } },
+      ].slice(0, 8).map((n, i, a) => (i === 0 ? { ...n, cin: { x: r - k, y: 0 } } : n)) }] },
+    };
+  };
+  const cpick = (obj: Obj, seg: number): EdgePick => {
+    const c = smoothChain((obj.shape as { subs: SubPath[] }).subs[0], seg);
+    return { obj, m: IDENT, sub: 0, seg: c.seg, segs: c.segs };
+  };
+  const fingerOpts = (o: Partial<JointOptions> = {}): JointOptions => ({ ...DEFAULT_JOINT, kind: 'finger', thickness: 3, fingerWidth: 10, ...o });
+  /** Radii of a finely sampled outline around (cx, cy) */
+  const radii = (sp: SubPath, cx: number, cy: number) => flatten(sp).map((p) => Math.hypot(p.x - cx, p.y - cy));
+
+  test('Curves: the smooth run of a circle is the whole loop, of a rounded rectangle the whole outline', () => {
+    const c = circle(0, 0, 50);
+    assert.deepEqual(smoothChain((c.shape as { subs: SubPath[] }).subs[0], 2), { seg: 2, segs: 4 });
+    const r = rounded(100, 60, 15);
+    assert.equal(smoothChain((r.shape as { subs: SubPath[] }).subs[0], 1).segs, 8);
+    // A plain rectangle: no smooth run beyond the segment
+    const q = rect(0, 0, 40, 20);
+    assert.deepEqual(smoothChain((q.shape as { subs: SubPath[] }).subs[0], 1), { seg: 1, segs: 1 });
+  });
+
+  test('Curves: finger joint round a circle with a straight strip; fields on the wall middle, fingers radial', () => {
+    const R = 50, th = 3;
+    const disc = circle(0, 0, R);
+    const L = 2 * Math.PI * (R - th / 2);
+    const strip = rect(0, 100, L, 40);
+    const r = computeJoint([cpick(disc, 0), pick(strip, 0)], fingerOpts());
+    assert.equal(r.error, undefined, r.error);
+    assert.match(r.info, /Felder/);
+    const out = r.changes.get(disc)!.subs[0];
+    assert.equal(out.closed, true);
+    // Every point of the disc lies on the full radius or th further in (fitted within 0.02 mm), with radial flanks
+    const rs = radii(out, 0, 0);
+    const onLevel = rs.filter((x) => Math.abs(x - R) < 0.02 || Math.abs(x - (R - th)) < 0.02).length;
+    assert.ok(onLevel / rs.length > 0.95, `${onLevel} of ${rs.length}`);
+    // Even number of fields: as many fingers as gaps round the loop
+    const n = Number(r.info.match(/(\d+) Felder/)![1]);
+    assert.equal(n % 2, 0);
+    // The strip got the matching straight pattern over its whole length (no margin)
+    const sn = r.changes.get(strip)!.subs[0].nodes;
+    // Fingers cut into the strip ('in'): nothing above its edge at y = 100, the gaps 3 mm down
+    assert.ok(sn.every((q) => q.y >= 100 - 1e-9), 'nothing sticks out of the strip');
+    assert.ok(sn.some((q) => Math.abs(q.y - 103) < 1e-6));
+    const steps = sn.filter((q) => Math.abs(q.y - 100) < 1e-6 || Math.abs(q.y - 97) < 1e-6 || Math.abs(q.y - 103) < 1e-6);
+    assert.ok(steps.length >= n, `${steps.length} nodes on the strip edge`);
+    // Angle of each finger flank on the disc matches the boundary position on the strip: u / (R − th/2)
+    const w = L / n;
+    const flank = rs.findIndex((x, i) => i > 0 && Math.abs(rs[i - 1] - R) < 0.02 && Math.abs(x - R) > 0.02);
+    assert.ok(flank > 0);
+    const pts = flatten(out);
+    const ang = Math.atan2(pts[flank].y, pts[flank].x);
+    const u = (((ang % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)) * (R - th / 2);
+    const rem = u / w - Math.round(u / w);
+    assert.ok(Math.abs(rem * w) < 0.3, `flank at ${u} mm, field ${w} mm`);
+  });
+
+  const { edgePickAt, samePick, validEdge, pickPoints } = await import('../src/joints');
+  test('Curves: picking a curve takes its smooth run; two picks on one circle are the same edge', () => {
+    const c = circle(0, 0, 50);
+    const p1 = edgePickAt(c, IDENT, 0, 1), p2 = edgePickAt(c, IDENT, 0, 3);
+    assert.deepEqual([p1.seg, p1.segs], [1, 4]);
+    assert.ok(samePick(p1, p2) && validEdge(p1));
+    assert.equal(pickPoints(p1).length, 4 * 16 + 1);
+    const q = rect(0, 0, 40, 20);
+    const s = edgePickAt(q, IDENT, 0, 2);
+    assert.equal(s.segs, undefined);
+    assert.ok(!samePick(s, edgePickAt(q, IDENT, 0, 1)));
+  });
+
+  test('Curves: the straight partner finds its material side whatever the direction of its outline', () => {
+    const disc = circle(0, 0, 40);
+    const L = 2 * Math.PI * 38.5;
+    // Rectangle drawn the other way round: the top edge runs from right to left
+    const strip: Obj = { id: 7, m: IDENT, layer: 0, shape: { kind: 'path', subs: [{ closed: true, nodes: [{ x: 0, y: 100 }, { x: 0, y: 140 }, { x: L, y: 140 }, { x: L, y: 100 }] }] } };
+    const r = computeJoint([cpick(disc, 0), pick(strip, 3)], fingerOpts());
+    assert.equal(r.error, undefined, r.error);
+    const sn = r.changes.get(strip)!.subs[0].nodes;
+    assert.ok(sn.every((q) => q.y >= 100 - 1e-9), 'fingers cut in, nothing sticks out');
+  });
+
+  test('Curves: a strip longer than the loop gets the pattern from its start and a plain rest, no spike at the corner', () => {
+    const disc = circle(0, 0, 40);
+    const L = 2 * Math.PI * 38.5;
+    const strip = rect(0, 100, L + 60, 40);
+    const r = computeJoint([cpick(disc, 0), pick(strip, 0)], fingerOpts());
+    assert.equal(r.error, undefined, r.error);
+    assert.match(r.info, /Muster ab Streifenanfang/);
+    const sn = r.changes.get(strip)!.subs[0].nodes;
+    assert.ok(sn.every((q) => q.y >= 100 - 1e-9));
+    // The strip (phase 1) starts with a gap: the corner (0, 100) is gone, the outline goes straight down the side
+    assert.ok(!sn.some((q) => Math.abs(q.x) < 1e-9 && Math.abs(q.y - 100) < 1e-9), JSON.stringify(sn.slice(0, 4)));
+    // The rest after the pattern stays on the edge
+    assert.ok(sn.some((q) => Math.abs(q.x - (L + 60)) < 1e-9 && Math.abs(q.y - 100) < 1e-9));
+    const last = sn.filter((q) => Math.abs(q.y - 103) < 1e-6).reduce((m, q) => Math.max(m, q.x), 0);
+    assert.ok(last <= L + 1e-6, `${last} > ${L}`);
+  });
+
+  test('Curves: a strip too short for the loop is refused; text tells the length on the wall middle', () => {
+    const disc = circle(0, 0, 40);
+    const short = rect(0, 100, 200, 40);
+    const r = computeJoint([cpick(disc, 0), pick(short, 0)], fingerOpts());
+    assert.ok(r.error && /241[.,]9/.test(r.error), r.error);
+    const one = computeJoint([cpick(disc, 0)], fingerOpts());
+    assert.equal(one.error, undefined);
+    assert.match(one.info, /241[.,]9/);
+  });
+
+  test('Curves: tenons on a straight strip, curved slots in a disc on the slot centre line', () => {
+    const R = 50, th = 3;
+    const disc = circle(0, 0, R);
+    const strip = rect(0, 100, 200, 40);
+    const r = computeJoint([pick(strip, 0), cpick(disc, 0)], fingerOpts({ kind: 'tenon', tenonCount: 4, tenonWidth: 12, slotOffset: 5 }));
+    assert.equal(r.error, undefined, r.error);
+    const subs = r.changes.get(disc)!.subs;
+    assert.equal(subs.length, 5, 'outline and 4 slots');
+    for (const sl of subs.slice(1)) {
+      const rs = radii(sl, 0, 0);
+      assert.ok(Math.min(...rs) > R - 5 - th / 2 - 0.05 && Math.max(...rs) < R - 5 + th / 2 + 0.05, `${Math.min(...rs)} … ${Math.max(...rs)}`);
+    }
+    // Tenon spacing 50 mm along the strip = 50 mm along the slot centre line (radius 45)
+    const mids = subs.slice(1).map((sl) => {
+      const p = flatten(sl);
+      const c = p.reduce((a, q) => ({ x: a.x + q.x / p.length, y: a.y + q.y / p.length }), { x: 0, y: 0 });
+      return Math.atan2(c.y, c.x);
+    });
+    let d = Math.abs(mids[1] - mids[0]);
+    if (d > Math.PI) d = 2 * Math.PI - d;
+    near(d * 45, 50, 0.05);
+  });
+
+  test('Curves: kinds other than fingers and tenons need straight edges; a too tight curve is refused', () => {
+    const disc = circle(0, 0, 50);
+    assert.ok(computeJoint([cpick(disc, 0)], fingerOpts({ kind: 'lap' })).error);
+    const tiny = circle(0, 0, 2);
+    assert.ok(computeJoint([cpick(tiny, 0)], fingerOpts()).error);
+  });
+
+  test('Curves: fingers along a rounded rectangle keep the rest of the outline closed and smooth', () => {
+    const r0 = rounded(120, 80, 20);
+    const r = computeJoint([cpick(r0, 0)], fingerOpts());
+    assert.equal(r.error, undefined, r.error);
+    const sp = r.changes.get(r0)!.subs[0];
+    assert.ok(sp.closed && sp.nodes.length > 20);
+    // All points inside the outer outline and outside the outline 3 mm further in
+    for (const p of flatten(sp)) {
+      const dx = Math.max(Math.abs(p.x - 60) - 40, 0), dy = Math.max(Math.abs(p.y - 40) - 20, 0);
+      const dist = Math.hypot(dx, dy) - 20;
+      assert.ok(dist < 0.03 && dist > -3.03, `${p.x}, ${p.y}: ${dist}`);
+    }
+  });
+
+  test('Curves: an arc between two straight corners is replaced in place', () => {
+    // Half disc: straight diameter and one arc (two quarters)
+    const k = 30 * K;
+    const half: Obj = { id: 1, m: IDENT, layer: 0, shape: { kind: 'path', subs: [{ closed: true, nodes: [
+      { x: -30, y: 0, cout: { x: -30, y: k } }, { x: 0, y: 30, cin: { x: -k, y: 30 }, cout: { x: k, y: 30 } }, { x: 30, y: 0, cin: { x: 30, y: k } },
+    ] }] } };
+    const c = smoothChain((half.shape as { subs: SubPath[] }).subs[0], 0);
+    assert.deepEqual(c, { seg: 0, segs: 2 });
+    const r = computeJoint([cpick(half, 0)], fingerOpts());
+    assert.equal(r.error, undefined, r.error);
+    const sp = r.changes.get(half)!.subs[0];
+    // The diameter stays one straight segment from (30, 0) back to (−30, 0)
+    const ns = sp.nodes;
+    const i = ns.findIndex((q) => Math.abs(q.x - 30) < 1e-9 && Math.abs(q.y) < 1e-9);
+    assert.ok(i >= 0);
+    const next = ns[(i + 1) % ns.length];
+    assert.ok(Math.abs(next.x + 30) < 1e-9 && Math.abs(next.y) < 1e-9 && !ns[i].cout && !next.cin);
+  });
+}
+
 if (failed) {
   console.log(`\n${failed} Test(s) fehlgeschlagen`);
   process.exit(1);

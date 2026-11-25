@@ -10,7 +10,7 @@ KizamuBeam trasforma forme normali in pezzi che si incastrano o si incollano. I 
 
 ## Lo strumento Giunzione {#the-joint-tool}
 
-Lo strumento **Giunzione** (il pulsante Giunzione nella barra Strumenti, o **Casella degli strumenti → Giunzioni e piegatura → Giunzioni**) aggiunge una giunzione tra due bordi rettilinei:
+Lo strumento **Giunzione** (il pulsante Giunzione nella barra Strumenti, o **Casella degli strumenti → Giunzioni e piegatura → Giunzioni**) aggiunge una giunzione tra due bordi rettilinei (dita e tenoni anche su [bordi curvi](#curved-edges)):
 
 1. Scegli lo strumento. La barra di stato chiede il primo bordo.
 2. Fai clic sul primo bordo rettilineo. Riceve le dita o i tenoni.
@@ -31,6 +31,15 @@ Il risultato resta un percorso normale e modificabile. La giunzione ricorda lo s
 | **Cerniera del coperchio (con perno)** | Vedi [Cerniera del coperchio](#lid-hinge) sotto. |
 
 Le impostazioni comuni sono lo spessore del materiale, il **kerf** (dita e tenoni vengono disegnati più larghi, spazi e asole più stretti, così i pezzi hanno la misura nominale dopo il taglio) e il **gioco totale**, il gioco della giunzione su entrambi i lati insieme (valori negativi danno un accoppiamento forzato). Quando il materiale è [calibrato](materials-tests.md#calibrate-fit), lo strumento propone kerf e gioco per il tipo scelto.
+
+### Bordi curvi {#curved-edges}
+
+La giunzione a dita e quella a mortasa e tenone funzionano anche su bordi curvi, per esempio un coperchio o un fondo rotondo con una striscia piegata attorno:
+
+1. Fai clic prima sulla curva (cerchio, ellisse, angolo arrotondato o arco). Un tratto liscio del contorno conta come un bordo; un cerchio intero viene scelto come anello.
+2. Fai clic poi su un bordo rettilineo, di solito il bordo della striscia. Con i tenoni le asole vanno invece nel pannello curvo.
+
+Dita, tenoni e asole si misurano a metà della parete, così i pezzi combaciano dopo la piegatura, e i loro fianchi puntano al centro della curva. La finestra indica la lunghezza della striscia da tagliare. Una striscia più lunga riceve il motivo dal suo inizio e resta liscia alla fine; una troppo corta viene segnalata. Aggiungi poi i tagli di piegatura alla striscia con [Cerniere viventi](#living-hinges). La vista 3D non monta ancora le giunzioni curve.
 
 ## Cerniera del coperchio {#lid-hinge}
 

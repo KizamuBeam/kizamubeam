@@ -3,7 +3,7 @@ import { apply, IDENT, ImageShape, inv, leaves, Mat, mul, noLaserLeaves, Node, O
 import { displayCanvas, displayCanvasDraft, ImageProcessingError, isReducedImageDisplay, imageDisplayActivity, cancelImageDisplay } from '../images';
 import { resolveImageContour } from '../imageContour';
 import { resolveImageRasterGeometry } from '../imageRaster';
-import { EdgePick } from '../joints';
+import { EdgePick, pickPoints } from '../joints';
 import { bezierPt, Box, boundsOf, drawText, localPath, segments, shapeSubs, subsToPath2D, textOutline, worldPath } from '../geom';
 import { SNAP_LABELS } from '../snap';
 import { shapeCenters, shownMark } from '../arcs';
@@ -712,30 +712,31 @@ export class EditorRender {
     // Verbindungen: gewählte Kanten (nummeriert), Kante unter dem Mauszeiger und Vorschau
     if (this.tool === 'joint') {
       ctx.save();
+      // A straight edge, or a curve with its smooth run (#513)
       const edge = (p: EdgePick) => {
-        const s = segments(shapeSubs(p.obj.shape)[p.sub])[p.seg];
-        return [apply(p.m, s.a.x, s.a.y), apply(p.m, s.b.x, s.b.y)];
+        const pts = pickPoints(p);
+        ctx.beginPath();
+        pts.forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)));
+        ctx.stroke();
+        return pts;
       };
       ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
       if (this.jointHover) {
-        const [a, b] = edge(this.jointHover);
         ctx.strokeStyle = SNAP_COLOR;
         ctx.lineWidth = 4 * px;
-        ctx.beginPath();
-        ctx.moveTo(a.x, a.y);
-        ctx.lineTo(b.x, b.y);
-        ctx.stroke();
+        edge(this.jointHover);
       }
       this.validJointPicks().forEach((p, i) => {
-        const [a, b] = edge(p);
         ctx.strokeStyle = '#ff6020';
         ctx.lineWidth = 4 * px;
-        ctx.beginPath();
-        ctx.moveTo(a.x, a.y);
-        ctx.lineTo(b.x, b.y);
-        ctx.stroke();
-        const mx = (a.x + b.x) / 2,
-          my = (a.y + b.y) / 2;
+        const pts = edge(p);
+        // Marker in the middle of a straight edge, on the middle point of a curve
+        const a = pts[0],
+          b = pts[pts.length - 1];
+        const mid = pts.length > 2 ? pts[Math.floor(pts.length / 2)] : { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+        const mx = mid.x,
+          my = mid.y;
         // Arbeitsflächen-Skalierung: Zahl und Markierung wachsen gemeinsam
         const fWs = groupFactor(this.typo, 'workspace');
         ctx.fillStyle = '#ff6020';
