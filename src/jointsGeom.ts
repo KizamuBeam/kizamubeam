@@ -4,6 +4,7 @@
 // runs in the plugin Worker too.
 import type { Node, Pt, SubPath } from './model';
 import { bezierPt, segments } from './curves';
+import { computeCurveJointGeom, isCurvedEdge } from './jointsCurve';
 
 /**
  * Version of the joint geometry; a change to the shapes gets a new version so older results can be reproduced.
@@ -93,12 +94,16 @@ export const DEFAULT_JOINT: JointOptions = {
   wedgeWidth: 6, wedgePull: 0.5, boltDia: 3.2, nutWidth: 5.6, nutHeight: 2.6, boltLength: 16, hingeCount: 5, pinDia: 3, pinPlay: 0.2, hingeWall: 2, kerf: 0, clearance: 0,
 };
 
-/** A chosen straight edge: owner key, the owner's sub-paths in world coordinates and the segment in them */
+/**
+ * A chosen edge: owner key, the owner's sub-paths in world coordinates and the segment in them. segs: a smooth run of
+ * that many segments from seg on (wrapping round a closed outline), for joints on curves (jointsCurve.ts).
+ */
 export interface JointEdge<K = unknown> {
   obj: K;
   subs: SubPath[];
   sub: number;
   seg: number;
+  segs?: number;
 }
 
 interface EdgeGeom {
@@ -121,7 +126,7 @@ export interface JointGeomResult<K = unknown> {
   error?: JointMsg;
 }
 
-const sameEdge = (p: JointEdge, q: JointEdge) => p.obj === q.obj && p.sub === q.sub && p.seg === q.seg;
+const sameEdge = (p: JointEdge, q: JointEdge) => p.obj === q.obj && p.sub === q.sub && p.seg === q.seg && (p.segs ?? 1) === (q.segs ?? 1);
 const copySubs = (subs: SubPath[]): SubPath[] =>
   subs.map((sp) => ({ closed: sp.closed, nodes: sp.nodes.map((n): Node => ({ x: n.x, y: n.y, ...(n.cin ? { cin: { ...n.cin } } : {}), ...(n.cout ? { cout: { ...n.cout } } : {}), ...(n.smooth ? { smooth: true } : {}) })) }));
 
@@ -344,6 +349,8 @@ export interface MateWorld {
  */
 export function jointMate(picks: JointEdge[], o: JointOptions): MateWorld | null {
   if (picks.length < 2 || picks[0].obj === picks[1].obj) return null;
+  // A bent partner cannot be placed as a flat plate in the 3D view
+  if (picks.some(isCurvedEdge)) return null;
   const subs = picks.map((p) => p.subs);
   const [g, s] = picks.map((p, i) => edgeGeom(p, subs[i]));
   const side = (e: EdgeGeom): [Pt, Pt, Pt] => [e.a, e.b, at(e, e.len / 2, -1)];
@@ -377,6 +384,7 @@ export function computeJointGeom<K>(picks: JointEdge<K>[], o: JointOptions, v: J
   const fail = (code: string): JointGeomResult<K> => ({ changes: new Map(), added: [], info: [], error: { code } });
   if (!picks.length) return fail('no-edge');
   if (picks.length > 1 && sameEdge(picks[0], picks[1])) return fail('same-edge');
+  if (picks.some(isCurvedEdge)) return computeCurveJointGeom(picks, o, v);
   const th = o.thickness;
   if (!(th > 0)) return fail('thickness');
   const { gap: adj, along } = jointAdjust(o, v);
@@ -665,7 +673,7 @@ export function computeJointGeom<K>(picks: JointEdge<K>[], o: JointOptions, v: J
  * Remove the node at p when the outline runs into it and straight back on the same line (straight segments only):
  * a zero-width spike. Any other node, also a real corner, stays.
  */
-function dropBacktrack(sp: SubPath, p: Pt) {
+export function dropBacktrack(sp: SubPath, p: Pt) {
   const ns = sp.nodes;
   const i = ns.findIndex((q) => Math.abs(q.x - p.x) < 1e-9 && Math.abs(q.y - p.y) < 1e-9);
   if (i < 0 || ns.length < 4) return;

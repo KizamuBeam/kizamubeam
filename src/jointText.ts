@@ -63,6 +63,16 @@ export function jointText(m: JointMsg): string | undefined {
     case 'slot-short': return t('. Achtung: Schlitzlinie ({len} mm) kürzer als die Zapfenkante ({len2} mm)', { len: f('len'), len2: f('len2') });
     case 'slot-edge': return t('. Achtung: Schlitze reichen bis an die Kante');
     case 'bore-count': return tn(', {n} Bohrung', ', {n} Bohrungen', n);
+    case 'curve-kind': return t('An Kurven gehen nur Fingerzinken sowie Schlitz und Zapfen.');
+    case 'curve-same-outline': return t('Beide Kanten liegen auf derselben Kontur: an Kurven bitte zwei verschiedene Teile wählen.');
+    case 'curve-tight': return t('Die Kurve ist zu eng für {th} mm Material: der Radius muss größer als die Materialdicke sein.', { th: f('th') });
+    case 'curve-strip-short': return t('Der Streifen ist zu kurz: {len} mm, um die Kurve braucht er {need} mm (gemessen auf der Wandmitte).', { len: f('len'), need: f('need') });
+    case 'curve-strip-long':
+      return t('. Streifen länger als die Runde ({len} / {pattern} mm): Muster ab Streifenanfang, der Rest bleibt glatt', { len: f('len'), pattern: f('pattern') });
+    case 'curve-strip':
+      return v.loop
+        ? t('. Streifen für die ganze Runde: {len} mm (auf der Wandmitte), Anfang am Beginn der gewählten Kurve', { len: f('len') })
+        : t('. Länge der Kurve auf der Wandmitte: {len} mm', { len: f('len') });
     case 'hook-push': return t('. Einstecken, dann {hookLength} mm in Hakenrichtung schieben', { hookLength: f('hookLength') });
   }
   return undefined;
