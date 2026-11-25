@@ -5489,5 +5489,7 @@
   "Erneut laden": "Retry download",
   "Sprachen …": "Languages …",
   "Nicht mehr fragen": "Don't ask again",
-  "Wörterbuch ({lang}) für Rechtschreibprüfung laden?": "Download dictionary ({lang}) for spell check?"
-}
+  "Wörterbuch ({lang}) für Rechtschreibprüfung laden?": "Download dictionary ({lang}) for spell check?",
+"Dieser Browser gibt keine installierten Schriften frei — Chrome oder Edge verwenden (Desktop-App geht immer).": "This browser does not expose installed fonts — use Chrome or Edge (the desktop app always works).",
+  "Schriftzugriff ist blockiert — in den Website-Einstellungen (Schloss-Symbol) erlauben und erneut wählen.": "Font access is blocked — allow it in the site settings (lock icon) and choose again.",
+  "Schriftzugriff wurde nicht erteilt — Text bleibt bei Roboto.": "Font access was not granted — text stays on Roboto."}

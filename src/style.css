@@ -276,6 +276,16 @@ body {
   box-shadow: 0 4px 14px var(--shadow);
   padding: 4px 0;
 }
+.fontpick-pop .font-search {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: block;
+  width: calc(100% - 16px);
+  margin: 4px 8px 6px;
+  box-sizing: border-box;
+  background: var(--surface);
+}
 .fontpick-group {
   padding: 4px 14px 2px;
   color: var(--muted);

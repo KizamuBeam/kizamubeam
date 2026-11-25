@@ -55,7 +55,9 @@ export interface FontPicker {
 
 export function createFontPicker(
   ed: Editor,
-  opts: { initial: string[]; current: () => string; commit: (family: string) => void; openManager: () => void },
+  opts: { initial: string[]; current: () => string; commit: (family: string) => void; openManager: () => void;
+    /** Wird beim Öffnen des Popups aufgerufen (z. B. um im Browser den Schriftzugriff anzustoßen). */
+    onOpen?: () => void | Promise<void> },
 ): FontPicker {
   let names = opts.initial;
   const btn = h('button', {
@@ -76,6 +78,28 @@ export function createFontPicker(
   let disposers: (() => void)[] = [];
   /** Touch-Geräte haben kein Hover: Tap übernimmt dort direkt (Vorschau nicht möglich) */
   let touchMode = false;
+  /** Suchfeld und Zeilen-Container (bleiben beim Filtern bestehen, nur Zeilen werden neu gebaut) */
+  let search: HTMLInputElement | null = null;
+  let listEl: HTMLDivElement | null = null;
+  /** Fehlende Modell-Schrift bei Öffnung (wird ggf. als erste Zeile gezeigt) */
+  let missingHeld: string | null = null;
+  // Vorschau-Drossel: schnelles Scrollen feuert Dutzende Hover-Events pro Sekunde, jedes mit
+  // loadFont + emit('sel') + Canvas-Redraw (Flackern bis Freeze). Daher: Erste Zeile nach Ruhe
+  // (>300 ms) sofort, danach höchstens alle 120 ms Ruhe die zuletzt berührte Zeile (trailing).
+  const PREVIEW_IDLE_MS = 120;
+  const PREVIEW_GAP_MS = 300;
+  let lastApplyAt = 0;
+  let hoverTimer: ReturnType<typeof setTimeout> | null = null;
+  let pendingFamily: string | null = null;
+  /** Läuft gerade eine Berechtigungs-Rückfrage? Der Browser nimmt dafür den Fensterfokus, das darf das Popup nicht schließen. */
+  let permPending = false;
+  const cancelPreview = () => {
+    if (hoverTimer !== null) {
+      clearTimeout(hoverTimer);
+      hoverTimer = null;
+    }
+    pendingFamily = null;
+  };
 
   const selTexts = () => ed.selTexts();
   const flags = () => {
@@ -125,8 +149,13 @@ export function createFontPicker(
     disposers = [];
     io?.disconnect();
     io = null;
+    cancelPreview();
+    permPending = false;
     pop?.remove();
     pop = null;
+    search = null;
+    listEl = null;
+    missingHeld = null;
     rows = [];
     btn.setAttribute('aria-expanded', 'false');
   };
@@ -153,16 +182,44 @@ export function createFontPicker(
     rows.forEach((r) => r.classList.toggle('active', r === row));
   };
 
+  /** Vorschau anfordern: gedrosselt (leading nach Ruhe, sonst trailing letzte Zeile) */
+  const requestPreview = (family: string) => {
+    if (hoverTimer !== null) {
+      clearTimeout(hoverTimer);
+      hoverTimer = null;
+    }
+    const now = Date.now();
+    pendingFamily = family;
+    if (now - lastApplyAt >= PREVIEW_GAP_MS) {
+      pendingFamily = null;
+      lastApplyAt = now;
+      applyPreview(family);
+    } else {
+      hoverTimer = setTimeout(() => {
+        hoverTimer = null;
+        const f = pendingFamily;
+        pendingFamily = null;
+        if (f !== null && pop) {
+          lastApplyAt = Date.now();
+          applyPreview(f);
+        }
+      }, PREVIEW_IDLE_MS);
+    }
+  };
+
   const onRowEnter = (family: string) => {
     const row = rows.find((r) => r.dataset.family === family) ?? null;
     markActive(row);
     row?.focus({ preventScroll: true });
-    if (family === MANAGE || (row?.dataset.missing && family === committedAtOpen)) restore();
-    else applyPreview(family);
+    if (family === MANAGE || (row?.dataset.missing && family === committedAtOpen)) {
+      cancelPreview();
+      restore();
+    } else requestPreview(family);
   };
 
   const buildRows = (parent: HTMLElement, list: string[], missing: string | null) => {
-    const lower = new Set(names.map((f) => f.toLowerCase()));
+    // Favoriten nur aus der (ggf. gefilterten) Anzeige-Liste, nicht aus dem Gesamtbestand.
+    const lower = new Set(list.map((f) => f.toLowerCase()));
     const favs = fontFavorites().filter((f) => lower.has(f.toLowerCase()));
     const mk = (family: string, miss = false) => {
       const b = h('button', {
@@ -200,10 +257,52 @@ export function createFontPicker(
     man.replaceChildren(h('span', {}, t('Weitere Schriften …')));
   };
 
+  const firstFontRow = () =>
+    rows.find((r) => r.dataset.family !== MANAGE && !r.dataset.missing) ?? null;
+
+  /** Zeilen nach Suchfeld filtern (Favoriten/fehlende Zeile/MANAGE bleiben erhalten, passend gefiltert) */
+  const refilter = () => {
+    if (!pop || !listEl) return;
+    cancelPreview();
+    const q = (search?.value ?? '').trim().toLowerCase();
+    const shown = q ? names.filter((f) => f.toLowerCase().includes(q)) : names;
+    io?.disconnect();
+    rows = [];
+    listEl.replaceChildren();
+    buildRows(listEl, shown, missingHeld && (!q || missingHeld.toLowerCase().includes(q)) ? missingHeld : null);
+    markActive(firstFontRow());
+  };
+
+  const searchKey = (e: KeyboardEvent) => {
+    // Fokus liegt im Suchfeld: Tippen bleibt Tippen, nur Steuer-Tasten werden bedient.
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      if (search && search.value) {
+        search.value = '';
+        refilter();
+      } else close();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const fam = (document.activeElement === search ? firstFontRow() : null)?.dataset.family
+        ?? rows.find((r) => r.classList.contains('active'))?.dataset.family;
+      if (fam && fam !== MANAGE) commitAndClose(fam);
+      else if (fam === MANAGE) onRowEnter(MANAGE);
+    } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const ends = rows.filter((r) => r.dataset.family !== MANAGE && !r.dataset.missing);
+      const pick = e.key === 'ArrowDown' ? ends[0] : ends[ends.length - 1];
+      if (pick?.dataset.family) onRowEnter(pick.dataset.family);
+    }
+  };
+
   const keydown = (e: KeyboardEvent) => {
     // Tastatur gehört dem Popup, solange es offen ist (wie im Editor-Kontextmenü).
     e.stopImmediatePropagation();
     if (!pop) return;
+    if (e.target === search) {
+      searchKey(e);
+      return;
+    }
     const cur = rows.indexOf(document.activeElement as HTMLButtonElement);
     if (e.key === 'Escape') {
       e.preventDefault();
@@ -260,8 +359,15 @@ export function createFontPicker(
       { root: pop },
     );
     const lower = new Set(names.map((f) => f.toLowerCase()));
-    const missing = committedAtOpen && !lower.has(committedAtOpen.toLowerCase()) ? committedAtOpen : null;
-    buildRows(pop, names, missing);
+    missingHeld = committedAtOpen && !lower.has(committedAtOpen.toLowerCase()) ? committedAtOpen : null;
+    search = h('input', {
+      type: 'search', class: 'font-search', placeholder: t('Schrift suchen …'),
+      role: 'searchbox', 'aria-label': t('Schrift suchen …'),
+    }) as HTMLInputElement;
+    listEl = h('div', { class: 'fontpick-list' }) as HTMLDivElement;
+    pop.append(search, listEl);
+    buildRows(listEl, names, missingHeld);
+    search.addEventListener('input', refilter);
     document.body.append(pop);
     const r = btn.getBoundingClientRect();
     pop.style.minWidth = `${Math.max(220, r.width)}px`;
@@ -276,7 +382,8 @@ export function createFontPicker(
       close();
     };
     const onResize = () => close();
-    const onBlur = () => close();
+    // Die Berechtigungs-Rückfrage des Browsers nimmt den Fokus, ohne dass der Nutzer den Editor verlässt.
+    const onBlur = () => { if (!permPending) close(); };
     document.addEventListener('mousedown', outside, true);
     document.addEventListener('keydown', keydown, true);
     window.addEventListener('resize', onResize);
@@ -287,11 +394,17 @@ export function createFontPicker(
       () => window.removeEventListener('resize', onResize),
       () => window.removeEventListener('blur', onBlur),
     ];
-    const start = rows.find((x) => x.dataset.family === committedAtOpen && !x.dataset.missing) ?? rows[0];
+    const start = rows.find((x) => x.dataset.family === committedAtOpen && !x.dataset.missing) ?? firstFontRow() ?? rows[0];
     if (start) {
       markActive(start);
-      start.focus({ preventScroll: true });
       start.scrollIntoView({ block: 'nearest' });
+    }
+    search?.focus({ preventScroll: true });
+    // Schriftzugriff anstoßen; solange die Rückfrage läuft, bleibt das Popup auch bei Fokusverlust offen.
+    const pending = opts.onOpen?.();
+    if (pending) {
+      permPending = true;
+      void pending.finally(() => { permPending = false; });
     }
   };
 
@@ -309,8 +422,12 @@ export function createFontPicker(
     el: btn,
     sync: (font: string) => setDisplay(font),
     rebuild: (list: string[]) => {
+      // Listen-Refresh nach `refreshFonts` feuert auch ohne neue Schriften: dann nichts tun.
+      if (list.length === names.length && list.every((f, i) => f === names[i])) return;
       names = list;
-      if (pop) close();
+      // Offenes Popup nicht schließen (sonst verschwindet es beim Öffnen sofort, weil der
+      // Schriftzugriff-Request die Liste neu lädt) — Zeilen in place neu aufbauen, Suchfilter bleibt.
+      if (pop) refilter();
     },
     close,
   };
