@@ -1,7 +1,7 @@
 {
  "format": "kizamubeam-catalog",
  "version": 1,
- "generated": "2026-11-25T08:09:48.962Z",
+ "generated": "2026-11-25T08:42:42.001Z",
  "packs": [
   {
    "id": "org.kizamubeam.box-composer",
@@ -247,7 +247,7 @@
    "codeSize": 3350,
    "source": "https://github.com/KizamuBeam/kizamubeam/tree/main/plugins/stencil-bridges",
    "file": "org.kizamubeam.stencil-bridges.kzp",
-   "sha256": "9e0a71a009c01398415a0b61371499f5c2034c1d77fe048bc0d1ed50339cd04a",
+   "sha256": "1361e8cfeeee1c5250cc6011d3fd044e602ebb4dee39769eddab02f97ab0da10",
    "size": 12980
   },
   {
@@ -283,7 +283,7 @@
    ],
    "source": "https://github.com/KizamuBeam/kizamubeam/tree/main/plugins/street-map",
    "file": "org.kizamubeam.street-map.kzp",
-   "sha256": "df176a0b1d3fb12d6a8b2e743495e093f7777a139d5a0ea45b60a6bdaa48f9af",
+   "sha256": "f66cef1765d8c1b3182409318cfecc34d7589e919a17909905215c103fa9a6b2",
    "size": 20593
   }
  ]
