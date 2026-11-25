@@ -1,6 +1,6 @@
 [package]
 name = "kizamubeam"
-version = "2.9.9"
+version = "2.9.10"
 description = "Freie Laser-Software (Prototyp)"
 authors = ["Hanjo Winter"]
 license = "GPL-3.0-or-later"
