@@ -3,7 +3,7 @@
 // Laufzeit schätzen und Rahmenfahrten erzeugen. Alles in Maschinenkoordinaten (mm, Ursprung unten links, y nach oben).
 import ClipperLib from 'clipper-lib';
 import type { EnergySettings } from './energy';
-import { apply, CutSettings, Doc, ImageLayer, ImageOutput, imageOutput, ImageShape, inv, isGrayMode, laserLeaves, Layer, LeadSettings, Mat, mul, normalizeLayer, Obj, outputLeaves, PerfSettings, Pt, RampSettings, SubLayer, SubPath, TabSettings } from './model';
+import { apply, CutSettings, Doc, FillOrder, ImageLayer, ImageOutput, imageOutput, ImageShape, inv, isGrayMode, laserLeaves, Layer, LeadSettings, Mat, mul, normalizeLayer, Obj, outputLeaves, PerfSettings, Pt, RampSettings, SubLayer, SubPath, TabSettings } from './model';
 import { bezierPt, segments, shapeSubs } from './geom';
 import { loadFont, textToSubs } from './fonts';
 import { ImageProcessingError, imageRasterGeometry, nativeScanLines, outputGrid, processImage } from './images';
@@ -1277,20 +1277,17 @@ function keepStarts(src: Poly[], res: Poly[]): Poly[] {
 const MAX_RINGS = 20000;
 
 /**
- * Konturfolgende Füllung (Offset Fill): die Fläche (Gerade-Ungerade) wird in Ringen abgetragen, die der Kontur
- * nach innen folgen. Der erste Ring liegt einen halben Abstand innerhalb, damit die Gravur die gezeichneten Maße
- * behält. Jede zusammenhängende Fläche (Insel samt Löchern) wird vollständig von außen nach innen gefüllt,
- * bevor es zur nächstgelegenen weitergeht; jeder Ring beginnt am Punkt, der dem vorigen Ende am nächsten liegt.
+ * Vereinigung aller geschlossenen Polys (Gerade-Ungerade) als Inseln: je Insel Außenkontur plus Löcher
+ * (Clipper-Koordinaten). Inseln in Löchern sind eigene Inseln. Geteilt von Offset- und Zeilenfüllung.
  */
-function offsetFillRings(polys: Poly[], step: number, from: Pt): Poly[] {
+function unionIslands(polys: Poly[]): ClipperLib.Paths[] {
   const closed = polys.filter((p) => p.closed);
-  if (!closed.length || !(step > 0)) return [];
-  const { Clipper, ClipperOffset, ClipType, PolyType, PolyFillType, JoinType, EndType, PolyTree } = ClipperLib;
+  if (!closed.length) return [];
+  const { Clipper, ClipType, PolyType, PolyFillType, PolyTree } = ClipperLib;
   const c = new Clipper();
   c.AddPaths(closed.map((p) => p.pts.map((q) => ({ X: Math.round(q.x * KSCALE), Y: Math.round(q.y * KSCALE) }))), PolyType.ptSubject, true);
   const tree = new PolyTree();
   c.Execute(ClipType.ctUnion, tree, PolyFillType.pftEvenOdd, PolyFillType.pftEvenOdd);
-  // Inseln: Außenkontur mit ihren Löchern; Inseln in Löchern sind eigene Inseln
   const islands: ClipperLib.Paths[] = [];
   const walk = (outers: ClipperLib.PolyNode[]) => {
     for (const o of outers) {
@@ -1299,6 +1296,55 @@ function offsetFillRings(polys: Poly[], step: number, from: Pt): Poly[] {
     }
   };
   walk(tree.Childs());
+  return islands;
+}
+
+/** Clipper-Insel zurück in mm-Polys (Außenkontur zuerst, dann Löcher) */
+function islandPolys(island: ClipperLib.Paths): Poly[] {
+  return island.map((path) => ({ pts: path.map((q) => ({ x: q.X / KSCALE, y: q.Y / KSCALE })), closed: true }));
+}
+
+/**
+ * Füllbereiche fürs Zeilenfüllen (nur 'scan'; 'offset' füllt immer Insel für Insel).
+ * 'shape': jede Insel (Außenkontur samt Löchern) für sich. 'group': je oberster Gruppe ein Bereich,
+ * alles Ungruppierte gemeinsam in einem. Lochmarkierung wird hier gesetzt (Linie markiert nur mit Anschnitt).
+ */
+function fillRegions(polys: Poly[], order: FillOrder): Poly[][] {
+  if (order === 'all') return [polys];
+  markHoles(polys);
+  if (order === 'shape') return unionIslands(polys).map(islandPolys);
+  const buckets = new Map<string | number, Poly[]>();
+  const ungrouped: Poly[] = [];
+  for (const p of polys) {
+    if (!p.closed) continue;
+    if (p.grp === undefined) ungrouped.push(p);
+    else {
+      let b = buckets.get(p.grp);
+      if (!b) buckets.set(p.grp, (b = []));
+      b.push(p);
+    }
+  }
+  const out: Poly[][] = [];
+  if (ungrouped.length) out.push(unionIslands(ungrouped).flatMap(islandPolys));
+  for (const b of buckets.values()) {
+    const isls = unionIslands(b).flatMap(islandPolys);
+    if (isls.length) out.push(isls);
+  }
+  return out.filter((r) => r.length);
+}
+
+/**
+ * Konturfolgende Füllung (Offset Fill): die Fläche (Gerade-Ungerade) wird in Ringen abgetragen, die der Kontur
+ * nach innen folgen. Der erste Ring liegt einen halben Abstand innerhalb, damit die Gravur die gezeichneten Maße
+ * behält. Jede zusammenhängende Fläche (Insel samt Löchern) wird vollständig von außen nach innen gefüllt,
+ * bevor es zur nächstgelegenen weitergeht; jeder Ring beginnt am Punkt, der dem vorigen Ende am nächsten liegt.
+ */
+function offsetFillRings(polys: Poly[], step: number, from: Pt): Poly[] {
+  const closed = polys.filter((p) => p.closed);
+  if (!closed.length || !(step > 0)) return [];
+  const { Clipper, ClipperOffset, JoinType, EndType } = ClipperLib;
+  // Inseln: Außenkontur mit ihren Löchern; Inseln in Löchern sind eigene Inseln
+  const islands = unionIslands(polys);
   const ringsOf = (island: ClipperLib.Paths): Poly[] => {
     // Ring für Ring vom vorigen aus versetzen; Aufräumen hält die Punktzahl an runden Ecken klein
     const out: Poly[] = [];
@@ -1404,8 +1450,16 @@ function withTabs(polys: Poly[], T: TabSettings): Poly[] {
 
 // ---------- Rasterzeilen ----------
 
-/** Ein Lauf auf einer Zeile: von x0 nach x1 (x0 < x1) mit Leistung s (0 … 1) */
-type Run = [x0: number, x1: number, s: number];
+/** Ein Lauf auf einer Zeile: von x0 nach x1 (x0 < x1) mit Leistung s (0 … 1).
+ *  so/eo (nur Vektorfüllung): Laufanfang/-ende liegt an einer Außenkante (sonst Innenkante/Loch). */
+type Run = [x0: number, x1: number, s: number, so?: boolean, eo?: boolean];
+
+/** Leistungsrampe am Laufanfang/-ende (Zeilenfüllen): Länge in mm, Startleistung, Außenkanten einbeziehen? */
+export interface FillRamp {
+  length: number;
+  sMin: number;
+  outer: boolean;
+}
 
 interface ScanOptions {
   speed: number;
@@ -1475,7 +1529,7 @@ export function whitespaceTravel(d: Device): number {
   return d.fw === 'grbl' || d.fw === 'grblhal' || d.fw === 'marlin' || d.fw === 'fluidnc' ? v : 0;
 }
 
-function emitScanlines(out: Moves, lines: { y: number; runs: Run[] }[], o: ScanOptions, flip: { v: boolean }) {
+function emitScanlines(out: Moves, lines: { y: number; runs: Run[] }[], o: ScanOptions, flip: { v: boolean }, ramp?: FillRamp) {
   const { speed: F, overscan: ov, layer } = o;
   const sub = o.sub ?? -1;
   const rc = Math.cos(o.angle ?? 0),
@@ -1489,12 +1543,12 @@ function emitScanlines(out: Moves, lines: { y: number; runs: Run[] }[], o: ScanO
     if (!ln.runs.length) continue;
     const rev = o.bidirectional && flip.v;
     flip.v = !flip.v;
-    const runs = rev ? ln.runs.map(([a, b, s]) => [-b, -a, s] as Run).reverse() : ln.runs;
+    const runs = rev ? ln.runs.map(([a, b, s, so, eo]) => [-b, -a, s, eo, so] as Run).reverse() : ln.runs;
     const sx = rev ? -1 : 1;
     const y = ln.y;
     let first = true;
     let px = 0;
-    for (const [a, b, s] of runs) {
+    for (const [a, b, s, so, eo] of runs) {
       if (first) {
         mv.push(sx * (a - ov), y, 0, 0, layer, MOVE_TRAVEL, sub);
         mv.push(sx * a, y, F, 0, layer, MOVE_TRAVEL, sub);
@@ -1504,16 +1558,118 @@ function emitScanlines(out: Moves, lines: { y: number; runs: Run[] }[], o: ScanO
         mv.push(sx * (a - ov), y, gapF, 0, layer, MOVE_TRAVEL, sub);
         mv.push(sx * a, y, F, 0, layer, MOVE_TRAVEL, sub);
       } else if (a > px) mv.push(sx * a, y, F, 0, layer, MOVE_TRAVEL, sub);
-      mv.push(sx * b, y, F, s, layer, s > 0 ? MOVE_ENGRAVE : MOVE_TRAVEL, sub);
+      scanRunPush(mv, F, sx, y, a, b, s, layer, sub, ramp, so ?? true, eo ?? true);
       px = b;
     }
     mv.push(sx * (px + ov), y, F, 0, layer, MOVE_TRAVEL, sub);
   }
 }
 
-/** Füllen: Zeilen im Abstand interval über alle geschlossenen Formen (gerade-ungerade-Regel) */
+/** Ein Gravurlauf mit optionaler Füllmodus-Rampe: Leistung steigt an gerampten Kanten über
+ *  length von sMin auf voll (Abtastung wie Linien-Rampe; Mitte bleibt ein Zug mit voller Leistung). */
+function scanRunPush(
+  mv: Pick<Moves, 'push'>, F: number, sx: number, y: number, a: number, b: number, s: number,
+  layer: number, sub: number, ramp: FillRamp | undefined, so: boolean, eo: boolean,
+) {
+  if (!ramp || s <= 0 || !(ramp.length > 0)) {
+    mv.push(sx * b, y, F, s, layer, s > 0 ? MOVE_ENGRAVE : MOVE_TRAVEL, sub);
+    return;
+  }
+  const rampStep = Math.max(0.05, ramp.length / 8);
+  const rStart = ramp.outer || !so,
+    rEnd = ramp.outer || !eo;
+  if (!rStart && !rEnd) {
+    mv.push(sx * b, y, F, s, layer, MOVE_ENGRAVE, sub);
+    return;
+  }
+  const len = b - a;
+  const at = (d: number) => {
+    let f = 1;
+    if (rStart) f = Math.min(f, d / ramp.length);
+    if (rEnd) f = Math.min(f, (len - d) / ramp.length);
+    return ramp.sMin + (s - ramp.sMin) * Math.min(1, Math.max(0, f));
+  };
+  const cuts = new Set<number>([len]);
+  if (rStart) for (let d = rampStep; d < Math.min(len, ramp.length); d += rampStep) cuts.add(d);
+  if (rStart && ramp.length < len) cuts.add(Math.min(len, ramp.length));
+  if (rEnd) for (let d = rampStep; d < Math.min(len, ramp.length); d += rampStep) cuts.add(len - d);
+  if (rEnd && ramp.length < len) cuts.add(Math.max(0, len - ramp.length));
+  for (const d of [...cuts].sort((p, q) => p - q)) {
+    if (d <= 1e-9) continue;
+    mv.push(sx * (a + d), y, F, at(Math.min(d, len)), layer, MOVE_ENGRAVE, sub);
+  }
+}
+
+/**
+ * Flutfüllung: Läufe nicht zeilenweise von unten nach oben, sondern gierig nächster-zuerst ab Kopf —
+ * bei Bidirektional darf jeder Lauf in der näheren Richtung gefahren werden (durchgehend, ohne Regel),
+ * ohne nur in Leserichtung. Jeder Lauf bekommt eigenen An-/Auslauf; Lücken fahren mit Fast-Whitespace-
+ * Geschwindigkeit (oder Eilgang). Gravurmenge ist identisch zur Zeilenemission, nur die Reihenfolge ändert sich.
+ */
+function emitFloodScanlines(out: Moves, lines: { y: number; runs: Run[] }[], o: ScanOptions, ramp?: FillRamp) {
+  const { speed: F, overscan: ov, layer } = o;
+  const sub = o.sub ?? -1;
+  const bidi = !!o.bidirectional;
+  const rc = Math.cos(o.angle ?? 0),
+    rs = Math.sin(o.angle ?? 0);
+  const mv: Pick<Moves, 'push'> = o.angle
+    ? { push: (x: number, y: number, f: number, s: number, l: number, c = MOVE_TRAVEL, q = -1) => out.push(x * rc - y * rs, x * rs + y * rc, f, s, l, c, q) }
+    : out;
+  const gapF = o.travel && Number.isFinite(o.travel) && o.travel > 0 ? o.travel : 0;
+  const items: { y: number; a: number; b: number; s: number; so: boolean; eo: boolean }[] = [];
+  for (const ln of lines) for (const [a, b, s, so, eo] of ln.runs) items.push({ y: ln.y, a, b, s, so: so ?? true, eo: eo ?? true });
+  if (!items.length) return;
+  // Kopfposition ins gedrehte System zurückrechnen (Drehung erhält Abstände, Vergleich bleibt exakt)
+  const Hx = out.lastX(),
+    Hy = out.lastY();
+  let hx = Hx * rc + Hy * rs,
+    hy = -Hx * rs + Hy * rc;
+  const done = new Uint8Array(items.length);
+  for (let rest = items.length; rest > 0; rest--) {
+    let bi = -1,
+      bd = Infinity,
+      bRev = false;
+    for (let i = 0; i < items.length; i++) {
+      if (done[i]) continue;
+      const it = items[i];
+      const df = (it.a - hx) ** 2 + (it.y - hy) ** 2;
+      if (df < bd) {
+        bd = df;
+        bi = i;
+        bRev = false;
+      }
+      if (bidi) {
+        const dr = (it.b - hx) ** 2 + (it.y - hy) ** 2;
+        if (dr < bd) {
+          bd = dr;
+          bi = i;
+          bRev = true;
+        }
+      }
+    }
+    if (bi < 0) break;
+    done[bi] = 1;
+    const it = items[bi];
+    // Umgekehrt gefahren: Koordinaten spiegeln (Anfang bleibt links), Kanten-Flags tauschen
+    const sx = bRev ? -1 : 1;
+    const a = bRev ? -it.b : it.a,
+      b = bRev ? -it.a : it.b;
+    const so = bRev ? it.eo : it.so,
+      eo = bRev ? it.so : it.eo;
+    mv.push(sx * (a - ov), it.y, gapF, 0, layer, MOVE_TRAVEL, sub);
+    mv.push(sx * a, it.y, F, 0, layer, MOVE_TRAVEL, sub);
+    scanRunPush(mv, F, sx, it.y, a, b, it.s, layer, sub, ramp, so, eo);
+    mv.push(sx * (b + ov), it.y, F, 0, layer, MOVE_TRAVEL, sub);
+    hx = sx * b;
+    hy = it.y;
+  }
+}
+
+/** Füllen: Zeilen im Abstand interval über alle geschlossenen Formen (gerade-ungerade-Regel).
+ *  Jeder Lauf merkt sich, ob Anfang/Ende an einer Außenkante liegen (für die Füllmodus-Rampe). */
 function fillLines(polys: Poly[], interval: number, s: number): { y: number; runs: Run[] }[] {
-  const edges: [number, number, number, number][] = []; // ymin, ymax, x bei ymin, dx/dy
+  markHoles(polys);
+  const edges: [number, number, number, number, boolean][] = []; // ymin, ymax, x bei ymin, dx/dy, Lochkante?
   const b = emptyBox();
   for (const p of polys) {
     if (!p.closed) continue;
@@ -1524,25 +1680,27 @@ function fillLines(polys: Poly[], interval: number, s: number): { y: number; run
       addPt(b, a.x, a.y);
       if (a.y === c.y) continue;
       const [lo, hi] = a.y < c.y ? [a, c] : [c, a];
-      edges.push([lo.y, hi.y, lo.x, (hi.x - lo.x) / (hi.y - lo.y)]);
+      edges.push([lo.y, hi.y, lo.x, (hi.x - lo.x) / (hi.y - lo.y), !!p.hole]);
     }
   }
   if (!edges.length) return [];
   edges.sort((e, f) => e[0] - f[0]);
   const out: { y: number; runs: Run[] }[] = [];
   let next = 0;
-  let active: [number, number, number, number][] = [];
+  let active: [number, number, number, number, boolean][] = [];
   // Zeilen ab der unteren Kante, um ein halbes Intervall versetzt
   for (let y = b.y0 + interval / 2; y < b.y1; y += interval) {
     while (next < edges.length && edges[next][0] <= y) active.push(edges[next++]);
     active = active.filter((e) => e[1] > y);
-    const xs = active.map((e) => e[2] + (y - e[0]) * e[3]).sort((p, q) => p - q);
+    const xs = active.map((e) => [e[2] + (y - e[0]) * e[3], !e[4]] as [number, boolean]).sort((p, q) => p[0] - q[0]);
     const runs: Run[] = [];
     for (let i = 0; i + 1 < xs.length; i += 2) {
-      if (xs[i + 1] - xs[i] < 1e-4) continue;
+      if (xs[i + 1][0] - xs[i][0] < 1e-4) continue;
       const last = runs[runs.length - 1];
-      if (last && xs[i] - last[1] < 1e-4) last[1] = xs[i + 1];
-      else runs.push([xs[i], xs[i + 1], s]);
+      if (last && xs[i][0] - last[1] < 1e-4) {
+        last[1] = xs[i + 1][0];
+        last[4] = xs[i + 1][1];
+      } else runs.push([xs[i][0], xs[i + 1][0], s, xs[i][1], xs[i + 1][1]]);
     }
     out.push({ y, runs });
   }
@@ -1740,11 +1898,58 @@ function emitEntry(mv: Moves, e: CutEntry, polys: Poly[], li: number, si: number
   if (e.mode === 'fill') {
     // Zeilen im gedrehten System berechnen und beim Ausgeben zurückdrehen; Kreuzschraffur = zweite Richtung um 90° versetzt
     const angles = [e.angle, ...(e.crossHatch ? [e.angle + 90] : [])].map((a) => (a * Math.PI) / 180);
-    const sets = angles.map((a) => ({ a, lines: fillLines(rotatePolys(polys, -a), Math.max(0.01, e.interval), s) }));
-    const ov = (Math.max(0, e.overscan) / 100) * (e.speed / 60);
+    // Flutfüllung plant eigene Pfade (nächster-zuerst) und füllt immer Form für Form.
+    const order: FillOrder = e.floodFill ? 'shape' : (e.fillOrder ?? 'all');
+    const ov = (e.overscanOn === false ? 0 : Math.max(0, e.overscan) / 100) * (e.speed / 60);
+    const ramp: FillRamp | undefined =
+      e.ramp.enabled && e.ramp.inFill && e.ramp.length > 0 && e.minPower < e.power
+        ? { length: e.ramp.length, sMin: Math.max(0, e.minPower) / 100, outer: e.ramp.outerEdge }
+        : undefined;
+    const opt = { speed: e.speed, bidirectional: e.bidirectional, overscan: ov, layer: li, sub: si, travel };
+    if (order === 'all' && !ramp) {
+      // Unveränderter Pfad: byte-identisch zu bisher
+      const sets = angles.map((a) => ({ a, lines: fillLines(rotatePolys(polys, -a), Math.max(0.01, e.interval), s) }));
+      for (let p = 0; p < passes; p++) {
+        pass(p);
+        for (const st of sets) emitScanlines(mv, st.lines, { ...opt, angle: st.a }, flip);
+      }
+      return;
+    }
+    // Regionen füllen: nächste zuerst ab Kopfposition; der Richtungs-Flip läuft über Regionen
+    // weiter (durchgehend, ohne Regel — LightBurn-Parität).
+    const regions = fillRegions(polys, order);
+    const anchor = (r: Poly[]) => {
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (const p of r) for (const q of p.pts) {
+        if (q.x < x0) x0 = q.x;
+        if (q.y < y0) y0 = q.y;
+        if (q.x > x1) x1 = q.x;
+        if (q.y > y1) y1 = q.y;
+      }
+      return { x: (x0 + x1) / 2, y: (y0 + y1) / 2 };
+    };
     for (let p = 0; p < passes; p++) {
       pass(p);
-      for (const st of sets) emitScanlines(mv, st.lines, { speed: e.speed, bidirectional: e.bidirectional, overscan: ov, layer: li, sub: si, angle: st.a, travel }, flip);
+      let cur = { x: mv.lastX(), y: mv.lastY() };
+      const done = new Uint8Array(regions.length);
+      for (let k = 0; k < regions.length; k++) {
+        let bi = -1,
+          bd = Infinity;
+        for (let i = 0; i < regions.length; i++) {
+          if (done[i] || !regions[i].length) continue;
+          const a = anchor(regions[i]);
+          const d = (a.x - cur.x) ** 2 + (a.y - cur.y) ** 2;
+          if (d < bd) [bd, bi] = [d, i];
+        }
+        if (bi < 0) break;
+        done[bi] = 1;
+        for (const a of angles) {
+          const lines = fillLines(rotatePolys(regions[bi], -a), Math.max(0.01, e.interval), s);
+          if (e.floodFill) emitFloodScanlines(mv, lines, { ...opt, angle: a }, ramp);
+          else emitScanlines(mv, lines, { ...opt, angle: a }, flip, ramp);
+        }
+        cur = anchor(regions[bi]);
+      }
     }
     return;
   }

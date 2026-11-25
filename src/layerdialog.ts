@@ -3,7 +3,7 @@
 // Sub-Layer bearbeiten dieselben Formen nach dem Layer (z. B. erst füllen, dann ausschneiden) und haben eigene Reiter.
 import type { Editor } from './editor';
 import { h, numInput } from './dom';
-import { cleanLayerType, CutSettings, cutSettings, cutsThrough, defaultSubLayer, FillStyle, isCutLayer, Layer, LAYER_TYPES, LayerMode, layerLabel, layerTypeName, PALETTE, SubLayer } from './model';
+import { cleanLayerType, CutSettings, cutSettings, cutsThrough, defaultSubLayer, FillOrder, FillStyle, isCutLayer, Layer, LAYER_TYPES, LayerMode, layerLabel, layerTypeName, PALETTE, SubLayer } from './model';
 import { t } from './i18n';
 import { resetSettings } from './layerCategories';
 import { lookEditor } from './view3d/lookui';
@@ -121,7 +121,7 @@ export function openLayerDialog(ed: Editor, i: number) {
         : row(t('Name'), h('input', { type: 'text', value: name, oninput: (ev: Event) => (name = (ev.target as HTMLInputElement).value) }))),
       ...(vecs ? row(t('Modus'), modeSel) : []),
       ...(vecs && !sub ? row(t('Art'), typeSel) : []),
-      ...row(t('Geschwindigkeit (mm/min)'), num(() => e.speed, (v) => (e.speed = v), 1, 100000)),
+      ...row(t('Geschwindigkeit (mm/min)'), num(() => e.speed, (v) => ((e.speed = v), render()), 1, 100000)),
       ...row(t('Max. Leistung (%)'), num(() => e.power, (v) => (e.power = v), 0, 100)),
       ...row(t('Min. Leistung (%)'), num(() => e.minPower, (v) => (e.minPower = v), 0, 100, false, t('Leistung in Ecken (Leistungsrampe) und bei Bildern in Graustufen'))),
       ...row(t('Durchgänge'), num(() => e.passes, (v) => (e.passes = v), 1, 100, true)),
@@ -253,6 +253,77 @@ export function openLayerDialog(ed: Editor, i: number) {
     );
   };
 
+  // Schematische Füllart-Vorschau im Stil der Vergleichsreferenz: Zeilen mit Richtungspfeilen
+  // (bidirektional = wechselnd, sonst alle in Leserichtung), Überfahrweg als grüner Anlauf-/roter
+  // Auslaufstrich an den Zeilenenden, Kreuzschraffur als zweiter dünner Satz, Scanwinkel gedreht.
+  // Formen-einzeln/Flutfüllung zeigt zwei getrennte Spalten (jede Form für sich), Kontur-folgend Ringe.
+  // Reine Darstellung aus den Einstellungen — kein G-Code, keine Nutzertexte (nur Geometrie-Zahlen).
+  const fillPreviewSvg = (c: Entry): string => {
+    const F = (n: number) => String(Math.round(n * 10) / 10);
+    const YS = [30, 45, 60, 75, 90];
+    // Pfeil von (x1,y1) nach (x2,y2): Schaft plus Dreiecksspitze
+    const arrow = (x1: number, y1: number, x2: number, y2: number, thin: boolean): string => {
+      const dx = x2 - x1;
+      const dy = y2 - y1;
+      const len = Math.hypot(dx, dy) || 1;
+      const hs = thin ? 5 : 7;
+      const bx = x2 - (dx / len) * hs;
+      const by = y2 - (dy / len) * hs;
+      // Normalenversatz für die Spitzenbasis
+      const hh = thin ? 2.4 : 3.4;
+      const nx = (-dy / len) * hh;
+      const ny = (dx / len) * hh;
+      const cls = thin ? 'fp-thin' : 'fp-row';
+      return `<line x1="${F(x1)}" y1="${F(y1)}" x2="${F(bx)}" y2="${F(by)}" class="${cls}"/>` +
+        `<polygon points="${F(x2)},${F(y2)} ${F(bx + nx)},${F(by + ny)} ${F(bx - nx)},${F(by - ny)}" class="${thin ? 'fp-thin-head' : 'fp-head'}"/>`;
+    };
+    // Anlauf (grün) und Auslauf (rot) über die Formkante hinaus
+    const ext = c.overscanOn ? Math.min(Math.max(0, c.overscan), 25) / 100 * 200 : 0;
+    const lead = (xEdge: number, y: number, dir: number): string => {
+      if (ext < 0.3) return '';
+      // Grün läuft in die Zeile hinein, Rot aus ihr heraus
+      return `<line x1="${F(xEdge - dir * ext)}" y1="${y}" x2="${F(xEdge)}" y2="${y}" class="fp-in"/>`;
+    };
+    const trail = (xEdge: number, y: number, dir: number): string => {
+      if (ext < 0.3) return '';
+      return `<line x1="${F(xEdge)}" y1="${y}" x2="${F(xEdge + dir * ext)}" y2="${y}" class="fp-out"/>`;
+    };
+    const rowsIn = (L: number, R: number): string => {
+      let g = '';
+      YS.forEach((y, k) => {
+        const ltr = c.bidirectional ? k % 2 === 0 : true;
+        const dir = ltr ? 1 : -1;
+        const x0 = ltr ? L : R;
+        const x1 = ltr ? R : L;
+        g += lead(x0, y, dir) + arrow(x0, y, x1, y, false) + trail(x1, y, dir);
+      });
+      return g;
+    };
+    const hatchIn = (L: number, R: number): string => {
+      // Zweiter Satz, 90° gedreht: dünne Pfeile, Richtungswechsel wie die Hauptzeilen
+      let g = '';
+      const n = 4;
+      for (let i = 0; i < n; i++) {
+        const x = L + ((R - L) * (i + 0.5)) / n;
+        const down = c.bidirectional ? i % 2 === 0 : true;
+        g += arrow(x, down ? 26 : 94, x, down ? 94 : 26, true);
+      }
+      return g;
+    };
+    let body: string;
+    if (c.fillStyle === 'offset') {
+      body = `<rect x="26" y="34" width="108" height="52" class="fp-row"/>` +
+        `<rect x="36" y="43" width="88" height="34" class="fp-row"/>` +
+        `<rect x="46" y="52" width="68" height="16" class="fp-row"/>`;
+    } else if (c.fillOrder === 'shape' || c.floodFill) {
+      body = rowsIn(14, 72) + rowsIn(88, 146) + (c.crossHatch ? hatchIn(14, 72) + hatchIn(88, 146) : '');
+    } else {
+      body = rowsIn(20, 140) + (c.crossHatch ? hatchIn(20, 140) : '');
+    }
+    const rot = c.fillStyle !== 'offset' && c.angle ? ` transform="rotate(${F(c.angle)} 80 60)"` : '';
+    return `<svg viewBox="0 0 160 120" class="fill-preview-svg" aria-hidden="true"><g${rot}>${body}</g></svg>`;
+  };
+
   const fillSection = (c: Entry) => {
     const interval = num(() => c.interval, (v) => ((c.interval = v), (lpi.value = String(Math.round(25.4 / v)))), 0.01, 5, false, t('Abstand der Füllzeilen in mm'));
     const lpi = num(() => Math.round(25.4 / c.interval), (v) => ((c.interval = Math.round((25.4 / v) * 10000) / 10000), (interval.value = String(c.interval))), 5, 2540, false, t('Zeilen pro Zoll'));
@@ -265,19 +336,42 @@ export function openLayerDialog(ed: Editor, i: number) {
       h('option', { value: 'scan', selected: c.fillStyle !== 'offset' }, t('Zeilenweise')),
       h('option', { value: 'offset', selected: c.fillStyle === 'offset' }, t('Kontur folgend')),
     );
+    const isScan = c.fillStyle !== 'offset';
+    // Anzeige-mm zum Überfahrweg: % × (Vorschub mm/s); reine Darstellung, Formel steht in gcode.ts (emitEntry)
+    const overscanMm = ((Math.max(0, c.overscan) / 100) * (c.speed / 60)).toFixed(2);
+    const order = h('select', {
+      disabled: c.floodFill,
+      title: c.floodFill ? t('Flutfüllung füllt immer Form für Form') : '',
+      onchange: (e: Event) => {
+        c.fillOrder = (e.target as HTMLSelectElement).value as FillOrder;
+        render();
+      },
+    },
+      h('option', { value: 'all', selected: c.fillOrder === 'all' }, t('Alles zusammen')),
+      h('option', { value: 'group', selected: c.fillOrder === 'group' }, t('Gruppenweise')),
+      h('option', { value: 'shape', selected: c.fillOrder === 'shape' }, t('Formen einzeln')),
+    );
     return h('div', {},
       h('div', { class: 'form' },
         ...row(t('Füllart'), style, t('Zeilenweise: Fläche Zeile für Zeile abtasten. Kontur folgend: Ringe, die dem Umriss nach innen folgen (gut für schmale Rahmen, Schrift und Ornamente).')),
+        ...[h('div', { class: 'fill-preview', 'aria-hidden': 'true', svg: fillPreviewSvg(c) })],
+        ...(isScan ? row(t('Füllreihenfolge'), order, t('Alles zusammen: alle Formen in einem Durchgang. Gruppenweise: jede oberste Gruppe (sonst alles Ungruppierte) für sich. Formen einzeln: jede Form für sich — weniger Leerfahrt über Leerräume.')) : []),
+        ...(isScan ? [h('span', { class: 'checks' }, check(t('Flutfüllung'), () => c.floodFill, (v) => ((c.floodFill = v), render()), t('Pfadplanung über leere Bereiche hinweg statt Zeile für Zeile (nur Zeilenfüllen, füllt immer Form für Form).')))]: []),
         ...row(t('Zeilenabstand (mm)'), interval),
         ...row(t('Zeilen pro Zoll'), lpi),
         ...(c.fillStyle === 'offset'
           ? []
           : [
-              ...row(t('Scanwinkel (°)'), num(() => c.angle, (v) => (c.angle = v), -180, 180, false, t('0° = waagerechte Zeilen, 90° = senkrechte'))),
-              ...row(t('Überfahrweg (%)'), num(() => c.overscan, (v) => (c.overscan = v), 0, 50, false, t('Anlauf- und Auslaufweg in % der Geschwindigkeit, damit der Rand gleichmäßig wird'))),
+              ...row(t('Scanwinkel (°)'), num(() => c.angle, (v) => ((c.angle = v), render()), -180, 180, false, t('0° = waagerechte Zeilen, 90° = senkrechte'))),
+              h('span', { class: 'checks' }, check(t('Überfahrweg'), () => c.overscanOn, (v) => ((c.overscanOn = v), render()), t('Overscanning: Anlauf- und Auslaufweg am Zeilenende, damit der Rand gleichmäßig wird (aus = kein An-/Auslauf).'))),
+              ...(c.overscanOn ? row(t('Überfahrweg (%)'), h('span', { class: 'overscan-field' }, num(() => c.overscan, (v) => ((c.overscan = v), render()), 0, 50, false, t('Anlauf- und Auslaufweg in % der Geschwindigkeit — das sind bei diesem Vorschub ca. {mm} mm je Seite.', { mm: overscanMm })), h('span', { class: 'muted' }, t('≈ {mm} mm je Seite', { mm: overscanMm }))), t('Anlauf- und Auslaufweg in % der Geschwindigkeit — das sind bei diesem Vorschub ca. {mm} mm je Seite.', { mm: overscanMm })) : []),
               h('span', { class: 'checks' },
-                check(t('Bidirektional'), () => c.bidirectional, (v) => (c.bidirectional = v), t('In beide Richtungen lasern (schneller)')),
-                check(t('Kreuzschraffur'), () => c.crossHatch, (v) => (c.crossHatch = v), t('Zweiter Durchgang um 90° gedreht')),
+                check(t('Bidirektional'), () => c.bidirectional, (v) => ((c.bidirectional = v), render()), t('In beide Richtungen lasern (schneller)')),
+                check(t('Kreuzschraffur'), () => c.crossHatch, (v) => ((c.crossHatch = v), render()), t('Zweiter Durchgang um 90° gedreht')),
+              ),
+              h('span', { class: 'checks' },
+                check(t('Leistungsrampe im Füllmodus'), () => c.ramp.inFill, (v) => ((c.ramp.inFill = v), render()), t('Leistung an den Kanten von Min. auf Max. hochfahren (nur Zeilenfüllen; Länge und Winkel wie in der Linien-Rampe).')),
+                ...(c.ramp.inFill ? [check(t('Auch an Außenkanten'), () => c.ramp.outerEdge, (v) => (c.ramp.outerEdge = v), t('Sonst nur an Innenkanten (Löchern) — Außenkanten bekommen die volle Leistung sofort.'))] : []),
               ),
             ]),
       ),

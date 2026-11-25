@@ -1625,6 +1625,55 @@ dialog {
 .form .checks {
   grid-column: 1 / -1;
 }
+/* Schematische Füllart-Vorschau im Layer-Dialog (Pfeilrichtung, Überfahrweg, Schraffur) */
+.fill-preview {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: center;
+  padding: 2px 0;
+}
+.fill-preview-svg {
+  width: 170px;
+  height: auto;
+  color: var(--text);
+}
+.fill-preview-svg .fp-row {
+  stroke: currentColor;
+  stroke-width: 2;
+  fill: none;
+  stroke-linecap: round;
+}
+.fill-preview-svg .fp-head {
+  fill: currentColor;
+}
+.fill-preview-svg .fp-thin {
+  stroke: currentColor;
+  stroke-width: 1.2;
+  opacity: 0.5;
+  fill: none;
+}
+.fill-preview-svg .fp-thin-head {
+  fill: currentColor;
+  opacity: 0.5;
+}
+.fill-preview-svg .fp-in {
+  stroke: #2fa02f;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+}
+.fill-preview-svg .fp-out {
+  stroke: #d23b3b;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+}
+.overscan-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.overscan-field .muted {
+  white-space: nowrap;
+}
 .laser-tab {
   container-type: inline-size;
 }
