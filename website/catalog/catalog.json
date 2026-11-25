@@ -1,7 +1,7 @@
 {
  "format": "kizamubeam-catalog",
  "version": 1,
- "generated": "2026-11-25T09:34:44.452Z",
+ "generated": "2026-11-25T10:36:22.703Z",
  "packs": [
   {
    "id": "org.kizamubeam.box-composer",
@@ -247,7 +247,7 @@
    "codeSize": 3350,
    "source": "https://github.com/KizamuBeam/kizamubeam/tree/main/plugins/stencil-bridges",
    "file": "org.kizamubeam.stencil-bridges.kzp",
-   "sha256": "1361e8cfeeee1c5250cc6011d3fd044e602ebb4dee39769eddab02f97ab0da10",
+   "sha256": "9e0a71a009c01398415a0b61371499f5c2034c1d77fe048bc0d1ed50339cd04a",
    "size": 12980
   },
   {
