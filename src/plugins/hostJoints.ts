@@ -2,7 +2,8 @@
 // - panel: the outline of a box panel with finger joints on its four edges (the code of the box, drawer and finger-box
 //   generators, src/generators/panelJoints.ts)
 // - edge: the joints of the Joint tool (finger, tenon, lap, snap, hook, wedge, T-slot, lid hinge) on one or two
-//   straight edges of the plugin's outlines (src/jointsGeom.ts)
+//   straight edges of the plugin's outlines (src/jointsGeom.ts); with chain: true an edge is the smooth run of the
+//   outline through that segment, curved too, like a click with the Joint tool (fingers and tenons, #513)
 // v is the version of the joint geometry: the same input and version always give the same shapes. Without v it is 1,
 // so plugins written before version 2 keep their shapes; in 2 the clearance is the total play of the joint (#402).
 // Problems and notes come back as codes joint-… with numbers; the app writes their texts (jointText.ts, plugins/words.ts).
@@ -11,6 +12,7 @@ import type { SubPath } from '../model';
 import { segments } from '../curves';
 import { computeJointGeom, DEFAULT_JOINT, type JointGeometryVersion, type JointKind, type JointMsg, type JointOptions } from '../jointsGeom';
 import { fieldCount, panelCut, type Pattern } from '../generators/panelJoints';
+import { smoothChain } from '../jointsCurve';
 
 type Bad = (what: string) => never;
 type Num = (v: unknown, what: string, min?: number, max?: number) => number;
@@ -72,8 +74,12 @@ export function jointsFn(input: unknown, subsOf: Subs, num: Num, bad: Bad): unkn
       const sub = num(e.sub ?? 0, `edges[${i}].sub`, 0, subs.length - 1);
       const seg = num(e.seg, `edges[${i}].seg`, 0, 1e6);
       const s = Number.isInteger(sub) && Number.isInteger(seg) ? segments(subs[sub])[seg] : undefined;
-      // Joints go on straight edges only, like in the Joint tool
-      if (!s || s.curve || Math.hypot(s.b.x - s.a.x, s.b.y - s.a.y) < 1e-6) return bad(`edges[${i}].seg`);
+      if (e.chain !== undefined && typeof e.chain !== 'boolean') return bad(`edges[${i}].chain`);
+      if (!s || Math.hypot(s.b.x - s.a.x, s.b.y - s.a.y) < 1e-6) return bad(`edges[${i}].seg`);
+      // chain: the smooth run through this segment, as the Joint tool picks it (a closed outline without corners is the ring)
+      if (e.chain) return { obj: e.part, subs, sub, ...smoothChain(subs[sub], seg) };
+      // Otherwise straight edges only, as before
+      if (s.curve) return bad(`edges[${i}].seg`);
       return { obj: e.part, subs, sub, seg };
     });
     const r = computeJointGeom(edges, o, v as JointGeometryVersion);
