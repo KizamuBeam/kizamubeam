@@ -10,7 +10,7 @@ KizamuBeam can turn ordinary shapes into parts that slot or glue together. The [
 
 ## The Joint tool
 
-The **Joint** tool (the Joint button in the tools toolbar, or **Toolbox → Joints and Bending → Joints**) adds a joint between two straight edges:
+The **Joint** tool (the Joint button in the tools toolbar, or **Toolbox → Joints and Bending → Joints**) adds a joint between two straight edges (finger joints and tenons also on [curved edges](#curved-edges)):
 
 1. Choose the tool. The status bar asks for the first edge.
 2. Click the first straight edge. It gets the fingers or tenons.
@@ -31,6 +31,15 @@ The result stays an ordinary, editable path. The joint remembers the material th
 | **Lid hinge (with pin)** | See [Lid hinge](#lid-hinge) below. |
 
 Common settings are the material thickness, the **kerf** (fingers and tenons are drawn wider, gaps and slots narrower, so the parts have their nominal size after cutting) and the **clearance**, the total play of the joint with both sides together (negative values give a press fit). Once the material is [calibrated](materials-tests.md#calibrate-fit), the tool proposes kerf and clearance for the chosen type.
+
+### Curved edges
+
+Finger joints and mortise and tenon also work on curved edges, for example a round lid or base with a strip bent around it:
+
+1. Click the curve first (a circle, an ellipse, a rounded corner or an arc). A smooth run of the outline counts as one edge; a whole circle is picked as a ring.
+2. Click a straight edge second, usually the edge of the strip. For tenons, the slots go into the curved panel instead.
+
+Fingers, tenons and slots are measured on the middle of the wall, so the parts fit after bending, and their flanks point to the centre of the curve. The dialog shows the strip length to cut. A longer strip gets the pattern from its start and stays plain at the end; a strip that is too short is reported. Add living hinge cuts to the strip with [Living hinge](#living-hinges) afterwards. Curved joints are not yet assembled in the 3D view.
 
 ## Lid hinge
 
