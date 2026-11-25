@@ -8,7 +8,7 @@ import type { AsmPoses } from '../generators/pose';
 
 // Pose types and helpers live with the generators (src/generators/pose.ts), which compute their own poses (#341)
 export { cross, dot, flatPose, rotatePose } from '../generators/pose';
-export type { AsmPoses, Pose, V3 } from '../generators/pose';
+export type { AsmPoses, Bend, Pose, V3 } from '../generators/pose';
 
 /** Lagen aller Teile einer Baugruppe (ohne Schnittfuge), from Generator.poses; null for generators without a spatial layout */
 export function assemblyPoses(gen: string, params: Params, th: number): AsmPoses | null {

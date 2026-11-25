@@ -17,6 +17,88 @@ export interface Solid {
   th: number;
   /** Drehzahl relativ zum Antrieb (nur Zahnräder) */
   spin?: number;
+  /** Strip of a bent part (pose.bend): key of that part; all its strips share it (bentSolids) */
+  part?: string;
+  /** Local x where a strip was cut off its neighbours; the outline draws no edges there */
+  seams?: number[];
+}
+
+/** Key of the part a solid belongs to (a strip of a bent part: that part) */
+export const partKey = (s: Solid) => s.part ?? s.key;
+
+/**
+ * A bent part as rigid plates, one per segment of its path (collinear segments merged). Each strip keeps the local
+ * coordinates of the part (only its slice of the outline along x), so places and engravings fit without conversion.
+ * Strip keys are `${key}~${i}`, the part key is in `part`. Adjacent strips meet in the middle of the plate (inside the
+ * bend they overlap in a thin wedge, outside a thin gap opens; findOverlaps and analyzeAssembly ignore that within one part).
+ */
+export function bentSolids(s: Solid): Solid[] {
+  const bend = s.pose.bend;
+  if (!bend) return [s];
+  // Merge collinear segments
+  const pts: [number, number][] = [bend.path[0]];
+  for (let i = 1; i < bend.path.length; i++) {
+    const q = bend.path[i];
+    if (pts.length > 1) {
+      const a = pts[pts.length - 2],
+        b = pts[pts.length - 1];
+      const d1 = [b[0] - a[0], b[1] - a[1]],
+        d2 = [q[0] - b[0], q[1] - b[1]];
+      const l1 = Math.hypot(d1[0], d1[1]),
+        l2 = Math.hypot(d2[0], d2[1]);
+      if (Math.abs(d1[0] * d2[1] - d1[1] * d2[0]) < 1e-9 * l1 * l2 && d1[0] * d2[0] + d1[1] * d2[1] > 0) {
+        pts[pts.length - 1] = q;
+        continue;
+      }
+    }
+    pts.push(q);
+  }
+  const { o, u, v, n } = s.pose;
+  const xs = [bend.x0 ?? 0];
+  for (let i = 1; i < pts.length; i++) xs.push(xs[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+  let ylo = Infinity,
+    yhi = -Infinity,
+    xlo = Infinity,
+    xhi = -Infinity;
+  for (const poly of s.polys)
+    for (const q of poly) {
+      ylo = Math.min(ylo, q.y);
+      yhi = Math.max(yhi, q.y);
+      xlo = Math.min(xlo, q.x);
+      xhi = Math.max(xhi, q.x);
+    }
+  const subj: Paths = s.polys.map((poly) => poly.map((q) => ({ X: Math.round(q.x * SCALE), Y: Math.round(q.y * SCALE) })));
+  const out: Solid[] = [];
+  const m = pts.length - 1;
+  for (let i = 0; i < m; i++) {
+    // The first and last strip go on straight beyond the ends of the path
+    const xa = i === 0 ? Math.min(xlo, xs[0]) - 1 : xs[i],
+      xb = i === m - 1 ? Math.max(xhi, xs[m]) + 1 : xs[i + 1];
+    if (xb <= xlo || xa >= xhi) continue;
+    const rect = [
+      [xa, ylo - 1],
+      [xb, ylo - 1],
+      [xb, yhi + 1],
+      [xa, yhi + 1],
+    ].map(([x, y]) => ({ X: Math.round(x * SCALE), Y: Math.round(y * SCALE) }));
+    const polys = execute(ClipperLib.ClipType.ctIntersection, subj, [rect], ClipperLib.PolyFillType.pftEvenOdd)
+      .filter((p) => p.length > 2)
+      .map((p) => p.map((q) => ({ x: q.X / SCALE, y: q.Y / SCALE })));
+    if (!polys.length) continue;
+    const len = xs[i + 1] - xs[i];
+    const ta = (pts[i + 1][0] - pts[i][0]) / len,
+      tb = (pts[i + 1][1] - pts[i][1]) / len;
+    const comb = (a: number, b: number): V3 => [a * u[0] + b * n[0], a * u[1] + b * n[1], a * u[2] + b * n[2]];
+    const u2 = comb(ta, tb),
+      n2 = comb(-tb, ta);
+    // The middle of the plate lies on the path
+    const base = comb(pts[i][0], pts[i][1]);
+    const h = s.th / 2;
+    const o2: V3 = [0, 1, 2].map((k) => o[k] + base[k] - xs[i] * u2[k] - h * n2[k]) as V3;
+    const seams = [...(i > 0 ? [xa] : []), ...(i < m - 1 ? [xb] : [])];
+    out.push({ ...s, key: `${s.key}~${out.length}`, part: s.key, seams, polys, pose: { o: o2, u: u2, v, n: n2 } });
+  }
+  return out;
 }
 
 /** Konturen in Linienzüge zerlegen (offene Pfade werden ignoriert) */
@@ -31,8 +113,9 @@ export function subsPolys(subs: SubPath[]): Pt[][] {
  * turns by more than angleDeg (same threshold EdgesGeometry used), so smooth curves stay clean.
  * Returns flat xyz pairs for a LineSegments geometry.
  */
-export function outlineSegments(polys: Pt[][], th: number, angleDeg = 25): number[] {
+export function outlineSegments(polys: Pt[][], th: number, angleDeg = 25, seams: number[] = []): number[] {
   const out: number[] = [];
+  const onSeam = (q: Pt) => seams.some((x) => Math.abs(q.x - x) < 2e-3);
   const cosMax = Math.cos((angleDeg * Math.PI) / 180);
   const eps = 1e-9;
   for (const raw of polys) {
@@ -48,7 +131,9 @@ export function outlineSegments(polys: Pt[][], th: number, angleDeg = 25): numbe
     for (let i = 0; i < n; i++) {
       const a = poly[i],
         b = poly[(i + 1) % n];
-      out.push(a.x, a.y, 0, b.x, b.y, 0, a.x, a.y, th, b.x, b.y, th);
+      const seamA = onSeam(a);
+      if (!(seamA && onSeam(b) && Math.abs(a.x - b.x) < 2e-3)) out.push(a.x, a.y, 0, b.x, b.y, 0, a.x, a.y, th, b.x, b.y, th);
+      if (seamA) continue;
       const p = poly[(i + n - 1) % n];
       const ix = a.x - p.x,
         iy = a.y - p.y,
@@ -84,7 +169,7 @@ export function asmSolids(gen: string, raw: Params, fallbackTh: number, keys?: S
     const key = p.shape.part ?? 'main';
     const pose = poses.poses[key];
     if (!pose || (keys && !keys.has(key))) continue;
-    out.push({ key, label: g.label(params, p.shape.part), polys: subsPolys(p.shape.subs), pose, th, spin: poses.spin?.[key] });
+    out.push(...bentSolids({ key, label: g.label(params, p.shape.part), polys: subsPolys(p.shape.subs), pose, th, spin: poses.spin?.[key] }));
   }
   return out;
 }
@@ -215,6 +300,13 @@ function parallel(A: Solid, B: Solid): Overlap | null {
   const area = res.reduce((s, p) => s + ClipperLib.Clipper.Area(p), 0) / (SCALE * SCALE);
   const volume = Math.abs(area) * h;
   if (volume <= EPS_VOL) return null;
+  // Within the plane, too, an overlap narrower than the tolerance on each side counts as touching (end faces of
+  // plates that meet edge to edge, such as the pieces of a bent wall, #513)
+  const off = new ClipperLib.ClipperOffset();
+  off.AddPaths(res, ClipperLib.JoinType.jtMiter, ClipperLib.EndType.etClosedPolygon);
+  const core: Paths = [];
+  off.Execute(core, -OVERLAP_TOLERANCE * SCALE);
+  if (!core.length) return null;
   const o = add(A.pose.o, n, z0 - dot(A.pose.o, n));
   return {
     a: A.key,
@@ -343,14 +435,17 @@ function shrunk(s: Solid): Solid {
 
 /**
  * Paarweise Durchdringungen. Parallele, senkrechte und schräg zueinander stehende Platten.
- * Eindringtiefen unter OVERLAP_TOLERANCE zählen als Berührung.
+ * Eindringtiefen unter OVERLAP_TOLERANCE zählen als Berührung. Strips of a bent part (bentSolids) count as that part:
+ * they are not checked against each other, and their overlaps with another part are reported as one (keys of the parts).
  */
 export function findOverlaps(solids: Solid[]): Overlap[] {
   const cores = solids.map(shrunk);
   const boxes = solids.map(solidBounds);
   const out: Overlap[] = [];
+  const byPair = new Map<string, Overlap>();
   for (let i = 0; i < solids.length; i++)
     for (let j = i + 1; j < solids.length; j++) {
+      if (solids[i].part !== undefined && solids[i].part === solids[j].part) continue;
       const p = boxes[i],
         q = boxes[j];
       if ([0, 1, 2].some((k) => Math.min(p.max[k], q.max[k]) - Math.max(p.min[k], q.min[k]) <= 1e-9)) continue;
@@ -359,7 +454,23 @@ export function findOverlaps(solids: Solid[]): Overlap[] {
       // Die verkleinerten Platten entscheiden, ob überhaupt eine Durchdringung vorliegt; Volumen und Bereiche kommen von den echten
       if (test(cores[i], cores[j])) {
         const r = test(solids[i], solids[j]);
-        if (r) out.push(r);
+        if (!r) continue;
+        if (solids[i].part === undefined && solids[j].part === undefined) {
+          out.push(r);
+          continue;
+        }
+        const a = partKey(solids[i]),
+          b = partKey(solids[j]);
+        const k = `${a}\n${b}`;
+        const seen = byPair.get(k);
+        if (seen) {
+          seen.volume += r.volume;
+          seen.pieces.push(...r.pieces);
+        } else {
+          const ov = { ...r, a, b };
+          byPair.set(k, ov);
+          out.push(ov);
+        }
       }
     }
   return out;

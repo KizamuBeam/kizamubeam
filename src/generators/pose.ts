@@ -14,6 +14,21 @@ export interface Pose {
   u: V3;
   v: V3;
   n: V3;
+  /** Bent part (living hinge, #513): the plate follows this line instead of the straight line along u, see Bend */
+  bend?: Bend;
+}
+
+/**
+ * Bend of a plate (a strip with living hinge cuts wrapped around a curve). path: polyline in the plane of u and n,
+ * points [a, b] mean o + a·u + b·n. The middle of the plate (s = thickness / 2, the layer that keeps its length when
+ * the board bends) follows the path; the local x coordinate runs along it by arc length (x0 at its first point) and n
+ * turns with it (the path direction turned by 90° from u towards n). The straight path [[0, th/2], [L, th/2]] gives
+ * the unbent plate. Before the first and after the last point the plate goes on straight. Every segment of the path is
+ * drawn as a rigid plate (see bentSolids in view3d/solids.ts).
+ */
+export interface Bend {
+  path: [number, number][];
+  x0?: number;
 }
 
 export interface AsmPoses {
@@ -53,5 +68,6 @@ export const dot = (a: V3, b: V3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 export function moved(p: Pose, R: [V3, V3, V3], t: V3): Pose {
   const r = (w: V3): V3 => [0, 1, 2].map((i) => R[0][i] * w[0] + R[1][i] * w[1] + R[2][i] * w[2]) as V3;
   const o = r(p.o);
-  return { o: [o[0] + t[0], o[1] + t[1], o[2] + t[2]], u: r(p.u), v: r(p.v), n: r(p.n) };
+  // The bend lies in the plate's own frame and moves with it
+  return { o: [o[0] + t[0], o[1] + t[1], o[2] + t[2]], u: r(p.u), v: r(p.v), n: r(p.n), ...(p.bend && { bend: p.bend }) };
 }

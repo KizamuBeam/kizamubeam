@@ -15,7 +15,7 @@ import { locale, t, tn } from '../i18n';
 import { dockWindow, isShown, onWindowShow } from '../dock';
 import { objLabel } from '../objectsPanel';
 import { genLabel } from '../generators';
-import { asmSolids, findOverlaps, Overlap, Solid, solidBounds } from './solids';
+import { asmSolids, findOverlaps, Overlap, partKey, Solid, solidBounds } from './solids';
 import { onPluginResult } from '../plugins/generator';
 import { flatPose, genThickness } from './poses';
 import { assembleMates, MatePart } from './mates';
@@ -220,8 +220,9 @@ export function collectScene(ed: Editor, th: number, marks = true, fallback: Mat
       const placed: ViewSolid[] = [];
       for (const p of parts) {
         const key = `${s.asm}:${p.key}`;
-        const mem = members.find((x) => ((x.o.shape as GenShape).part ?? 'main') === p.key);
-        const vs = { ...p, key, group: s.asm, layer: (mem ?? members[0])?.o.layer ?? o.layer };
+        // A strip of a bent part takes place and layer from its part
+        const mem = members.find((x) => ((x.o.shape as GenShape).part ?? 'main') === partKey(p));
+        const vs = { ...p, key, ...(p.part !== undefined && { part: `${s.asm}:${p.part}` }), group: s.asm, layer: (mem ?? members[0])?.o.layer ?? o.layer };
         solids.push(vs);
         placed.push(vs);
         targets.push(vs);
@@ -418,7 +419,7 @@ function placeAt(parts: Solid[], cx: number, cy: number) {
 function overlapText(list: Overlap[], solids: ViewSolid[]): string {
   if (!list.length) return t('Keine Überschneidungen');
   const name = (k: string) => {
-    const s = solids.find((x) => x.key === k);
+    const s = solids.find((x) => partKey(x) === k);
     // Bei Baugruppen nur den Teil nennen („Box …: Boden“ → „Boden“)
     return s ? (s.label.includes(': ') ? s.label.slice(s.label.lastIndexOf(': ') + 2) : s.label) : k;
   };
