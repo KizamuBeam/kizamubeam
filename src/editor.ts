@@ -18,6 +18,7 @@ import { Tool, RULER, CANVAS_THEMES, HANDLE_OFF, Drag, NodeHover, SegHover, TOOL
 import { EditorCommands } from './editor/commands';
 import { EditorDocument, restartAutosaveTimer } from './editor/document';
 import { EditorHinges } from './editor/hinges';
+import { EditorPattern } from './editor/pattern';
 import { EditorImages, loadDxfFallbackUnit, loadImportAutoGroup, loadImportAutoSelect, loadImportCenterInBed, loadImportCloseTolerance, loadImportHiddenLayers, loadImportSkippedNote, loadSvgDpi, type SvgDpi } from './editor/imageops';
 import { EditorImageHandles } from './editor/imageHandles';
 import { EditorJoints } from './editor/joints';
@@ -759,6 +760,7 @@ export interface Editor
     EditorFillet,
     EditorFillet,
     EditorHinges,
+    EditorPattern,
     EditorCommands,
     EditorObjects,
     EditorText,
@@ -798,6 +800,7 @@ const PARTS = [
   EditorJoints,
   EditorFillet,
   EditorHinges,
+  EditorPattern,
   EditorCommands,
   EditorObjects,
   EditorText,

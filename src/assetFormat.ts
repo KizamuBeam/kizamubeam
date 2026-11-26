@@ -6,6 +6,7 @@ import { LINEAR_TYPES } from './barcode1d';
 import type { LinearType } from './model';
 import { DEFAULT_ADJUST, Obj, SubPath } from './model';
 import { localText, t } from './i18n';
+import { PatternError, PatternSpec, sanitizePatternSpec } from './patternFormat';
 
 export const ASSET_EXT = 'kza';
 export const ASSET_FORMAT = 'kizamubeam-asset';
@@ -46,6 +47,8 @@ export interface AssetData extends AssetMeta {
   images: Record<string, string>;
   /** Layer, deren Inhalt in der Vorschau gefüllt erscheint */
   fill?: number[];
+  /** Pattern for the pattern fill (category 'pattern'): tile and repeat settings */
+  pattern?: PatternSpec;
 }
 
 export class AssetError extends Error {}
@@ -226,6 +229,15 @@ export function parseAsset(raw: unknown, where = t('Eintrag')): AssetData {
   };
   if (typeof r.preview === 'string' && r.preview.startsWith('<svg') && r.preview.length < 400_000) a.preview = r.preview;
   if (typeof r.created === 'string' && !isNaN(Date.parse(r.created))) a.created = r.created;
+  if (r.pattern !== undefined) {
+    try {
+      a.pattern = sanitizePatternSpec(r.pattern, where);
+    } catch (e) {
+      throw new AssetError(e instanceof PatternError ? e.message : String(e));
+    }
+  }
+  // A pattern entry needs its pattern; without one it is an ordinary motif
+  if (a.category === 'pattern' && !a.pattern) a.category = 'motif';
   if (Array.isArray(r.fill)) {
     const fill = [...new Set(r.fill.filter((x): x is number => Number.isInteger(x) && x >= 0 && x <= 31))];
     if (fill.length) a.fill = fill;
@@ -242,6 +254,7 @@ export function assetJson(a: AssetData): string {
   if (a.created) out.created = a.created;
   if (a.fill?.length) out.fill = a.fill;
   if (a.preview) out.preview = a.preview;
+  if (a.pattern) out.pattern = a.pattern;
   out.objs = a.objs;
   if (Object.keys(a.images).length) out.images = a.images;
   return JSON.stringify(out);
@@ -249,7 +262,7 @@ export function assetJson(a: AssetData): string {
 
 /** Nur die Angaben für die Liste */
 export const assetMeta = (a: AssetData): AssetMeta => {
-  const { objs: _o, images: _i, fill: _f, ...meta } = a;
+  const { objs: _o, images: _i, fill: _f, pattern: _p, ...meta } = a;
   return meta;
 };
 
