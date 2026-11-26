@@ -191,10 +191,11 @@ window.runToolbarSystemChecks = () => {
 
     // Floating torn-off groups: detach commit, close, raise, lock blocks grip tear, grip tear path, ESC abort, owner-hidden.
     const floatOwner = makeHost('float-owner');
+    let showOrdinary = true;
     current = initToolbarFramework({ definitions: { bars: [{ id: 'float:bar', label: 'Float bar', layout: DEFAULT_VIEW,
       items: [group('float:flyout')] }], groups: [
       { id: 'float:flyout', label: 'Floater', kind: 'flyout', items: [action('one'), action('two')] },
-    ] }, actions: actions.filter(a => !a.items), storage: localStorage,
+    ] }, actions: actions.filter(a => !a.items), storage: localStorage, visibleInWorkspace: () => showOrdinary,
       hosts: new Map([['floatsource', { ownerId: 'float:bar', element: floatOwner }]]) });
     check(document.querySelector('.toolbar-float') === null, 'no float before detach');
     current.runtime.lock(false);
@@ -217,7 +218,13 @@ window.runToolbarSystemChecks = () => {
     floatOwner.querySelector('.ib-more').click();
     const gripMenu = document.querySelector('.toolbar-popup');
     check(!!gripMenu && !!gripMenu.querySelector('.toolbar-grip'), 'arrow opens popup with grip while attached');
-    const grip = gripMenu.querySelector('.toolbar-grip');
+    showOrdinary = false;
+    current.refresh();
+    check(floatOwner.hidden && !document.querySelector('.toolbar-popup'), 'workspace mode hides ordinary bars and dismisses their open popups');
+    showOrdinary = true;
+    current.refresh();
+    floatOwner.querySelector('.ib-more').click();
+    const grip = document.querySelector('.toolbar-popup .toolbar-grip');
     const press = (x, y, id) => grip.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0, isPrimary: true, pointerId: id, clientX: x, clientY: y }));
     const slide = (x, y, id) => document.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, cancelable: true, button: 0, isPrimary: true, pointerId: id, clientX: x, clientY: y }));
     const release = (x, y, id) => document.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, button: 0, isPrimary: true, pointerId: id, clientX: x, clientY: y }));
@@ -238,6 +245,13 @@ window.runToolbarSystemChecks = () => {
     current.runtime.layout({ kind: 'detach', ownerId: 'float:bar', groupId: 'float:flyout',
       view: { ...DEFAULT_VIEW, placement: { kind: 'floating', x: 140, y: 150 } } });
     const owned = document.querySelector('.toolbar-float');
+    const beforeMode = localStorage.getItem(key);
+    showOrdinary = false;
+    current.refresh();
+    check(floatOwner.hidden && owned.style.display === 'none' && localStorage.getItem(key) === beforeMode, 'workspace mode hides the owner and detached group without a layout write');
+    showOrdinary = true;
+    current.refresh();
+    check(!floatOwner.hidden && owned.style.display !== 'none' && localStorage.getItem(key) === beforeMode, 'workspace mode restores the same detached group and placement');
     current.runtime.layout({ kind: 'visibility', barId: 'float:bar', visible: false });
     check(owned.style.display === 'none', 'owner-hidden hides float');
     current.runtime.layout({ kind: 'visibility', barId: 'float:bar', visible: true });

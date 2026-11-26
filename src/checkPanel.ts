@@ -14,6 +14,7 @@ import { isCutLayer, layerLabel, PALETTE } from './model';
 
 const KIND_NAMES = (): Record<CheckKind, string> => ({
   double: t('Doppelte Linie'),
+  crossing: t('Sich kreuzende Schnitte'),
   open: t('Offener Umriss'),
   unjoined: t('Nicht verbunden'),
   web: t('Schmaler Steg'),

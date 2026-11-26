@@ -128,7 +128,7 @@ for (const preset of [80, 125, 150] as const) {
     ed.snapHit = { kind: 'node', p: { x: 20, y: 30 } };
     Object.assign(ed, { drag: { type: 'rotate', angle: 37.5, center: { x: 10, y: 20 } } });
     ed.render();
-    for (const [label, base, height, padding] of [[SNAP_LABELS.node, 11, 16, 8], ['37.5°', 12, 18, 10]] as const) {
+    for (const [label, base, height, padding] of [[SNAP_LABELS.node, 11, 16, 8], ['37,50°', 12, 18, 10]] as const) {
       const text = one(recording.calls, 'fillText', label);
       near(fontPx(text), base * f, 'font');
       assert.deepEqual(text.mat, [2, 0, 0, 2, 0, 0], 'overlay has DPR only, not world zoom/offset');
@@ -143,7 +143,7 @@ for (const preset of [80, 125, 150] as const) {
     const [sx, sy] = devicePoint(snap);
     near(sx, (Math.round(20 * 2.5 + 73) + 0.5 + 14) * 2, 'snap device x');
     near(sy, (Math.round(30 * 2.5 - 31) + 0.5 + 8 + 8 * f) * 2, 'snap device y');
-    const rotation = one(recording.calls, 'fillText', '37.5°');
+    const rotation = one(recording.calls, 'fillText', '37,50°');
     assert.deepEqual(devicePoint(rotation), [(40 * 2.5 + 73 + 14 + 5 * f) * 2, (50 * 2.5 - 31 + 10 + 9 * f) * 2]);
     const ruler = recording.calls.find((c) => c.op === 'fillText' && c.args[0] === '0' && c.args[2] === 2);
     assert.ok(ruler, 'real renderRulers reached');

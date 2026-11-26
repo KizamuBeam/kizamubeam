@@ -676,7 +676,7 @@ export class ToolbarRenderer {
     element.focus();
   }
 
-  private closePopup(returnFocus: boolean): void {
+  closePopup(returnFocus: boolean): void {
     const popup = this.popup;
     this.popup = undefined;
     popup?.disposeTear?.();

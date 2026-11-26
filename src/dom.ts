@@ -1,6 +1,14 @@
 // Kleine DOM-Helfer für die Oberfläche: Elemente bauen, Zahlenfelder mit Formeln.
 import { ICONS } from './icons';
 
+/** Reine Positions-Math für Fenster-Ziehen (testbar ohne DOM): Startversatz + Cursor → im Viewport geklemmt. */
+export function cadWindowMove(base: { x: number; y: number }, from: { x: number; y: number }, to: { x: number; y: number }, view: { w: number; h: number }): { x: number; y: number } {
+  return {
+    x: Math.min(Math.max(0, base.x + to.x - from.x), Math.max(0, view.w - 80)),
+    y: Math.min(Math.max(0, base.y + to.y - from.y), Math.max(0, view.h - 40)),
+  };
+}
+
 export const $ = <T extends HTMLElement = HTMLElement>(sel: string) => document.querySelector(sel) as T;
 
 export function h<K extends keyof HTMLElementTagNameMap>(

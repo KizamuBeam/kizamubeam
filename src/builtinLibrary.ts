@@ -6,7 +6,6 @@ import type { Obj } from './model';
 import type { AssetData } from './assetFormat';
 import { decodeD, f, GROUPS } from './builtinFormat';
 import { lang } from './i18n';
-import { BUILTIN_PATTERN_PREFIX, builtinPatternAssets } from './patternLibrary';
 
 export { GROUPS };
 
@@ -86,15 +85,13 @@ export function builtinAssets(): Promise<BuiltinAsset[]> {
       raws.set(`builtin:${r.id}`, r);
       return { key: `builtin:${r.id}`, group: r.g, asset: toAsset(r, de) };
     });
-    // bundled fill patterns (patternLibrary.ts) after the motifs
-    return [...items, ...builtinPatternAssets().map(({ key, asset }) => ({ key, group: 'fillpatterns', asset }))];
+    return items;
   });
   return loaded;
 }
 
 /** Vollständiger Eintrag mit Objekten: ein Pfad auf Layer 0, Rahmen bei (0, 0); null, wenn es ihn nicht gibt */
 export async function builtinAsset(key: string): Promise<AssetData | null> {
-  if (key.startsWith(BUILTIN_PATTERN_PREFIX)) return structuredClone(builtinPatternAssets().find((x) => x.key === key)?.asset ?? null);
   const list = await builtinAssets();
   const it = list.find((x) => x.key === key);
   const r = raws.get(key);

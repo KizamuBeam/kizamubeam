@@ -19,7 +19,7 @@ import { boxesOf, containsStrict } from './polyTopology';
 import { checkFits, FitFinding } from './fitcheck';
 import { AsmFinding, checkAssemblies } from './asmcheck';
 
-import { boxLine, checkDouble, checkOpen, checkWebsAndHoles, DEFAULT_CHECK, makeContour, type CheckFix, type CheckIssue, type CheckLevel, type CheckSettings, type Contour, type GeomIssue } from './checkGeom';
+import { boxLine, checkCutIntersections, checkDouble, checkOpen, checkWebsAndHoles, DEFAULT_CHECK, makeContour, type CheckFix, type CheckIssue, type CheckLevel, type CheckSettings, type Contour, type GeomIssue } from './checkGeom';
 export type { CheckFix, CheckIssue, CheckKind, CheckLevel, CheckSettings } from './checkGeom';
 export { DEFAULT_CHECK };
 
@@ -233,6 +233,7 @@ function checkImageCuts(inp: CheckInput, out: CheckIssue[]) {
       msg: imageCutIssueText(path.reason, s.name ?? t('Bild')), objs: [o], lines: [], pts: [] });
   }
 }
+
 /**
  * Texte, deren Schrift nicht installiert ist (Issue #233): Sie werden still mit Roboto gezeichnet und der
  * Nutzer merkt es erst am Werkstück. Ein Befund je Schrift (fett/kursiv getrennt); `null` (noch nicht
@@ -389,6 +390,7 @@ export function checkDesign(inp: CheckInput): CheckIssue[] {
   if (!inp.skipBed) checkBed(inp, cs, out);
   const geom: GeomIssue[] = [];
   checkDouble(cs, inp.settings, geom);
+  checkCutIntersections(cs, geom);
   checkOpen(cs, inp.settings, geom);
   checkWebsAndHoles(cs, inp.settings, geom);
   geom.forEach(withText(out));

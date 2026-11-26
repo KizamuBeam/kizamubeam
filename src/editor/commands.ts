@@ -1,11 +1,16 @@
 // Editor: Befehle: Löschen, Kopieren, Einfügen, Transformieren, Formparameter.
-import { about, clampRectCorners, clone, cloneObjs, homeLayer, Mat, mul, Pt, rectCorners, rotate, scale, translate, visibleLeaves } from '../model';
+import { about, clampRectCorners, clone, cloneObjs, homeLayer, leaves, Mat, mul, Pt, rectCorners, rotate, scale, translate, visibleLeaves } from '../model';
 import type { Editor } from '../editor';
+import type { Obj } from '../model';
 import { t } from '../i18n';
 import { bakeRectMatrix, resizeRectWH } from '../geom';
 import { genLeaves } from './generators';
 import { copyMultiLayers, pruneMultiLayers } from '../multilayer';
 import { assignImageContour, expandImageCutSelection, unassignImageContour } from '../imageCut';
+
+/** Weltmatrix eines Objekts auf der aktuellen Seite (Blatt suchen, sonst eigene Matrix). */
+const worldMatrixOf = (ed: Editor, o: Obj): Mat =>
+  [...leaves(ed.doc.objs)].find(([l]) => l === o)?.[1] ?? o.m;
 
 export class EditorCommands {
   deleteSel(this: Editor) {
@@ -50,6 +55,13 @@ export class EditorCommands {
     }
     clearTimeout(this.pasteTimer);
     e.preventDefault();
+    // Skizzenmodus: weder Bilder aus der Zwischenablage noch Dokument-Objekte einfügen —
+    // das Dokument bleibt während der Skizzenbearbeitung unverändert (wie beim Datei-Drop).
+    if (this.sketchEdit) {
+      this.hint = t('Einfügen ist im Skizzenmodus nicht möglich.');
+      this.emit('view');
+      return;
+    }
     const data = e.clipboardData;
     if (data && this.externalPaste && (await this.externalPaste(data))) return;
     this.paste();
@@ -61,6 +73,13 @@ export class EditorCommands {
     this.history.relabel(t('Ausschneiden'));
   }
   paste(this: Editor, offset = 5) {
+    // Skizzenmodus: kein Einfügen von Dokument-Objekten (Menü, Kürzel, Webview-Fallback ohne
+    // paste-Ereignis); der Hinweis kommt aus onPaste bzw. von hier.
+    if (this.sketchEdit) {
+      this.hint = t('Einfügen ist im Skizzenmodus nicht möglich.');
+      this.emit('view');
+      return;
+    }
     if (!this.clipboard.length) return;
     this.snapshot(t('Einfügen'));
     const copied = expandImageCutSelection(this.clipboard, this.clipboard);
@@ -91,7 +110,7 @@ export class EditorCommands {
     if (this.sel.length !== 2 || images.length !== 1 || paths.length !== 1)
       throw new Error(t('Für den Bildschnitt genau ein Bild und eine geschlossene Kontur auswählen.'));
     this.snapshot(t('Bildschnitt-Kontur zuweisen'));
-    if (!assignImageContour(images[0], paths[0], this.worldMatrix(images[0]))) {
+    if (!assignImageContour(images[0], paths[0], worldMatrixOf(this, images[0]))) {
       this.dropSnapshot();
       throw new Error(t('Die ausgewählte Schnittkontur ist ungültig. Kontur schließen, prüfen oder eine andere Kontur auswählen.'));
     }
@@ -111,7 +130,7 @@ export class EditorCommands {
     if (!contour || contour.shape.kind !== 'path' || !contour.cutLink || contour.cutLink.imageId !== image.id)
       throw new Error(t('Zugewiesene Schnittkontur fehlt. Schnittkontur erneut zuweisen oder Bildschnitt deaktivieren.'));
     this.snapshot(t('Bildschnitt-Kontur lösen'));
-    if (!unassignImageContour(image, contour, this.worldMatrix(image))) {
+    if (!unassignImageContour(image, contour, worldMatrixOf(this, image))) {
       this.dropSnapshot();
       throw new Error(t('Die ausgewählte Schnittkontur ist ungültig. Kontur schließen, prüfen oder eine andere Kontur auswählen.'));
     }

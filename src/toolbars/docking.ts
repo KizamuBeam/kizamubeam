@@ -119,7 +119,7 @@ export function createToolbarDocking(doc: Document, layer: HTMLElement, options:
     element.classList.add('toolbar-layout-shell');
     element.dataset.orientation = view.orientation;
     const gripMark = element.querySelector<HTMLElement>(':scope > .toolbar-grip > .toolbar-grip-mark');
-    if (gripMark) gripMark.textContent = view.orientation === 'vertical' ? '⋯' : '⋮';
+    if (gripMark && !gripMark.firstElementChild) gripMark.textContent = view.orientation === 'vertical' ? '⋯' : '⋮';
     const root = element.querySelector<HTMLElement>('[data-view]');
     if (root) {
       root.classList.add('toolbar-view');
@@ -233,7 +233,7 @@ export function createToolbarDocking(doc: Document, layer: HTMLElement, options:
     const style = element.getAttribute('style'), className = element.className;
     const data = { ...element.dataset };
     const gripMark = element.querySelector<HTMLElement>(':scope > .toolbar-grip > .toolbar-grip-mark');
-    const gripText = gripMark?.textContent;
+    const gripText = gripMark && !gripMark.firstElementChild ? gripMark.textContent : undefined;
     const root = element.querySelector<HTMLElement>('[data-view]');
     const rootStyle = root?.getAttribute('style'), rootOrientation = root?.dataset.orientation;
     const rect = element.getBoundingClientRect(), dx = x - rect.left, dy = y - rect.top;
@@ -375,7 +375,7 @@ export function createToolbarDocking(doc: Document, layer: HTMLElement, options:
     }, pointerId ?? lastPointerId);
     return true;
   };
-  const mount = (element: HTMLElement, grip: HTMLElement, target: LayoutTarget, view: ViewLayout) => {
+  const mount = (element: HTMLElement, grip: HTMLElement, target: LayoutTarget, view: ViewLayout, defaultLayout?: ViewLayout) => {
     const home = doc.createComment('toolbar home');
     element.before(home);
     const down = (event: PointerEvent) => {
@@ -403,6 +403,9 @@ export function createToolbarDocking(doc: Document, layer: HTMLElement, options:
         } else commitView(element, target, { ...current, orientation: event.key === 'ArrowLeft' || event.key === 'ArrowRight' ? 'vertical' : 'horizontal',
           placement: { kind: 'dock', edge: edge[event.key], lane: event.shiftKey && current.placement.kind === 'dock' ? current.placement.lane + 1 : 0,
             order: current.placement.kind === 'dock' ? current.placement.order : 0 } });
+      } else if (event.key === 'Home' && defaultLayout) {
+        event.preventDefault();
+        commitView(element, target, { ...current, orientation: defaultLayout.orientation, placement: defaultLayout.placement });
       } else if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault();
         const r = element.getBoundingClientRect();
@@ -411,7 +414,9 @@ export function createToolbarDocking(doc: Document, layer: HTMLElement, options:
     };
     grip.tabIndex = 0;
     grip.setAttribute('role', 'button');
-    grip.setAttribute('aria-label', t('Leiste verschieben: Pfeile docken an, Umschalt+Pfeile verschieben oder wechseln die Reihe, Strg+Umschalt+Pfeile fügen Reihen ein, Eingabe löst ab'));
+    const label = t('Leiste verschieben: Pfeile docken an, Umschalt+Pfeile verschieben oder wechseln die Reihe, Strg+Umschalt+Pfeile fügen Reihen ein, Eingabe löst ab');
+    grip.setAttribute('aria-label', defaultLayout ? `${label}. ${t('Pos1 setzt die Leistenposition zurück.')}` : label);
+    if (defaultLayout) grip.title = grip.getAttribute('aria-label')!;
     grip.addEventListener('pointerdown', down);
     grip.addEventListener('keydown', key);
     mounted.set(element, { element, grip, target, layout: view, home,
@@ -452,7 +457,7 @@ export function createToolbarDocking(doc: Document, layer: HTMLElement, options:
   const scroll = () => { active?.cancel(); };
   doc.addEventListener('scroll', scroll, true);
   return { mount, update, begin, unmount,
-    cancel() { active?.cancel(); },
+    cancel(element?: HTMLElement) { if (!element || element === previewElement) active?.cancel(); },
     syncLock() { if (options.locked()) active?.cancel(); },
     dispose() {
       if (disposed) return;

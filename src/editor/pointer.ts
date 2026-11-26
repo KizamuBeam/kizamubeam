@@ -5,11 +5,13 @@ import { Box, boundsOf, bakeRectMatrix, leafIntersectsBox, resizeRectWH, segment
 import { wrapWidth } from '../fonts';
 import { buildSnapSet, findSnap } from '../snap';
 import { t, dec } from '../i18n';
+import { degreeNumber, dimensionNumber } from '../sketchDimensionInput';
 import type { Editor } from '../editor';
 import { lassoTouchMode } from '../lasso';
 import { MAX_VECTOR_SAMPLES } from '../vectorFit';
 import { closureOf } from '../shaper';
 import { genLeaves, isMarkGroup } from './generators';
+import { isSketchObj } from './sketch';
 import { HINGE_HINT_FIRST, HINGE_HINT_SECOND, LASSO_TOUCH_HINT, RULER, TOOL_HINTS } from './shared';
 import { DEFAULT_HANDLE_SIZE } from './render';
 import { deformGesture, gestureSpline, hitSpline } from '../shaperSpline';
@@ -20,6 +22,7 @@ import { hitImageCropHandle, pointerCropTo } from '../imageCropUi';
 import { rectCorners } from '../model';
 import { rectRadiusFromLocal } from '../radiusDrag';
 import { samePick } from '../joints';
+import { sketchContextReady } from '../sketchContext';
 
 const RIGHT_PAN_KEY = 'kizamubeam.rightPan';
 /** Right-drag panning is opt-in: off unless switched on in the settings */
@@ -61,8 +64,8 @@ function frameText(o: Obj, m: Mat): { s: TextShape } | null {
 const JOINT_HINT_SECOND =
   t('Zweite Kante anklicken (Gegenstück bzw. Linie für die Schlitze) oder Enter für nur eine Kante. Erneuter Klick hebt die Wahl auf.');
 
-/** Zahl im Hinweisfeld: höchstens zwei Nachkommastellen, Dezimaltrennzeichen der Sprache. */
-const hintNum = (v: number) => dec(String(Math.round(v * 100) / 100));
+/** Zahl im Hinweisfeld: volle zwei Nachkommastellen, Dezimaltrennzeichen der Sprache. */
+export const hintNum = (v: number) => dimensionNumber(Math.round(v * 100) / 100);
 /** Winkel im Hinweisfeld in Maschinensicht (0° = rechts, gegen den Uhrzeigersinn), auf 0–360° normalisiert. */
 const hintDeg = (a: number) => hintNum(((((-a * 180) / Math.PI) % 360) + 360) % 360);
 /** Überstrichener Winkel im Hinweisfeld in Grad (Betrag, damit z. B. 90° und 270° unterscheidbar bleiben). */
@@ -75,6 +78,7 @@ export class EditorPointer {
   }
 
   onDown(this: Editor, e: PointerEvent) {
+    if (this.tool === 'sketch' && (this.sketchEdit?.frame?.pointerId !== undefined || this.sketchEdit?.trimPointer !== undefined || this.sketchEdit?.centerRectPress)) return;
     // A second pointer must not replace an in-progress freehand stroke.
     if (this.drag?.type === 'pencil' || this.drag?.type === 'shaper' || this.drag?.type === 'shaper-point' || this.drag?.type === 'freehand-edit') return;
     if(this.drag?.type==='lasso')return;
@@ -88,7 +92,7 @@ export class EditorPointer {
     }
     if (e.button === 2) {
       // Opt-in right-drag panning: decide on release whether it was a click or a drag
-      if (this.rightPan && !this.drag) {
+      if ((this.rightPan || this.tool === 'sketch') && !this.drag) {
         this.suppressContextMenu = false;
         this.drag = { type: 'right', pointerId: e.pointerId, sx, sy, ox: this.view.ox, oy: this.view.oy, panning: false, context: false };
         return;
@@ -428,10 +432,15 @@ export class EditorPointer {
   /** Right click: finish the line or sketch draft, or let the context menu open (see suppressContextMenu) */
   rightPress(this: Editor) {
     if (this.outlinePreview) { this.suppressContextMenu = true; return; }
-    this.suppressContextMenu = !!this.draft || !!this.arcDraft || this.tool === 'sketch' || this.tool === 'builder' || !!this.pickHandler || !!this.drag;
+    this.suppressContextMenu = !!this.draft || !!this.arcDraft || (this.tool === 'sketch' && !sketchContextReady(this)) || this.tool === 'builder' || !!this.pickHandler || !!this.drag;
     if (this.tool === 'builder') this.setTool('select');
     if (this.arcDraft) this.cancelArc();
     if (this.draft) this.finishDraft();
+    if (this.sketchEdit?.tool === 'polyline' && this.sketchEdit.polyline) {
+      if (this.sketchEdit.polyline.segments.length) this.finishSketchPolyline();
+      else this.setSketchTool('polyline');
+      return;
+    }
     if (this.sketchEdit && this.sketchEdit.draft.length) {
       this.sketchEdit.draft = [];
       this.sketchEdit.draftIds = [];
@@ -460,6 +469,7 @@ export class EditorPointer {
   }
 
   onMove(this: Editor, e: PointerEvent) {
+    if (this.sketchEdit?.centerRectPress && this.sketchEdit.centerRectPress.id !== e.pointerId) return;
     if(this.drag?.type==='freehand-edit' && this.drag.pointerId!==e.pointerId)return;
     if(this.drag?.type==='lasso'&&this.drag.pointerId!==e.pointerId)return;
     if((this.drag?.type==='freehand-edit'||this.drag?.type==='lasso') && this.drag.pointerId!==e.pointerId)return;
@@ -608,8 +618,9 @@ export class EditorPointer {
         if (!d.panning) {
           if (Math.hypot(sx - d.sx, sy - d.sy) < OVERLAP_MOVE_PX) return;
           d.panning = true;
-          this.canvas.style.cursor = 'grabbing';
+          if (this.rightPan) this.canvas.style.cursor = 'grabbing';
         }
+        if (!this.rightPan) return;
         // From the press point, so the view does not jump by the threshold
         this.view.ox = d.ox + sx - d.sx;
         this.view.oy = d.oy + sy - d.sy;
@@ -747,7 +758,7 @@ export class EditorPointer {
         const D = about(rotate(a), d.center.x, d.center.y);
         this.sel.forEach((o, i) => (o.m = mul(D, d.orig[i])));
         d.angle = (-a * 180) / Math.PI;
-        this.hint = t('Drehung {angle}° · Shift: 15°-Schritte, Ctrl: 5°-Schritte, Esc: abbrechen', { angle: d.angle.toFixed(1) });
+        this.hint = t('Drehung {angle}° · Shift: 15°-Schritte, Ctrl: 5°-Schritte, Esc: abbrechen', { angle: degreeNumber(d.angle) });
         this.emit('doc');
         return;
       }
@@ -774,9 +785,9 @@ export class EditorPointer {
           this.snapshot(t('Hilfslinie verschieben'));
         }
         d.moved = true;
-        this.guideList()[d.idx].v = v;
+        this.setGuideLive(d.idx, v);
         const mv = this.toMachine({ x: v, y: v });
-        this.hint = t('Hilfslinie {axis} = {pos} mm · zurück ins Lineal ziehen verwirft sie', { axis: d.axis === 'y' ? 'y' : 'x', pos: (d.axis === 'y' ? mv.y : mv.x).toFixed(2) });
+        this.hint = t('Hilfslinie {axis} = {pos} mm · zurück ins Lineal ziehen verwirft sie', { axis: d.axis === 'y' ? 'y' : 'x', pos: dec((d.axis === 'y' ? mv.y : mv.x).toFixed(2)) });
         this.emit('doc');
         return;
       }
@@ -925,7 +936,7 @@ export class EditorPointer {
     // a second touch/pen can otherwise make a Pencil stroke silently disappear.
     if (this.drag && 'pointerId' in this.drag && this.drag.pointerId !== e.pointerId) return;
     if (this.drag?.type === 'shaper-point') this.onMove(e);
-    if (this.tool === 'sketch') this.sketchUp();
+    if (this.tool === 'sketch' && this.drag?.type !== 'right') this.sketchUp(e);
     const d = this.drag;
     this.drag = null;
     if (!d) return;
@@ -971,6 +982,15 @@ export class EditorPointer {
         this.canvas.style.cursor = this.tool === 'select' ? 'default' : 'crosshair';
         return;
       case 'right':
+        if (this.tool === 'sketch') {
+          if (!d.panning) {
+            this.rightPress();
+            if (!this.suppressContextMenu) this.onCanvasContext?.(new MouseEvent('contextmenu', { clientX: e.clientX, clientY: e.clientY, button: 2 }));
+          }
+          this.canvas.style.cursor = 'crosshair';
+          this.suppressContextMenu = true;
+          return;
+        }
         if (d.panning) {
           this.canvas.style.cursor = this.tool === 'select' ? 'default' : 'crosshair';
           // Windows sends contextmenu after the release: swallow it. WebKit already sent it on press.
@@ -1150,7 +1170,8 @@ export class EditorPointer {
         this.onBarcodeEdit?.(o);
       } else if (o && o.shape.kind === 'gen') {
         this.setSel([o]);
-        this.onGenEdit?.(o);
+        if (isSketchObj(o)) void this.editSketch(o);
+        else this.onGenEdit?.(o);
       } else if (o && o.shape.kind === 'group' && isMarkGroup(o)) {
         // Teil mit gravierter Nummer (z. B. Schichtmodell): Parameter des Teils öffnen
         this.setSel([o]);
@@ -1180,7 +1201,7 @@ export class EditorPointer {
 
   sizeHint(this: Editor, o: Obj) {
     const b = boundsOf([o]);
-    return b ? `${b.w.toFixed(2)} × ${b.h.toFixed(2)} mm` : '';
+    return b ? `${dec(b.w.toFixed(2))} × ${dec(b.h.toFixed(2))} mm` : '';
   }
 
   // ---------- Bogenwerkzeug ----------
@@ -1319,6 +1340,38 @@ export class EditorPointer {
 
   /** Laufendes Ziehen abbrechen und den Ausgangszustand wiederherstellen */
   cancelPointerDrag(this: Editor, e: PointerEvent) {
+    const s = this.sketchEdit;
+    if (s?.trimPointer === e.pointerId) {
+      s.trimPointer = s.trimPreview = undefined;
+      s.trimPressed = undefined;
+      this.redraw();
+    }
+    if (s?.centerRectPress?.id === e.pointerId) {
+      if (s.centerRectPress.newCenter) s.draft = [];
+      s.centerRectPress = undefined;
+      this.redraw();
+    }
+    if (this.sketchEdit?.polylinePointer === e.pointerId) this.sketchEdit.polylinePointer = undefined;
+    if (this.sketchEdit?.frame?.pointerId === e.pointerId) {
+      this.sketchEdit.frame = undefined;
+      this.redraw();
+    }
+    // Verwaiste Skizzen-Zieh-Zustände (verlorenes pointerup): ohne Aufräumen bleibt
+    // die Skizzen-Eingabe stumm — Rahmen startet, Moves kommen nie an.
+    if (s?.patternDrag && s.patternDrag.pointerId === e.pointerId) {
+      const dd = s.patternDraft;
+      if (dd) {
+        if (s.patternDrag.dir === 0) dd.spacingText = s.patternDrag.restore;
+        else dd.spacing2Text = s.patternDrag.restore;
+        dd.error = '';
+      }
+      s.patternDrag = null;
+      this.redraw();
+    }
+    if (s?.drag) {
+      s.drag = null;
+      this.redraw();
+    }
     if (!this.drag || ('pointerId' in this.drag && this.drag.pointerId !== e.pointerId)) return;
     this.cancelDrag();
   }
@@ -1353,7 +1406,7 @@ export class EditorPointer {
     } else if (d.type === 'guide') {
       if (d.idx !== null && d.moved) {
         if (d.orig === null) this.removeGuide(d.idx);
-        else this.guideList()[d.idx].v = d.orig;
+        else this.setGuideLive(d.idx, d.orig);
         this.dropSnapshot();
       }
     } else if (d.type === 'create' && d.obj) {

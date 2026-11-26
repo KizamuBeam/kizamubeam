@@ -6,7 +6,7 @@ import { h } from './dom';
 import { t } from './i18n';
 import { SEP, upgradeLegacyConfig } from './toolbars/legacy';
 import { initToolbarFramework } from './toolbars/system';
-import type { ToolbarSystem } from './toolbars/system';
+import type { ToolbarHost, ToolbarSystem, ToolbarSystemOptions } from './toolbars/system';
 import { DEFAULT_ICON_SIZE, DEFAULT_VIEW, clone, ownEntry, setEntry } from './toolbars/model';
 import type { BarDefinition, Definitions, GroupDefinition, IconSize, Item, Leaf, ToolbarState, ViewLayout } from './toolbars/model';
 import { decode, encode } from './toolbars/migration';
@@ -16,12 +16,15 @@ import type { ControlDefinition } from './toolbars/registry';
 export { initToolbarFramework } from './toolbars/system';
 export { SEP, upgradeBar } from './toolbars/legacy';
 
-interface ActionBase {
+export interface Action {
   id: string;
   /** Rubrik im Anpassen-Dialog */
   cat: string;
-  /** Name in Listen und Tooltip; das Tastenkürzel kommt aus shortcut */
+  /** Name in Listen und Tooltip (mit Tastenkürzel) */
   label: string;
+  /** Symbol aus icons.ts; ohne Symbol zeigt die Leiste den Kurztext */
+  icon?: string;
+  short?: string;
   run: () => void;
   enabled?: () => boolean;
   /** Knopf als eingeschaltet zeigen (aktives Werkzeug) */
@@ -36,15 +39,8 @@ interface ActionBase {
    *  Kleine Aktionen (Optionen) erscheinen nur in der Liste und werden nicht zur gezeigten. */
   items?: string[];
 }
-
-/** Knopfaktion: braucht ein Button-Gesicht (Symbol aus icons.ts oder Kurztext;
- *  ohne Symbol zeigt die Leiste den Kurztext). Der Typ erzwingt Vollständigkeit. */
-export type ButtonAction = ActionBase & ({ icon: string; short?: string } | { icon?: string; short: string });
-/** Knopfgruppe: zeigt die zuletzt benutzte Aktion, braucht kein eigenes Gesicht. */
-export type GroupAction = ActionBase & { items: string[] };
-export type Action = ButtonAction | GroupAction;
 /** Gruppen erkennt man an items (alle Gruppen tragen eine nicht-leere items-Liste). */
-export const isButtonAction = (a: Action | null | undefined): a is ButtonAction => !!a && !a.items;
+export const isButtonAction = (a: Action | null | undefined): a is Action => !!a && !a.items;
 
 export type BarId = 'main' | 'tools';
 /** Leisten, die sich ausblenden lassen */
@@ -57,7 +53,15 @@ const actions = new Map<string, Action>();
 export const getAction = (id: string) => actions.get(id);
 let editableBars: BarDefinition[] = [];
 let system: ToolbarSystem | undefined;
-export interface ToolbarControlsBundle { definitions: Definitions; controls: ControlDefinition[]; dispose(): void }
+export interface ToolbarControlsBundle {
+  definitions: Definitions;
+  controls: ControlDefinition[];
+  actions?: ToolbarSystemOptions['actions'];
+  /** Contextual bars own their command layout; the common shell owns their placement. */
+  contextual?: ReadonlyMap<string, Pick<ToolbarHost, 'gripIcon' | 'resetGripWithHome'> & { className: string; visible(): boolean }>;
+  visibleInWorkspace?: (ownerId: string) => boolean;
+  dispose(): void;
+}
 let controlsBundle: ToolbarControlsBundle | undefined;
 let initialized: { list: Action[]; def: Record<BarId, string[]>; migrate: [string[], string][] } | undefined;
 let cleanups: (() => void)[] = [];
@@ -190,24 +194,26 @@ export function initToolbars(list: Action[], def: Record<BarId, string[]>, migra
     baseGroupIds.add(group.id);
     definitions.groups.push({ ...group, items: [] });
   }
-  const hosts = new Map<string, { element: HTMLElement; ownerId: string }>();
+  const hosts = new Map<string, ToolbarHost>();
   const visibilityHosts = new Map<string, HTMLElement>();
   for (const bar of definitions.bars) {
+    const context = controlsBundle?.contextual?.get(bar.id);
     const selector = Object.hasOwn(BAR_EL, bar.id) ? BAR_EL[bar.id as BarKey] : undefined;
     let element: HTMLElement | null = null;
     if (selector) element = document.querySelector<HTMLElement>(selector);
     else {
       element = document.createElement('div');
+      if (context) element.className = context.className;
       document.body.append(element);
       customHostElements.push(element);
     }
     if (!element) continue;
     if (bar.id === 'palette' || bar.id === 'status') visibilityHosts.set(bar.id, element);
-    else hosts.set(bar.id, { element, ownerId: bar.id });
+    else hosts.set(bar.id, { element, ownerId: bar.id, ...context });
   }
-  editableBars = definitions.bars.filter((bar) => hosts.has(bar.id));
-  system = initToolbarFramework({ definitions, actions: list.filter((action): action is ButtonAction => isButtonAction(action)),
-    controls: controlsBundle?.controls, hosts, visibilityHosts,
+  editableBars = definitions.bars.filter((bar) => hosts.has(bar.id) && !controlsBundle?.contextual?.has(bar.id));
+  system = initToolbarFramework({ definitions, actions: [...list.filter((action) => !action.items), ...(controlsBundle?.actions ?? [])],
+    controls: controlsBundle?.controls, hosts, visibilityHosts, visibleInWorkspace: controlsBundle?.visibleInWorkspace,
     storage: { getItem: (key) => localStorage.getItem(key), setItem: (key, value) => localStorage.setItem(key, value) },
     upgradeLegacy,
   });
@@ -216,6 +222,7 @@ export function initToolbars(list: Action[], def: Record<BarId, string[]>, migra
     if (!actions.has(group.id)) system.registry.registerGroup({ id: group.id, label: group.label });
   system.refresh();
   for (const [id, descriptor] of hosts) {
+    if (descriptor.visible) continue;
     const host = descriptor.element;
     const contextmenu = (event: MouseEvent) => {
       if (event.target instanceof Element && event.target.closest('input,textarea,select,[contenteditable="true"]')) return;
@@ -238,7 +245,7 @@ export function refreshBars() {
 }
 
 /** Die Aktion, die eine Knopfgruppe gerade zeigt */
-function groupCurrent(g: GroupAction): Action {
+function groupCurrent(g: Action): Action {
   // Aktives Werkzeug bevorzugen: es kann auch über Menü/Shortcut gewählt sein.
   for (const id of g.items!) {
     const a = actions.get(id);
@@ -577,8 +584,7 @@ export function openToolbarDialog(start: string = 'main') {
 
   const row = (a: Action | null, extra: Record<string, unknown>) => {
     // Knopfgruppen zeigen das Symbol der Aktion, die sie gerade tragen
-    const ic = !a || isButtonAction(a) ? a : groupCurrent(a);
-    const face = isButtonAction(ic) ? ic : null;
+    const ic = a?.items ? groupCurrent(a) : a;
     return h('div', { class: 'tb-row', tabIndex: 0, role: 'button',
       onkeydown: (event: KeyboardEvent) => {
         if (event.key === 'Enter' || event.key === ' ') {
@@ -592,7 +598,7 @@ export function openToolbarDialog(start: string = 'main') {
           else indent();
         }
       }, ...extra },
-      face ? h('span', { class: `tb-icon${face.icon ? '' : ' text'}`, icon: face.icon ?? '' }, face.icon ? null : face.short ?? '') : h('span', { class: 'tb-icon' }),
+      ic ? h('span', { class: `tb-icon${ic.icon ? '' : ' text'}`, icon: ic.icon ?? '' }, ic.icon ? null : ic.short ?? '') : h('span', { class: 'tb-icon' }),
       h('span', {}, a ? a.label : t('— Trennlinie —')),
     );
   };
@@ -906,7 +912,7 @@ export function openToolbarDialog(start: string = 'main') {
           current.append(header);
           group.items.forEach((leaf, c) => {
             const lid = leaf.kind === 'separator' ? SEP : leaf.id;
-            const unknown: Action = { id: lid, cat: '', label: lid, short: lid, run() {} };
+            const unknown: Action = { id: lid, cat: '', label: lid, run() {} };
              const child = row(leaf.kind === 'separator' ? null : actions.get(lid) ?? unknown, {
               draggable: true,
               onclick: () => ((selIdx = i), (selChild = c), renderLists()),
@@ -923,7 +929,7 @@ export function openToolbarDialog(start: string = 'main') {
         }
       }
       const id = 'id' in item ? item.id : SEP;
-      const unknown: Action = { id, cat: '', label: id, short: id, run() {} };
+      const unknown: Action = { id, cat: '', label: id, run() {} };
       const r = row(item.kind === 'separator' ? null : actions.get(id) ?? unknown, {
         draggable: true,
         onclick: () => ((selIdx = i), (selChild = undefined), renderLists()),

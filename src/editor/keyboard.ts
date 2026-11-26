@@ -3,6 +3,7 @@ import type { Editor } from '../editor';
 import { commandMatches } from '../commandKeys';
 import { t } from '../i18n';
 import { handleImageCropKey } from '../imageCropUi';
+import { isSketchShapePlacement } from './sketch';
 
 /** Schrittweiten der Pfeiltasten in mm (normal, mit Umschalt, mit Alt); frei belegbar, Default wie bisher */
 export interface NudgeSteps { normal: number; shift: number; alt: number }
@@ -51,6 +52,7 @@ export class EditorKeyboard {
     const el = e.target as HTMLElement;
     // Function keys (F1 = shortcut overview) also work while a field has the focus
     if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable) && !/^F[0-9]+$/.test(e.key)) return;
+    if (this.sketchEdit && el instanceof HTMLButtonElement && el.closest('.toolbar-view, .toolbar-popup') && (e.key === 'Enter' || e.code === 'Space')) return;
     const ctrl = e.ctrlKey || e.metaKey;
     const k = e.key.toLowerCase();
     const run = (f: () => void) => {
@@ -70,7 +72,8 @@ export class EditorKeyboard {
       this.endPick();
       return;
     }
-    if (this.tool === 'sketch' && !e.repeat && e.code !== 'Space' && this.sketchKey(e)) {
+    const repeatedSketchArrow = (this.sketchEdit?.frameKeys || this.sketchEdit?.tool === 'centerRect' || this.sketchEdit?.tool === 'polyline' || this.sketchEdit?.tool === 'trim' || this.sketchEdit?.tool === 'extend' || this.sketchEdit?.tool === 'split' || isSketchShapePlacement(this.sketchEdit?.tool) || this.sketchEdit?.tool === 'fillet' || this.sketchEdit?.tool === 'chamfer' || this.sketchEdit?.tool === 'circleOffset') && e.target === this.canvas && k.startsWith('arrow');
+    if (this.tool === 'sketch' && (!e.repeat || repeatedSketchArrow) && e.code !== 'Space' && this.sketchKey(e)) {
       e.preventDefault();
       return;
     }

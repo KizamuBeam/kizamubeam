@@ -1,10 +1,11 @@
 import type { Definitions, ToolbarState } from './model';
 
-/** Structural subset of the legacy Action; no import of its runtime module.
- *  Button-Gesicht ist Pflicht (Symbol oder Kurztext), wie in der Legacy-Action. */
-interface ToolbarActionBase {
+/** Structural subset of the legacy Action; no import of its runtime module. */
+export interface ToolbarAction {
   id: string;
   label: string;
+  icon?: string;
+  short?: string;
   small?: boolean;
   run: () => void;
   enabled?: () => boolean;
@@ -13,8 +14,6 @@ interface ToolbarActionBase {
   /** Current keyboard shortcut for the tooltip and menu rows */
   shortcut?: () => string;
 }
-
-export type ToolbarAction = ToolbarActionBase & ({ icon: string; short?: string } | { icon?: string; short: string });
 
 export interface ControlContext {
   viewId: string;

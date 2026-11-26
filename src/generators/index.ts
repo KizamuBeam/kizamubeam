@@ -4,7 +4,6 @@ import { t } from '../i18n';
 import { SKETCH } from '../sketch/generator';
 import { SLOT_PLACEMENT, SLOT_GENERATOR, isSlotGenerator } from '../slotPlacement';
 import { CONTOUR_OFFSET, CONTOUR_OFFSET_ID, LEGACY_CONTOUR_OFFSET_ID } from '../contourOffset';
-import { PATTERN_GEN, PATTERN_GEN_ID } from '../pattern';
 import type { GenDistribute, Generator, Issue, Params, ParamSpec, ParamValue, PlanSheet, Rule } from './types';
 import { evaluate, ExprError, scopeOf, type Scope } from '../params';
 
@@ -31,7 +30,7 @@ export function unregister(id: string) {
 }
 
 
-export const getGenerator = (id: string): Generator | undefined => (id === PATTERN_GEN_ID ? PATTERN_GEN : id === CONTOUR_OFFSET_ID ? CONTOUR_OFFSET : id === LEGACY_CONTOUR_OFFSET_ID ? { ...CONTOUR_OFFSET, id, version: 1 } : id === SLOT_GENERATOR ? SLOT_PLACEMENT : isSlotGenerator(id) ? { ...SLOT_PLACEMENT, id } : id === 'sketch' ? SKETCH : GENERATORS.find((g) => g.id === id));
+export const getGenerator = (id: string): Generator | undefined => (id === CONTOUR_OFFSET_ID ? CONTOUR_OFFSET : id === LEGACY_CONTOUR_OFFSET_ID ? { ...CONTOUR_OFFSET, id, version: 1 } : id === SLOT_GENERATOR ? SLOT_PLACEMENT : isSlotGenerator(id) ? { ...SLOT_PLACEMENT, id } : id === 'sketch' ? SKETCH : GENERATORS.find((g) => g.id === id));
 
 /** Does the rule hold for these parameters? Unknown operators count as false. */
 export function ruleHolds(r: Rule, p: Params): boolean {
