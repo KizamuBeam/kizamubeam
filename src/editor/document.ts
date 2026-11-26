@@ -148,6 +148,12 @@ export class EditorDocument {
     // Gewählte Kanten zeigen auf die alten Objekte
     this.jointPicks = [];
     this.jointHover = null;
+    this.filletPicks = [];
+    this.filletHover = null;
+    this.filletPreview = null;
+    this.filletTarget = null;
+    this.filletOffer = null;
+    this.filletEditId = null;
   }
   /** Rückgängig/Wiederholen: Zähler und CSV-Daten des variablen Texts gehören nicht zum Verlauf */
   loadKeepVarText(this: Editor, json: string) {
@@ -342,6 +348,12 @@ export class EditorDocument {
     this.nodeHover = this.segHover = null;
     this.jointPicks = [];
     this.jointHover = null;
+    this.filletPicks = [];
+    this.filletHover = null;
+    this.filletPreview = null;
+    this.filletTarget = null;
+    this.filletOffer = null;
+    this.filletEditId = null;
     this.clearSnap();
   }
   /** Zur Seite i wechseln (kein eigener Undo-Schritt) */

@@ -101,6 +101,8 @@ export class EditorKeyboard {
         if (this.tool === 'builder') return this.setTool('select');
         if (this.isolation && !this.draft && !this.sketchEdit) return this.leaveIsolation();
         if (this.tool === 'joint' && this.jointPicks.length) return this.clearJointPicks();
+        if (this.tool === 'fillet' && this.filletOffer) return this.declineFilletOffer();
+        if (this.tool === 'fillet' && this.filletPicks.length) return this.clearFilletPicks();
         if (this.tool === 'relate' && this.relPicks.length) return this.clearRelPicks();
         if (this.tool === 'measure' && this.measure) return ((this.measure = null), this.redraw());
         if (nodeMode && (this.selectedNodes().length || this.nodeTargets().some((o) => this.segmentSelection(o).size))) return this.clearNodeSel();
@@ -113,6 +115,16 @@ export class EditorKeyboard {
     if (k === 'enter' && this.tool === 'arc' && this.arcDraft) return run(() => this.finishArc());
     if (k === 'enter' && this.draft) return run(() => this.finishDraft());
     if (k === 'enter' && this.tool === 'joint' && this.jointPicks.length) return run(() => this.onJointDialog?.());
+    if (k === 'enter' && this.tool === 'fillet' && this.filletOffer) return run(() => this.acceptFilletOffer());
+    if (k === 'enter' && this.tool === 'fillet') return run(() => this.confirmFillet());
+    if (this.tool === 'fillet' && !ctrl && !e.altKey && !e.repeat) {
+      if (k === 'r' || k === 'f' || k === 'i')
+        return run(() => {
+          this.filletMode = k === 'r' ? 'round' : k === 'f' ? 'chamfer' : 'inverse';
+          this.refreshFilletPreview();
+          this.emit('tool');
+        });
+    }
     if (nodeMode && !ctrl && !e.altKey) {
       if (k === 'd' || k === 'delete' || k === 'backspace') return run(() => this.deleteNodes());
       if (k === 'i') return run(() => this.insertNode());

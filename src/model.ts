@@ -39,8 +39,53 @@ export interface SubPath {
 
 export type RectCorners = [number, number, number, number];
 
+/** Eckenmodus des Runden/Fasen-Werkzeugs (auch interaktives Kanten-Werkzeug) */
+export type CornerMode = 'round' | 'inverse' | 'chamfer';
+
+/** Gerades Segment in lokalen Koordinaten (rekonstruierbar gespeichert, kein Klassenbezug) */
+export interface CornerSeg {
+  a: Pt;
+  c1: Pt;
+  c2: Pt;
+  b: Pt;
+  curve: boolean;
+}
+
+/**
+ * Kantensatz des interaktiven Ecken-Werkzeugs: zwei Kanten, ein Modus, ein Wert.
+ * Pfad: speichert die vollen Original-Segmente und die Bogen-Endpunkte (lokal), damit sich
+ * der Satz einzeln löschen lässt, ohne andere Sets zu berühren. Rechteck: parametrisch
+ * (rectCorner), kein Pfad-Umbau.
+ */
+export interface CornerSet {
+  id: string;
+  mode: CornerMode;
+  /** mm in Welt */
+  r: number;
+  /** Obj.id des Ziels */
+  obj: number;
+  /** Unterpfad-Index (Pfad) */
+  sub: number;
+  /** Bogen-Endpunkte in lokalen Koordinaten (nach dem Anwenden) */
+  p1: Pt;
+  p2: Pt;
+  /** Volle Original-Segmente in lokalen Koordinaten (zum Löschen) */
+  origIn: CornerSeg;
+  origOut: CornerSeg;
+  /** Original-Eckpunkt in lokalen Koordinaten (bzw. Schnittpunkt bei extended) */
+  vertex: Pt;
+  /** Aus Verlängerungs-Schnittpunkt entstanden */
+  extended?: boolean;
+  /** Rechteck: parametrischer Satz an dieser Ecke (TL=0, TR=1, BR=2, BL=3) */
+  rectCorner?: 0 | 1 | 2 | 3;
+  /** Rechteck: vorheriger Einzelwert in lokalen mm (zum Löschen) */
+  prev?: number;
+  /** Rechteck: angewandter lokaler Wert (Welt-r geteilt durch Matrixmaßstab) */
+  lr?: number;
+}
+
 /** Reihenfolge der Einzelradien: [oben-links, oben-rechts, unten-rechts, unten-links] in lokalen mm (y nach unten). */
-export type RectShape = { kind: 'rect'; w: number; h: number; r: number; corners?: RectCorners };
+export type RectShape = { kind: 'rect'; w: number; h: number; r: number; corners?: RectCorners; cornerSets?: CornerSet[] };
 
 /** Effektive Einzelradien eines Rechtecks: corners oder viermal der gemeinsame Radius. */
 export function rectCorners(s: Pick<RectShape, 'r' | 'corners'>): RectCorners {
@@ -100,7 +145,7 @@ export type Shape =
   | { kind: 'ellipse'; rx: number; ry: number }
   | { kind: 'polygon'; sides: number; r: number; star: boolean; inner: number }
   /** mark: Gravur eines Generator-Teils („Baugruppe/Teil“), wird mit dem Teil neu berechnet */
-  | { kind: 'path'; subs: SubPath[]; mark?: string }
+  | { kind: 'path'; subs: SubPath[]; mark?: string; cornerSets?: CornerSet[] }
   | TextShape
   | ImageShape
   | BarcodeShape
