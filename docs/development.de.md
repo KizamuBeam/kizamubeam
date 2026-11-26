@@ -36,6 +36,7 @@ Texte stehen im Code auf Deutsch in `t('…')` (Platzhalter in geschweiften Klam
 
 - `npm run i18n:check` listet fehlende, unbenutzte und falsch platzierte Einträge (bricht bei Fehlendem mit Fehler ab).
 - `npm run i18n:check -- --write` trägt neue Texte mit leerem Wert ein und entfernt unbenutzte; danach nur noch die leeren Werte übersetzen.
+- `npm run i18n:report` listet je Sprache, was in App, Website (`website/i18n`) und Handbuch (`manual/i18n`) fehlt. Der Workflow *Missing translations* (`.github/workflows/i18n-issues.yml`) läuft nach jedem Push auf `main` und täglich, hält je Sprache ein Issue (Label `i18n: missing translations`) aktuell und schließt es, sobald alles übersetzt ist.
 - Neue Sprache: `src/locales/fr.json` anlegen (z. B. Kopie von `en.json` mit leeren Werten). Eintragen muss man nichts: Die App findet alle Dateien in `src/locales/` selbst, der Dateiname ist der Sprachcode (`fr`, `pt-BR`), Name unter Ansicht → Sprache, Zahlen- und Datumsformat und Dezimalzeichen liefert `Intl` im Browser. Die Systemsprache wählt die Datei automatisch. `npm run i18n:check` prüft auch, ob der Dateiname ein gültiger Sprachcode ist.
 - Meldungen aus dem Rust-Teil sind deutsch und werden in `src/i18n.ts` (`tBackend`) übersetzt.
 
