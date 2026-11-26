@@ -27,7 +27,7 @@ function stubEditor(sel: Obj[]): Editor {
   doc.objs.push(...sel);
   Object.assign(ed, {
     doc, sel, filletMode: 'round' as const, filletR: 3,
-    filletPicks: [], filletTarget: null, filletOffer: null, filletEditId: null, filletListObj: null, filletPreview: null,
+    filletPicks: [], filletHover: null, filletTarget: null, filletOffer: null, filletEditId: null, filletListObj: null, filletPreview: null,
     snapshot() {}, touch() {}, emit() {}, redraw() {}, dropSnapshot() {}, saveToolOptions() {},
   });
   return ed;
