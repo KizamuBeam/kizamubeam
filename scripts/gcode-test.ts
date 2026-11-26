@@ -1768,6 +1768,170 @@ await test('Dwell erzwingt Stillstand an kollinearen und null-langen Übergänge
   }
 });
 
+// ---------- Füllmodus-Lücken: Reihenfolge, Überfahrweg-Schalter, Rampe, Flutfüllung ----------
+
+// Gravurläufe je Zeile: aufeinanderfolgende Laserbewegungen gleicher Y-Position gehören zu einer Zeile
+const fillRowsOf = (mv: Moves) => {
+  const rows: { y: number; n: number; mid: number[] }[] = [];
+  for (let i = 0; i < mv.n; i++) {
+    if (!(mv.s[i] > 0 && mv.cls[i] === MOVE_ENGRAVE)) continue;
+    const last = rows[rows.length - 1];
+    if (!last || Math.abs(mv.y[i] - last.y) > 1e-9) rows.push({ y: mv.y[i], n: 0, mid: [] });
+    const r = rows[rows.length - 1];
+    r.n++;
+    r.mid.push(mv.x[i]);
+  }
+  for (const r of rows) r.mid = [r.mid.reduce((a, b) => a + b, 0) / r.mid.length];
+  return rows;
+};
+// Zeilen-Reihenfolge: höchstens ein Wechsel zwischen zwei X-Bereichen (kein Hin-und-her zwischen Formen)
+const clusteredByX = (rows: { mid: number[] }[], cut: number) => {
+  const side = rows.map((r) => (r.mid[0] < cut ? 0 : 1));
+  return side.filter((v, i) => i === 0 || v !== side[i - 1]).length <= 2;
+};
+const travelLen = (mv: Moves) => {
+  let l = 0;
+  for (let i = 1; i < mv.n; i++) if (mv.s[i] === 0) l += Math.hypot(mv.x[i] - mv.x[i - 1], mv.y[i] - mv.y[i - 1]);
+  return l;
+};
+const engraveLen = (mv: Moves) => {
+  let l = 0;
+  for (let i = 1; i < mv.n; i++) if (mv.s[i] > 0 && mv.cls[i] === MOVE_ENGRAVE) l += Math.hypot(mv.x[i] - mv.x[i - 1], mv.y[i] - mv.y[i - 1]);
+  return l;
+};
+
+await test('Füllreihenfolge: einzeln füllt jede Form am Stück, alles zusammen zeilenweise übergreifend', async () => {
+  const objs = [square(100, 100, 10, 1), square(200, 100, 10, 2)];
+  const patch = { mode: 'fill' as const, speed: 3000, power: 30, interval: 1 };
+  const all = fillRowsOf((await cutJob(objs, patch)).moves);
+  assert.ok(all.length > 0 && all.every((r) => r.n === 2), `jede Zeile trifft beide Formen: ${JSON.stringify(all.map((r) => r.n))}`);
+  const shape = fillRowsOf((await cutJob(objs, { ...patch, fillOrder: 'shape' as const })).moves);
+  assert.ok(shape.length > 0 && shape.every((r) => r.n === 1), `jede Zeile genau eine Form: ${JSON.stringify(shape.map((r) => r.n))}`);
+  assert.ok(clusteredByX(shape, 150), 'kein Pendeln zwischen den Formen');
+  // Gleiche Fläche, nur andere Reihenfolge
+  assert.ok(Math.abs(engraveLen((await cutJob(objs, patch)).moves) - engraveLen((await cutJob(objs, { ...patch, fillOrder: 'shape' as const })).moves)) < 1e-6);
+});
+
+await test('Füllreihenfolge: gruppenweise hält die Gruppe zusammen, Ungruppiertes gemeinsam', async () => {
+  const g1a: Obj = { id: 11, m: [1, 0, 0, 1, 100, 100], layer: 1, shape: { kind: 'rect', w: 10, h: 10, r: 0 } as never };
+  const g1b: Obj = { id: 12, m: [1, 0, 0, 1, 115, 100], layer: 1, shape: { kind: 'rect', w: 10, h: 10, r: 0 } as never };
+  const solo: Obj = { id: 13, m: [1, 0, 0, 1, 300, 100], layer: 1, shape: { kind: 'rect', w: 10, h: 10, r: 0 } as never };
+  const grp: Obj = { id: 10, m: [1, 0, 0, 1, 0, 0], layer: 1, shape: { kind: 'group', children: [g1a, g1b] } };
+  const patch = { mode: 'fill' as const, speed: 3000, power: 30, interval: 1 };
+  // Form für Form: überall genau ein Lauf je Zeile
+  const shape = fillRowsOf((await cutJob([grp, solo], { ...patch, fillOrder: 'shape' as const })).moves);
+  assert.ok(shape.every((r) => r.n === 1), JSON.stringify(shape.map((r) => r.n)));
+  // Gruppenweise: die Gruppenzeilen treffen beide Gruppenformen (2 Läufe), Rest einzeln, kein Pendeln
+  const group = fillRowsOf((await cutJob([grp, solo], { ...patch, fillOrder: 'group' as const })).moves);
+  assert.ok(group.some((r) => r.n === 2), `Gruppe gemeinsam: ${JSON.stringify(group.map((r) => r.n))}`);
+  assert.ok(group.every((r) => r.n <= 2), JSON.stringify(group.map((r) => r.n)));
+  assert.ok(clusteredByX(group, 200), 'Gruppe am Stück, kein Pendeln zum Einzelnen');
+});
+
+await test('Überfahrweg aus: kein An-/Auslauf, gleiche Gravurlänge', async () => {
+  const objs = [square()];
+  const patch = { mode: 'fill' as const, speed: 6000, power: 30, interval: 1, overscan: 10 };
+  const withOv = (await cutJob(objs, patch)).moves;
+  const without = (await cutJob(objs, { ...patch, overscanOn: false })).moves;
+  assert.ok(travelLen(without) < travelLen(withOv) - 1, `Leerfahrt ${travelLen(without)} < ${travelLen(withOv)}`);
+  assert.ok(Math.abs(engraveLen(without) - engraveLen(withOv)) < 1e-6, 'Gravur unverändert');
+  // Schalter an (auch ohne explizites Feld) = bisheriges Verhalten
+  const legacy = (await cutJob(objs, { ...patch, overscanOn: undefined as never })).moves;
+  assert.ok(sameMoves(legacy, withOv, { x: 0, y: 0 }), 'ohne Schalter wie bisher');
+});
+
+await test('Leistungsrampe im Füllmodus: hochfahren an Lochkanten, außen nur mit Schalter', async () => {
+  const frame: Obj[] = [
+    { id: 1, m: [1, 0, 0, 1, 100, 100], layer: 1, shape: { kind: 'rect', w: 20, h: 20, r: 0 } as never },
+    { id: 2, m: [1, 0, 0, 1, 105, 105], layer: 1, shape: { kind: 'rect', w: 10, h: 10, r: 0 } as never },
+  ];
+  const ramp = { enabled: true, length: 2, angle: 45, ends: false, inFill: true, outerEdge: false };
+  const patch = { mode: 'fill' as const, speed: 3000, power: 80, minPower: 20, interval: 1, ramp };
+  const mv = (await cutJob(frame, patch)).moves;
+  const sVals = new Set<number>();
+  for (let i = 0; i < mv.n; i++) if (mv.s[i] > 0 && mv.cls[i] === MOVE_ENGRAVE) sVals.add(Math.round(mv.s[i] * 1000) / 1000);
+  assert.ok(sVals.has(0.8), 'volle Leistung in der Mitte');
+  assert.ok([...sVals].some((v) => v > 0.2 && v < 0.8), `Rampe an den Lochkanten: ${JSON.stringify([...sVals])}`);
+  // Ohne Füllmodus-Rampe: überall volle Leistung
+  const plain = (await cutJob(frame, { ...patch, ramp: { ...ramp, inFill: false } })).moves;
+  const plainS = new Set<number>();
+  for (let i = 0; i < plain.n; i++) if (plain.s[i] > 0 && plain.cls[i] === MOVE_ENGRAVE) plainS.add(Math.round(plain.s[i] * 1000) / 1000);
+  assert.deepEqual([...plainS], [0.8]);
+  // Lochlose Form ohne Außenkanten-Schalter: keine Rampe (alle Kanten außen)
+  const solid = (await cutJob([square()], patch)).moves;
+  const solidS = new Set<number>();
+  for (let i = 0; i < solid.n; i++) if (solid.s[i] > 0 && solid.cls[i] === MOVE_ENGRAVE) solidS.add(Math.round(solid.s[i] * 1000) / 1000);
+  assert.deepEqual([...solidS], [0.8], 'außen bleibt voll ohne Schalter');
+  // Mit Außenkanten-Schalter: Rampe auch dort
+  const outer = (await cutJob([square()], { ...patch, ramp: { ...ramp, outerEdge: true } })).moves;
+  const outerS = new Set<number>();
+  for (let i = 0; i < outer.n; i++) if (outer.s[i] > 0 && outer.cls[i] === MOVE_ENGRAVE) outerS.add(Math.round(outer.s[i] * 1000) / 1000);
+  assert.ok([...outerS].some((v) => v > 0.2 && v < 0.8), `Rampe auch außen: ${JSON.stringify([...outerS])}`);
+});
+
+await test('Flutfüllung: gleiche Fläche, weniger Leerfahrt ohne Bidirektional', async () => {
+  const frame: Obj[] = [
+    { id: 1, m: [1, 0, 0, 1, 100, 100], layer: 1, shape: { kind: 'rect', w: 20, h: 10, r: 0 } as never },
+    { id: 2, m: [1, 0, 0, 1, 108, 102], layer: 1, shape: { kind: 'rect', w: 4, h: 6, r: 0 } as never },
+  ];
+  // Ohne Bidirektional fährt jede Zeile links→rechts; die Flutfüllung kettet stattdessen
+  // nächstliegende Läufe (Seiten herunter/hoher) und spart die Rückfahrten über die volle Breite.
+  const patch = { mode: 'fill' as const, speed: 3000, power: 30, interval: 1, bidirectional: false };
+  const shape = (await cutJob(frame, { ...patch, fillOrder: 'shape' as const })).moves;
+  const flood = (await cutJob(frame, { ...patch, floodFill: true })).moves;
+  // Gleiche Gravurmenge, jeder Lauf genau einmal …
+  assert.ok(Math.abs(engraveLen(flood) - engraveLen(shape)) < 1e-6, 'Gravur unverändert');
+  const count = (mv: Moves) => {
+    let n = 0;
+    for (let i = 0; i < mv.n; i++) if (mv.s[i] > 0 && mv.cls[i] === MOVE_ENGRAVE) n++;
+    return n;
+  };
+  assert.equal(count(flood), count(shape), 'jeder Lauf genau einmal');
+  // … aber deutlich weniger Leerfahrt
+  assert.ok(travelLen(flood) < travelLen(shape) - 10, `Leerfahrt ${travelLen(flood)} < ${travelLen(shape)}`);
+});
+
+await test('Flutfüllung füllt Form für Form und bündelt ohne Bidirektional die Richtung', async () => {
+  const objs = [square(100, 100, 10, 1), square(200, 100, 10, 2)];
+  const patch = { mode: 'fill' as const, speed: 3000, power: 30, interval: 1 };
+  const flood = (await cutJob(objs, { ...patch, floodFill: true })).moves;
+  // Kein Pendeln: Laufmitten in Emissionsreihenfolge wechseln höchstens einmal die Seite
+  // (fillRowsOf taugt hier nicht: Bs erste Zeile teilt sich das Y mit As letzter).
+  const mids: number[] = [];
+  for (let i = 1; i < flood.n; i++) {
+    if (flood.s[i] > 0 && flood.cls[i] === MOVE_ENGRAVE) mids.push((flood.x[i] + flood.x[i - 1]) / 2);
+  }
+  assert.ok(mids.length > 0, 'Läufe vorhanden');
+  const side = mids.map((x) => (x < 150 ? 0 : 1));
+  assert.ok(side.filter((v, i) => i === 0 || v !== side[i - 1]).length <= 2, 'Form für Form, kein Pendeln');
+  // Gleiche Fläche wie Einzel-Reihenfolge
+  const shape = (await cutJob(objs, { ...patch, fillOrder: 'shape' as const })).moves;
+  assert.ok(Math.abs(engraveLen(flood) - engraveLen(shape)) < 1e-6, 'Gravur unverändert');
+  // Ohne Bidirektional: alle Läufe in Leserichtung (kein Gegenfahren)
+  const uni = (await cutJob(objs, { ...patch, floodFill: true, bidirectional: false })).moves;
+  for (let i = 1; i < uni.n; i++) {
+    if (uni.s[i] > 0 && uni.cls[i] === MOVE_ENGRAVE) assert.ok(uni.x[i] >= uni.x[i - 1] - 1e-9, 'eine Richtung');
+  }
+});
+
+await test('Migration: alte Dateien bekommen Füllmodus-Standardwerte', () => {
+  const old = { ...defaultLayer(1), mode: 'fill' as const } as Record<string, unknown>;
+  for (const k of ['fillOrder', 'floodFill', 'overscanOn']) delete old[k];
+  (old.ramp as Record<string, unknown>).inFill = undefined;
+  (old.ramp as Record<string, unknown>).outerEdge = undefined;
+  const L = normalizeLayer(old as never as Layer);
+  assert.equal(L.fillOrder, 'all');
+  assert.equal(L.floodFill, false);
+  assert.equal(L.overscanOn, true);
+  assert.equal(L.ramp.inFill, false);
+  assert.equal(L.ramp.outerEdge, false);
+  // Überfahrweg 0 hieß aus (Schalter gab es noch nicht)
+  const zeroOld = { ...defaultLayer(1), mode: 'fill' as const, overscan: 0 } as Record<string, unknown>;
+  delete zeroOld.overscanOn;
+  const zero = normalizeLayer(zeroOld as never as Layer);
+  assert.equal(zero.overscanOn, false);
+});
+
 if (failed) {
   console.log(`${failed} Test(s) fehlgeschlagen`);
   process.exit(1);
