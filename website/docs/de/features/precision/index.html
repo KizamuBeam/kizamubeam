@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">Fangen, Hilfslinien und Messen | KizamuBeam Manual</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://kizamubeam.com/docs/de/img/og-image.png"><meta data-rh="true" name="twitter:image" content="https://kizamubeam.com/docs/de/img/og-image.png"><meta data-rh="true" property="og:url" content="https://kizamubeam.com/docs/de/features/precision"><meta data-rh="true" property="og:locale" content="de"><meta data-rh="true" property="og:locale:alternate" content="en"><meta data-rh="true" property="og:locale:alternate" content="it"><meta data-rh="true" name="docusaurus_locale" content="de"><meta data-rh="true" name="docsearch:language" content="de"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Fangen, Hilfslinien und Messen | KizamuBeam Manual"><meta data-rh="true" name="description" content="An Knoten und Raster fangen, Hilfslinien nutzen, messen, Beziehungen anwenden und bemaßte Skizzen zeichnen."><meta data-rh="true" property="og:description" content="An Knoten und Raster fangen, Hilfslinien nutzen, messen, Beziehungen anwenden und bemaßte Skizzen zeichnen."><link data-rh="true" rel="icon" href="/docs/de/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://kizamubeam.com/docs/de/features/precision"><link data-rh="true" rel="alternate" href="https://kizamubeam.com/docs/features/precision" hreflang="en"><link data-rh="true" rel="alternate" href="https://kizamubeam.com/docs/de/features/precision" hreflang="de"><link data-rh="true" rel="alternate" href="https://kizamubeam.com/docs/it/features/precision" hreflang="it"><link data-rh="true" rel="alternate" href="https://kizamubeam.com/docs/features/precision" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Funktionen und Werkzeuge","item":"https://kizamubeam.com/docs/de/features/"},{"@type":"ListItem","position":2,"name":"Fangen, Hilfslinien und Messen","item":"https://kizamubeam.com/docs/de/features/precision"}]}</script><link rel="stylesheet" href="/docs/de/assets/css/styles.460faabb.css">
-<script src="/docs/de/assets/js/runtime~main.42969d58.js" defer="defer"></script>
+<script src="/docs/de/assets/js/runtime~main.4ab10300.js" defer="defer"></script>
 <script src="/docs/de/assets/js/main.2d24c476.js" defer="defer"></script>
 </head>
 <body>
@@ -34,10 +34,76 @@
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="sketches-with-dimensions">Skizzen mit Bemaßung<a href="#sketches-with-dimensions" class="hash-link" aria-label="Direkter Link zur Skizzen mit Bemaßung" title="Direkter Link zur Skizzen mit Bemaßung" translate="no">​</a></h2>
 <p>Für Teile, die beim Ändern ihre genauen Maße behalten sollen, gibt es <strong>Werkzeugkasten → Skizzen mit Beziehungen → Neue Skizze</strong> (oder <strong>In Skizze umwandeln</strong>). In einer Skizze behalten Linien, Rechtecke, Kreise und Bögen ihre Beziehungen und Maße dauerhaft, wie in einem CAD-Programm.</p>
 <ul>
-<li class="">Beziehungen über die Leiste oben oder per Taste: deckungsgleich (O), waagerecht (H), senkrecht (V), parallel (P), rechtwinklig (N), gleich (E), tangential (T), konzentrisch (X), Mittelpunkt (M), symmetrisch (Y), fest (F).</li>
-<li class=""><strong>Bemaßen</strong> (D): Eine Linie bekommt eine Länge, zwei Linien einen Winkel, ein Kreis einen Durchmesser, ein Bogen einen Radius, zwei Punkte einen Abstand. Ein Doppelklick auf ein Maß ändert es. Maße können Formeln mit Projektparametern sein, etwa <code>Breite / 2</code>.</li>
-<li class="">Farben: blau = noch frei, dunkel = vollständig bestimmt, rot = Widerspruch.</li>
-<li class="">Hilfsgeometrie (G) wird gestrichelt gezeichnet und nie gelasert.</li>
+<li class="">
+<p>Im Auswahlmodus von einer freien Stelle nach rechts ziehen, um vollständig umschlossene Elemente zu wählen. Nach links zählen auch Elemente, die den Rahmen kreuzen. Umschalt ergänzt die Auswahl. Per Tastatur: <strong>Rahmenauswahl</strong> öffnen, den Zeiger mit den Pfeiltasten bewegen und beide Ecken mit Einfg markieren.</p>
+</li>
+<li class="">
+<p>Zwei Linien auswählen und <strong>Auf derselben Geraden</strong> wählen, um sie auszurichten, ohne ihre Endpunkte zu verbinden. Unter <strong>Beziehungen</strong> können geometrische Beziehungen nach Auswahl gefiltert, angezeigt und entfernt werden, ohne die zugehörige Geometrie zu löschen.</p>
+</li>
+<li class="">
+<p><strong>Endpunkte verbinden</strong> schließt eine Lücke zwischen zwei offenen Geraden oder Kreisbögen. Wähle die beiden Endpunkte mit Umschalt oder über die Endpunktliste. Beide Segmente und ihre Maße bleiben erhalten. Lassen die bestehenden Beziehungen keine Verbindung zu, bleibt die Skizze unverändert.</p>
+</li>
+<li class="">
+<p><strong>Aufteilen</strong> zeigt den Teilpunkt beim Zeigen auf eine Gerade. In der Nähe der Mitte rastet er am Mittelpunkt ein. Ein Klick erzeugt zwei Segmente. Der Teilpunkt behält seine relative Lage auf der Ursprungslinie, auch wenn du deren Länge oder Richtung änderst. Die ursprünglichen Maße bleiben bearbeitbar.</p>
+</li>
+<li class="">
+<p><strong>Löschen</strong> zeigt vorab, welche Maße und Beziehungen mit der gewählten Geometrie verloren gehen würden. Beim Abbrechen bleiben Geometrie, Beziehungen und Auswahl unverändert.</p>
+</li>
+<li class="">
+<p><strong>Langloch</strong> platziert die beiden Halbkreis-Mittelpunkte in beliebiger Richtung. Der dritte Punkt legt die Breite fest. Nahe der Waagrechten oder Senkrechten rastet die Achse ein, sofern der zweite Mittelpunkt nicht an einer bestehenden Referenz gefangen ist. Durchmesser und Mittelpunktsabstand steuern Breite und geraden Teil; ein frei platziertes schräges Langloch hat zusätzlich ein Winkelmaß. Die Gesamtlänge ist die Summe aus Mittelpunktsabstand und Breite.</p>
+</li>
+<li class="">
+<p>Mit <strong>[</strong> und <strong>]</strong> wechselst du auf der Zeichenfläche zwischen nahe beieinanderliegenden Skizzenpunkten. Der hervorgehobene Punkt wird beim nächsten Klick verwendet.</p>
+</li>
+<li class="">
+<p><strong>Rundrechteck</strong>: Setze den Mittelpunkt, danach eine Ecke und zuletzt den Radius durch einen Klick innerhalb des Rechtecks. Ein gemeinsames Radiusmaß steuert alle vier Rundungen; Breite und Höhe bleiben unabhängig bearbeitbar.</p>
+</li>
+<li class="">
+<p><strong>Polygon</strong> erzeugt ein regelmäßiges Vieleck mit 3 bis 24 Seiten. Wähle die Seitenzahl und setze Mittelpunkt und Eckpunkt. Ändere den Umkreisradius, um die Größe anzupassen. Wenn du den Eckpunkt an vorhandener Geometrie fängst, bestimmt stattdessen diese Referenz die Größe.</p>
+</li>
+<li class="">
+<p><strong>Spiegeln</strong> spiegelt ausgewählte Elemente an einer geraden Skizzenlinie oder einer Ursprungsachse. Das Fenster fragt Elemente und Spiegellinie; genau eine gerade Hilfslinie in der Auswahl ist vorbelegt. Das Ergebnis ist eine einzelne Kopie ohne Musterverknüpfung.</p>
+</li>
+<li class="">
+<p><strong>Konturversatz</strong> zeigt die innere oder äußere Kontur vor dem Platzieren. Er funktioniert mit Kreisen und geschlossenen konvexen Linien-/Bogenkonturen mit tangentialen Übergängen (z. B. einem Langloch). Der Versatz folgt der Ursprungskontur und das Maß bleibt bearbeitbar. Bei Kreisen hat das Maß ein Vorzeichen; bei gemischten Konturen bleibt die gewählte Seite erhalten und der Abstand ist positiv. Das Werkzeug weist Versätze ab, die einen Bogen kollabieren lassen oder vorhandene Ausgabegeometrie kreuzen. Beide Konturen bleiben Ausgabegeometrie, sofern du keine davon als Hilfsgeometrie markierst.
+Teilt ein Innenversatz eine einfache, geschlossene Kontur aus Geraden an einer Engstelle, zeigt das Werkzeug alle entstehenden Schnitte und verlangt eine Bestätigung. Das Original bleibt unverändert. Die neuen Konturen bestehen aus fixierten Skizzenlinien und sind nicht mit dem Original verknüpft. Abbrechen lässt die Skizze unverändert.</p>
+</li>
+<li class="">
+<p><strong>Kreismuster</strong> verteilt die ausgewählten Elemente um einen Mittelpunkt. Das Fenster fragt Elemente, Mittelpunkt, Anzahl (2–500, einschließlich des Originals), Gesamtwinkel (bis 360°) und Ausrichtung; Zahlen verstehen Projektparameter wie <code>n</code>, die verlinkt bleiben. Doppelklick auf die Musterplakette oder <strong>Skizzenmuster bearbeiten</strong> ändert die Anzahl nachträglich; überlebende Kopien behalten ihre Identität. <strong>Auflösen</strong> behält die Geometrie und löst die Verknüpfung, <strong>Entfernen</strong> löscht die Kopien.</p>
+</li>
+<li class="">
+<p><strong>Rechteckmuster</strong> wiederholt die ausgewählten Elemente entlang einer oder zwei Richtungen. Das Fenster fragt Elemente, optionale Richtungslinien (Standard: Skizzen-X und Senkrechte), Anzahlen (je 1–500, höchstens 500 Kopien) und Abstände; Abstandspfeile auf der Zeichenfläche lassen sich ziehen, Ziehen über Null kippt die Seite. Anzahlen schließen das Original ein, verlinkte Parameter wie <code>n</code> oder <code>s</code> wirken auch nach dem Bearbeiten.</p>
+</li>
+<li class="">
+<p><strong>Präzise verschieben</strong> versetzt ausgewählte Geometrie um einen X/Y-Abstand in Skizzenkoordinaten und zeigt eine Vorschau. Wähle alle verbundenen sichtbaren Elemente aus. Hilfsgeometrie folgt; Beziehungen zur übrigen Skizze werden nicht gelöst.</p>
+</li>
+<li class="">
+<p><strong>Abrunden</strong> und <strong>Fasen</strong> bearbeiten die Ecke zwischen zwei geraden Kanten ohne Abzweigung. Zeige in der Nähe der Ecke auf eine Kante und klicke auf die Vorschau. Radius oder Rücksprung bleiben bearbeitbar; die ursprünglichen Kanten bleiben mit ihren Maßen als Hilfsgeometrie erhalten.</p>
+</li>
+<li class="">
+<p><strong>Trimmen</strong>: Zeige auf den Abschnitt, den du entfernen willst, und klicke auf die Markierung. Geraden, Kreise und Kreisbögen lassen sich gegeneinander trimmen. Entferne zum Beispiel die beiden inneren Bögen überlappender Kreise, um einen geschlossenen Außenumriss zu erhalten. Beim Trimmen von Kurven bleiben die Ursprungsformen als Hilfsgeometrie erhalten, damit ihre Maße erhalten bleiben. Jeder Klick lässt sich einzeln rückgängig machen.</p>
+</li>
+<li class="">
+<p><strong>Verlängern</strong>: Zeige auf ein Linienende, um die Verlängerung bis zur nächsten Geraden, zum nächsten Kreis oder Kreisbogen zu sehen, und klicke zur Übernahme. Trifft die Verlängerung einen vorhandenen Endpunkt, teilen sich beide Elemente diesen Punkt. Ein Dialog erscheint nur, wenn Maße oder Beziehungen zur Entfernung freigegeben werden müssen.</p>
+</li>
+<li class="">
+<p><strong>Rechteck vom Mittelpunkt</strong>: vom Mittelpunkt zu einer Ecke ziehen oder beide Punkte anklicken. Die Vorschau wächst symmetrisch um den Mittelpunkt. Für die exakte Zahleneingabe gibt es <strong>Mittelpunkt-Rechteck über Koordinaten</strong>.</p>
+</li>
+<li class="">
+<p>Der Fang an einer Linienmitte bleibt beim Setzen von Linien, Polylinien, Rechtecken und Kreisbögen als Beziehung erhalten. Fängst du die Ecke eines Mittelpunkt-Rechtecks an einem Skizzenpunkt, steuert dieser Punkt die Größe, statt zusätzliche Breiten- und Höhenmaße anzulegen.</p>
+</li>
+<li class="">
+<p>Beziehungen über die Leiste oben oder per Taste: deckungsgleich (O), waagerecht (H), senkrecht (V), parallel (P), rechtwinklig (N), gleich (E), tangential (T), konzentrisch (X), Mittelpunkt (M), symmetrisch (Y), fest (F).</p>
+</li>
+<li class="">
+<p><strong>Bemaßen</strong> (D): Eine Linie bekommt eine Länge, zwei Linien einen Winkel, ein Kreis einen Durchmesser, ein Bogen einen Radius, zwei Punkte einen Abstand. Ein Doppelklick auf ein Maß ändert es. Maße können Formeln mit Projektparametern sein, etwa <code>Breite / 2</code>.</p>
+</li>
+<li class="">
+<p>Farben: blau = noch frei, dunkel = vollständig bestimmt, rot = Widerspruch.</p>
+</li>
+<li class="">
+<p>Hilfsgeometrie (G) wird gestrichelt gezeichnet und nie gelasert.</p>
+</li>
 </ul>
 <p>Ein Doppelklick öffnet eine Skizze wieder, Enter oder <strong>Fertig</strong> schließt sie, <strong>Abbrechen</strong> verwirft alle Änderungen seit dem Öffnen.</p></div><footer class="theme-doc-footer docusaurus-mt-lg"><div class="row margin-top--sm theme-doc-footer-edit-meta-row"><div class="col noPrint_WFHX"><a href="https://github.com/KizamuBeam/kizamubeam/edit/main/manual/i18n/de/docusaurus-plugin-content-docs/current/features/precision.md" target="_blank" rel="noopener noreferrer" class="theme-edit-this-page"><svg fill="currentColor" height="20" width="20" viewBox="0 0 40 40" class="iconEdit_Z9Sw" aria-hidden="true"><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"></path></g></svg>Diese Seite bearbeiten</a></div><div class="col lastUpdated_JAkA"></div></div></footer></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Dokumentation Seiten"><a class="pagination-nav__link pagination-nav__link--prev" href="/docs/de/features/paths"><div class="pagination-nav__sublabel">Zurück</div><div class="pagination-nav__label">Pfade und Formen</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/docs/de/features/text"><div class="pagination-nav__sublabel">Weiter</div><div class="pagination-nav__label">Text und Codes</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#fangen" class="table-of-contents__link toc-highlight">Fangen</a></li><li><a href="#raster" class="table-of-contents__link toc-highlight">Raster</a></li><li><a href="#hilfslinien" class="table-of-contents__link toc-highlight">Hilfslinien</a></li><li><a href="#messen" class="table-of-contents__link toc-highlight">Messen</a></li><li><a href="#beziehungen" class="table-of-contents__link toc-highlight">Beziehungen</a></li><li><a href="#sketches-with-dimensions" class="table-of-contents__link toc-highlight">Skizzen mit Bemaßung</a></li></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Handbuch</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/de/getting-started/installation">Erste Schritte</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/de/reference/keyboard-shortcuts">Tastenkürzel</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/de/contributing">Am Handbuch mitarbeiten</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">KizamuBeam</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://kizamubeam.com/" target="_blank" rel="noopener noreferrer" class="footer__link-item">Website<svg width="13.5" height="13.5" aria-label="(öffnet in neuem Tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li><li class="footer__item"><a href="https://github.com/KizamuBeam/kizamubeam/releases" target="_blank" rel="noopener noreferrer" class="footer__link-item">Download<svg width="13.5" height="13.5" aria-label="(öffnet in neuem Tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Community</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://discord.gg/SSr8VHh7EJ" target="_blank" rel="noopener noreferrer" class="footer__link-item">Discord<svg width="13.5" height="13.5" aria-label="(öffnet in neuem Tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li><li class="footer__item"><a href="https://www.youtube.com/@KizamuBeam" target="_blank" rel="noopener noreferrer" class="footer__link-item">YouTube<svg width="13.5" height="13.5" aria-label="(öffnet in neuem Tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li><li class="footer__item"><a href="https://www.reddit.com/r/KizamuBeam/" target="_blank" rel="noopener noreferrer" class="footer__link-item">Reddit<svg width="13.5" height="13.5" aria-label="(öffnet in neuem Tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li><li class="footer__item"><a href="https://github.com/KizamuBeam/kizamubeam" target="_blank" rel="noopener noreferrer" class="footer__link-item">GitHub<svg width="13.5" height="13.5" aria-label="(öffnet in neuem Tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li><li class="footer__item"><a href="https://github.com/KizamuBeam/kizamubeam/issues" target="_blank" rel="noopener noreferrer" class="footer__link-item">Fehler melden<svg width="13.5" height="13.5" aria-label="(öffnet in neuem Tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">© 2026 Hanjo Winter · Freie Software unter GPL-3.0-or-later · Entwickelt mit Unterstützung von Claude Code.</div></div></div></footer></div>
 </body>

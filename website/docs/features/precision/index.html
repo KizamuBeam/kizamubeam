@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">Snapping, guides and measuring | KizamuBeam Manual</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://kizamubeam.com/docs/img/og-image.png"><meta data-rh="true" name="twitter:image" content="https://kizamubeam.com/docs/img/og-image.png"><meta data-rh="true" property="og:url" content="https://kizamubeam.com/docs/features/precision"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" property="og:locale:alternate" content="de"><meta data-rh="true" property="og:locale:alternate" content="it"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Snapping, guides and measuring | KizamuBeam Manual"><meta data-rh="true" name="description" content="Snap to nodes and grid, use guides, measure, apply relations and draw dimensioned sketches."><meta data-rh="true" property="og:description" content="Snap to nodes and grid, use guides, measure, apply relations and draw dimensioned sketches."><link data-rh="true" rel="icon" href="/docs/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://kizamubeam.com/docs/features/precision"><link data-rh="true" rel="alternate" href="https://kizamubeam.com/docs/features/precision" hreflang="en"><link data-rh="true" rel="alternate" href="https://kizamubeam.com/docs/de/features/precision" hreflang="de"><link data-rh="true" rel="alternate" href="https://kizamubeam.com/docs/it/features/precision" hreflang="it"><link data-rh="true" rel="alternate" href="https://kizamubeam.com/docs/features/precision" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Features and tools","item":"https://kizamubeam.com/docs/features/"},{"@type":"ListItem","position":2,"name":"Snapping, guides and measuring","item":"https://kizamubeam.com/docs/features/precision"}]}</script><link rel="stylesheet" href="/docs/assets/css/styles.460faabb.css">
-<script src="/docs/assets/js/runtime~main.a0eec539.js" defer="defer"></script>
-<script src="/docs/assets/js/main.4a8946c3.js" defer="defer"></script>
+<script src="/docs/assets/js/runtime~main.7ab1f5f3.js" defer="defer"></script>
+<script src="/docs/assets/js/main.44509e61.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -34,10 +34,76 @@
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="sketches-with-dimensions">Sketches with dimensions<a href="#sketches-with-dimensions" class="hash-link" aria-label="Direct link to Sketches with dimensions" title="Direct link to Sketches with dimensions" translate="no">​</a></h2>
 <p>For parts that must keep exact dimensions while you change them, use <strong>Toolbox → Sketches with relations → New sketch</strong> (or <strong>Convert to sketch</strong>). In a sketch, lines, rectangles, circles and arcs keep their relations and dimensions permanently, like in a CAD program.</p>
 <ul>
-<li class="">Relations from the bar at the top or by key: coincident (O), horizontal (H), vertical (V), parallel (P), perpendicular (N), equal (E), tangent (T), concentric (X), midpoint (M), symmetric (Y), fixed (F).</li>
-<li class=""><strong>Dimension</strong> (D): a line gets a length, two lines an angle, a circle a diameter, an arc a radius, two points a distance. Double-click a dimension to change it. Dimensions can be formulas with project parameters, such as <code>Width / 2</code>.</li>
-<li class="">Colours: blue = still free, dark = fully defined, red = conflict.</li>
-<li class="">Construction geometry (G) is drawn dashed and never lasered.</li>
+<li class="">
+<p>In <strong>Select</strong> mode, drag from an empty spot to the right to select fully enclosed elements, or to the left to include elements that cross the box. Shift adds to the selection. For keyboard selection, open <strong>Box selection</strong>, move with the arrow keys, and mark both corners with Insert.</p>
+</li>
+<li class="">
+<p>Select two lines and choose <strong>Collinear</strong> to put them on the same infinite line without joining their endpoints. <strong>Relations</strong> lists geometric relations, can filter them by the current selection, and lets you highlight or remove one without deleting its geometry.</p>
+</li>
+<li class="">
+<p><strong>Join endpoints</strong> closes a gap between two open lines or circular arcs. Shift-select the endpoints on the canvas or use the endpoint picker. Both segments keep their dimensions. If the existing relations prevent the join, the sketch does not change.</p>
+</li>
+<li class="">
+<p><strong>Split line</strong> previews the split point as you hover over a straight segment and snaps to the midpoint near the center. Click to create two segments. The split keeps its fractional position along the original line when you resize or rotate it, and the original dimensions remain editable.</p>
+</li>
+<li class="">
+<p><strong>Delete</strong> lists any dimensions and relations that would be removed along with the selected geometry. Cancel to keep the geometry, relations, and selection unchanged.</p>
+</li>
+<li class="">
+<p><strong>Slot</strong> places the two semicircle centers at any angle, then sets the width with a third point. Near horizontal or vertical, the axis snaps to that direction unless the second center snaps to an existing reference. Edit the diameter to change the slot width, or the center distance to change the straight section. A freely placed diagonal slot also has an angle dimension. Overall length is the center distance plus the width.</p>
+</li>
+<li class="">
+<p>When placing or selecting a point, use <strong>[</strong> and <strong>]</strong> on the canvas to cycle between nearby sketch points. The highlighted point is used for the next click.</p>
+</li>
+<li class="">
+<p><strong>Rounded rectangle</strong>: place the center and one corner, then click inside the rectangle to set the radius. A single dimension drives all four rounds; width and height remain independently editable.</p>
+</li>
+<li class="">
+<p><strong>Polygon</strong> creates a regular polygon with 3–24 sides. Choose the side count, then place the center and one vertex. Edit the circumradius to resize it, or snap the vertex to existing geometry and let that reference drive the size.</p>
+</li>
+<li class="">
+<p><strong>Mirror</strong> reflects selected elements across a straight sketch line or an origin axis. The window asks for the elements and the mirror line; a single straight construction line in the selection is pre-filled. The result is a single copy with no pattern link.</p>
+</li>
+<li class="">
+<p><strong>Circular pattern</strong> distributes the selected elements around a centre point. The window asks for the elements, the centre, the count (2–500, including the original), the total angle (up to 360°) and the alignment; numbers accept project parameters such as <code>n</code>, which stay linked. Dragging a copy is not needed: the copies follow the seeds. Double-click the pattern badge or choose <strong>Edit sketch pattern</strong> to change the count later; surviving copies keep their identity. <strong>Dissolve</strong> keeps the geometry and drops the link, <strong>Delete</strong> removes the copies.</p>
+</li>
+<li class="">
+<p><strong>Rectangular pattern</strong> repeats the selected elements along one or two directions. The window asks for the elements, the optional direction lines (default: sketch X and its perpendicular), the counts (1–500 each, at most 500 copies in total) and the spacings; spacing arrows on the canvas can be dragged, dragging past zero flips the side. Counts include the original, and linked parameters such as <code>n</code> or <code>s</code> keep working after editing.</p>
+</li>
+<li class="">
+<p><strong>Contour offset</strong> previews an inner or outer contour before you place it. It supports circles and closed convex line-and-arc contours with tangent joins (such as a slot). The result follows the source, and the offset dimension remains editable. Circle offsets use a signed dimension; mixed contours keep the chosen side and use a positive distance. The tool rejects offsets that would collapse an arc or cross existing output. Both contours remain output geometry unless you mark one as construction geometry.
+If an inward offset splits a simple, closed, straight-sided contour at a narrow neck, the tool previews all resulting cuts and asks for confirmation. The source remains unchanged. The new contours are fixed sketch lines, not linked to the source. Cancel leaves the sketch untouched.</p>
+</li>
+<li class="">
+<p><strong>Move precisely</strong> shifts selected geometry by a local X/Y distance with a live preview. Select all connected visible elements: construction geometry follows, and the command never removes relations to the rest of the sketch.</p>
+</li>
+<li class="">
+<p><strong>Round corner</strong> and <strong>Chamfer</strong> work where two straight sides meet without a branch. Point near the corner along one side and click the preview. The radius or setback stays editable; the original sides stay as construction geometry, along with their dimensions.</p>
+</li>
+<li class="">
+<p><strong>Trim</strong>: hover over the section you want to remove, then click the highlight. Lines, circles and arcs can cut one another. For example, remove the two inner arcs of overlapping circles to leave one closed outline. For these curve cuts, the originals remain as construction geometry so their dimensions are preserved. Each click can be undone separately.</p>
+</li>
+<li class="">
+<p><strong>Extend</strong>: hover near a line end to preview the extension to the nearest line, circle or arc, then click to apply it. If it meets an existing endpoint, both elements share that point. A dialog appears only if dimensions or relations need approval for removal.</p>
+</li>
+<li class="">
+<p><strong>Rectangle from center</strong>: drag from the center to a corner, or click both points. The preview extends symmetrically around the center. Use <strong>Center rectangle from coordinates</strong> for exact numeric placement.</p>
+</li>
+<li class="">
+<p>Snapping to a line midpoint while placing a line, polyline, rectangle, or circular arc can create a persistent midpoint relation. For a center rectangle, snapping its corner to a sketch point lets that point drive its size instead of adding width and height dimensions.</p>
+</li>
+<li class="">
+<p>Relations from the bar at the top or by key: coincident (O), horizontal (H), vertical (V), parallel (P), perpendicular (N), equal (E), tangent (T), concentric (X), midpoint (M), symmetric (Y), fixed (F).</p>
+</li>
+<li class="">
+<p><strong>Dimension</strong> (D): a line gets a length, two lines an angle, a circle a diameter, an arc a radius, two points a distance. Double-click a dimension to change it. Dimensions can be formulas with project parameters, such as <code>Width / 2</code>.</p>
+</li>
+<li class="">
+<p>Colours: blue = still free, dark = fully defined, red = conflict.</p>
+</li>
+<li class="">
+<p>Construction geometry (G) is drawn dashed and never lasered.</p>
+</li>
 </ul>
 <p>Double-click reopens a sketch, Enter or <strong>Done</strong> closes it, <strong>Cancel</strong> discards all changes since opening.</p></div><footer class="theme-doc-footer docusaurus-mt-lg"><div class="row margin-top--sm theme-doc-footer-edit-meta-row"><div class="col noPrint_WFHX"><a href="https://github.com/KizamuBeam/kizamubeam/edit/main/manual/docs/features/precision.md" target="_blank" rel="noopener noreferrer" class="theme-edit-this-page"><svg fill="currentColor" height="20" width="20" viewBox="0 0 40 40" class="iconEdit_Z9Sw" aria-hidden="true"><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"></path></g></svg>Edit this page</a></div><div class="col lastUpdated_JAkA"></div></div></footer></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/docs/features/paths"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">Paths and shapes</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/docs/features/text"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">Text and codes</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#snapping" class="table-of-contents__link toc-highlight">Snapping</a></li><li><a href="#grid" class="table-of-contents__link toc-highlight">Grid</a></li><li><a href="#guides" class="table-of-contents__link toc-highlight">Guides</a></li><li><a href="#measuring" class="table-of-contents__link toc-highlight">Measuring</a></li><li><a href="#relations" class="table-of-contents__link toc-highlight">Relations</a></li><li><a href="#sketches-with-dimensions" class="table-of-contents__link toc-highlight">Sketches with dimensions</a></li></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Manual</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/docs/getting-started/installation">Getting started</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/reference/keyboard-shortcuts">Keyboard shortcuts</a></li><li class="footer__item"><a class="footer__link-item" href="/docs/contributing">Contributing to the manual</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">KizamuBeam</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://kizamubeam.com/" target="_blank" rel="noopener noreferrer" class="footer__link-item">Website<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li><li class="footer__item"><a href="https://github.com/KizamuBeam/kizamubeam/releases" target="_blank" rel="noopener noreferrer" class="footer__link-item">Download<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Community</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://discord.gg/SSr8VHh7EJ" target="_blank" rel="noopener noreferrer" class="footer__link-item">Discord<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li><li class="footer__item"><a href="https://www.youtube.com/@KizamuBeam" target="_blank" rel="noopener noreferrer" class="footer__link-item">YouTube<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li><li class="footer__item"><a href="https://www.reddit.com/r/KizamuBeam/" target="_blank" rel="noopener noreferrer" class="footer__link-item">Reddit<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li><li class="footer__item"><a href="https://github.com/KizamuBeam/kizamubeam" target="_blank" rel="noopener noreferrer" class="footer__link-item">GitHub<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li><li class="footer__item"><a href="https://github.com/KizamuBeam/kizamubeam/issues" target="_blank" rel="noopener noreferrer" class="footer__link-item">Report an issue<svg width="13.5" height="13.5" aria-label="(opens in new tab)" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li></ul></div></div><div class="footer__bottom text--center"><div class="footer__copyright">© 2026 Hanjo Winter · Free software under GPL-3.0-or-later · Developed with assistance from Claude Code.</div></div></div></footer></div>
 </body>
