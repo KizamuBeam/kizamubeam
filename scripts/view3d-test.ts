@@ -381,6 +381,67 @@ test('Verbindungen: Zapfen stecken in den Schlitzen der Gegenplatte', () => {
     assert.equal(new Set(r.groups.values()).size, 2);
   });
 
+  test('Curves in 3D: tenons on a strip go into slots along a curve in the floor (case A)', () => {
+    const R = 50, th = 3, off = 10;
+    for (const [extra, tenonCount] of [[0, 6], [40, 5], [120, 2]] as const) {
+      const disc = circleObj(0, 0, R);
+      const ring = 2 * Math.PI * (R - off);
+      const strip = rect(0, 150, ring + extra, 40);
+      // The strip's upper edge gets the tenons, the disc's rim the slots (on their line 10 mm inside)
+      joinCurve(strip, 0, disc, 0, { kind: 'tenon', thickness: th, tenonCount, tenonWidth: 15, slotOffset: off, clearance: 0.1 });
+      const s = assembled([disc, strip]);
+      assert.ok(s.filter((x) => x.part === String(strip.id)).length > 50, 'strip bent');
+      assert.deepEqual(pairs(s), [], `extra ${extra}`);
+      // The tenons go through the floor: from its lower face up to the top of the strip
+      near(extent(s)[2], th + 40, 0.01, 'height');
+      near(extent(s)[0], 2 * R, 0.01, 'width');
+    }
+    // A press fit in the slots shows
+    const d2 = circleObj(0, 0, R), s2 = rect(0, 150, 2 * Math.PI * (R - off), 40);
+    joinCurve(s2, 0, d2, 0, { kind: 'tenon', thickness: th, tenonCount: 6, tenonWidth: 15, slotOffset: off, clearance: 0.1, slotClearance: -0.3 });
+    assert.notDeepEqual(pairs(assembled([d2, s2])), [], 'press fit');
+  });
+
+  test('Curves in 3D: tenons on the rim of a disc go into slots in the strip round it (case B)', () => {
+    const R = 50, th = 3, off = 10;
+    for (const [extra, ry, tenonCount] of [[0, R, 6], [30, R, 6], [0, 35, 6], [110, R, 2]] as const) {
+      const disc = circleObj(0, 0, R, ry);
+      // Length of the ring half a thickness outside the rim: sampled like the joint does it
+      const c = smoothChain((disc.shape as { subs: never[] }).subs[0], 0);
+      const r0 = computeJoint([{ obj: disc, m: I, sub: 0, seg: c.seg, segs: c.segs }], { ...DEFAULT_JOINT, kind: 'tenon', thickness: th, tenonCount: 6, tenonWidth: 15 }, 2);
+      // The joint says it in its text (to a hundredth)
+      const len = Number(String(r0.info).match(/([0-9]+,[0-9]+) mm \(/)?.[1].replace(',', '.'));
+      assert.ok(len > 0, JSON.stringify(r0.info));
+      const strip = rect(0, 150, len + extra, 40);
+      // A strip longer than the ring: its slots lie in its middle, the ends beyond one round are left out in 3D
+      joinCurve(disc, 0, strip, 0, { kind: 'tenon', thickness: th, tenonCount, tenonWidth: 15, slotOffset: off, clearance: 0.1 });
+      const s = assembled([disc, strip]);
+      assert.ok(s.filter((x) => x.part === String(strip.id)).length > 50, 'strip bent');
+      assert.deepEqual(pairs(s), [], `extra ${extra}, ry ${ry}`);
+      // The disc lies in the middle of the slots, 10 mm above the strip's edge
+      const D = s.find((x) => x.key === String(disc.id))!;
+      const b = bounds(s);
+      near(D.pose.o[2] + (D.pose.n[2] > 0 ? 0 : -th) - b[2][0], off - th / 2, 0.01, 'disc height');
+      near(extent(s)[2], 40, 0.01, 'height');
+    }
+  });
+
+  test('Curves in 3D: a floor in slots of the strip and a lid with fingers on its other edge make one assembly', () => {
+    const R = 50, th = 3;
+    const floor = circleObj(0, 0, R), lid = circleObj(300, 0, R);
+    // The ring on the wall middle, outside the floor and the lid alike
+    const ring = 2 * Math.PI * (R + th / 2);
+    const strip = rect(0, 150, ring + 0.05, 60);
+    joinCurve(floor, 0, strip, 0, { kind: 'tenon', thickness: th, tenonCount: 6, tenonWidth: 15, slotOffset: 10, clearance: 0.1 });
+    // The strip's lower edge (segment 2) with the lid, fingers out so the lid lies on the strip
+    joinCurve(lid, 0, strip, 2, { kind: 'finger', direction: 'out', thickness: th, fingerWidth: 10, clearance: 0.1 });
+    const parts = [floor, lid, strip].map((o) => ({ id: o.id, label: String(o.id), polys: subsPolys((o.shape as { subs: never }).subs), m: I, mates: o.mates ?? [] }));
+    const r = assembleMates(parts, 3);
+    assert.equal(r.placed.size, 3);
+    assert.deepEqual(pairs(r.solids), []);
+    assert.equal(new Set(r.groups.values()).size, 1, 'one assembly');
+  });
+
   test('Curves in 3D: a point of a bent plate follows its path', () => {
     const pose = { o: [0, 0, 5] as [number, number, number], u: [1, 0, 0] as [number, number, number], v: [0, 0, 1] as [number, number, number], n: [0, 1, 0] as [number, number, number], bend: { path: [[0, 0], [10, 0], [10, 10]] as [number, number][], x0: 2 } };
     const q = bentPoint(pose, 17, 4, 1.5, 3);

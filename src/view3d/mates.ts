@@ -188,7 +188,7 @@ function rigidFit(src: V3[], dst: V3[], up: V3): Pose | null {
   return pose;
 }
 
-/** A finger joint between a curve and a straight edge: the strip S is bent round the curve of C */
+/** A joint between a curve and a straight edge: the strip S is bent round the curve of C */
 interface BentLink {
   C: number;
   S: number;
@@ -342,18 +342,19 @@ export function assembleMates(parts: MatePart[], fallbackTh: number): MateAssemb
       continue;
     }
     let polys = p.polys.map((poly) => poly.map((q) => apply(fr, q.x, q.y)));
-    // A strip longer than its ring would go on straight past its own start, through the plate; that end gets cut
-    // off, so it is left out here
+    // A strip longer than its ring would go on straight past its own start, through the plate; what lies before the
+    // start of the ring and after one round gets cut off, so it is left out here
     const b = pose.bend!;
     const ring = Math.hypot(b.path[0][0] - b.path.at(-1)![0], b.path[0][1] - b.path.at(-1)![1]) < 0.01;
     if (ring) {
       let len = 0;
       for (let i = 1; i < b.path.length; i++) len += Math.hypot(b.path[i][0] - b.path[i - 1][0], b.path[i][1] - b.path[i - 1][1]);
-      const x1 = (b.x0 ?? 0) + len + 0.01;
+      const x0 = (b.x0 ?? 0) - 0.01,
+        x1 = (b.x0 ?? 0) + len + 0.01;
       const ys = polys.flat().map((q) => q.y);
       const xs = polys.flat().map((q) => q.x);
-      if (Math.max(...xs) > x1) {
-        const box = [[Math.min(...xs) - 1, Math.min(...ys) - 1], [x1, Math.min(...ys) - 1], [x1, Math.max(...ys) + 1], [Math.min(...xs) - 1, Math.max(...ys) + 1]].map(([x, y]) => ({ X: Math.round(x * SCALE), Y: Math.round(y * SCALE) }));
+      if (Math.max(...xs) > x1 || Math.min(...xs) < x0) {
+        const box = [[x0, Math.min(...ys) - 1], [x1, Math.min(...ys) - 1], [x1, Math.max(...ys) + 1], [x0, Math.max(...ys) + 1]].map(([x, y]) => ({ X: Math.round(x * SCALE), Y: Math.round(y * SCALE) }));
         const subj = polys.map((poly) => poly.map((q) => ({ X: Math.round(q.x * SCALE), Y: Math.round(q.y * SCALE) })));
         polys = execute(ClipperLib.ClipType.ctIntersection, subj, [box], ClipperLib.PolyFillType.pftEvenOdd)
           .filter((q) => q.length > 2)

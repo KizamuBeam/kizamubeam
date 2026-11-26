@@ -341,7 +341,7 @@ export interface MateWorld {
   b: [Pt, Pt, Pt];
   out?: boolean;
   lap?: { ua: number; ub: number; da: number; db: number };
-  /** Finger joint between a curve and a straight edge: see Mate.bend in model.ts (path in world coordinates) */
+  /** Finger joint or tenon and slot between a curve and a straight edge: see Mate.bend in model.ts (path in world coordinates) */
   bend?: { on: 0 | 1; path: Pt[]; x0: number; z: number };
 }
 
@@ -351,7 +351,7 @@ export interface MateWorld {
  */
 export function jointMate(picks: JointEdge[], o: JointOptions): MateWorld | null {
   if (picks.length < 2 || picks[0].obj === picks[1].obj) return null;
-  // A straight edge on a curve: the strip is bent round it in the 3D view (finger joints only)
+  // A straight edge on a curve: the strip is bent round it in the 3D view (finger joints, tenon and slot)
   if (picks.some(isCurvedEdge)) {
     const bend = curveMate(picks, o);
     if (!bend) return null;
@@ -362,9 +362,14 @@ export function jointMate(picks: JointEdge[], o: JointOptions): MateWorld | null
         return [q[0], q[Math.floor(q.length / 2)], q[Math.floor(q.length / 4)]];
       }
       const e = edgeGeom(p, p.subs);
+      if (o.kind === 'tenon' && i === 1) {
+        // Slots in the strip: its line is the middle line of the slots, as with straight edges
+        const v = (e.closed ? -1 : 1) * o.slotOffset;
+        return [at(e, 0, v), at(e, e.len, v), at(e, e.len / 2, v - 1)];
+      }
       return [e.a, e.b, at(e, e.len / 2, -1)];
     };
-    return { a: ends(picks[0], 0), b: ends(picks[1], 1), ...(o.direction === 'out' ? { out: true } : {}), bend };
+    return { a: ends(picks[0], 0), b: ends(picks[1], 1), ...(o.kind === 'finger' && o.direction === 'out' ? { out: true } : {}), bend };
   }
   const subs = picks.map((p) => p.subs);
   const [g, s] = picks.map((p, i) => edgeGeom(p, subs[i]));
