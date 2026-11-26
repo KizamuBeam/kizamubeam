@@ -75,7 +75,8 @@ import { buildAppsPanel, openAppsPanel } from './appsPanel';
 import { installSketchPanel } from './sketchPanel';
 import { isSketchObj } from './editor/sketch';
 import { loadRightPan } from './editor/pointer';
-import { dockWindow, initDock, isHidden, resetLayout, toggleWindow, showWindow, windowList } from './dock';
+import { dockWindow, initDock, isHidden, resetLayout, setDockWorkspaceHidden, toggleWindow, showWindow, windowList } from './dock';
+import { machine } from './machine';
 
 import { REL_HINTS, REL_LABELS, REL_MODES, RelMode } from './relations';
 import { Action, BarKey, barNames, initToolbars, isBarHidden, openToolbarDialog, refreshBars, SEP, setToolbarControls, showAllBars, toggleBar } from './toolbars';
@@ -140,7 +141,13 @@ export function buildUI(ed: Editor) {
   bindEditorToolbarDialogs(ed, {
     corner: () => openCornerDialog(ed), adjust: () => openAdjustDialog(ed), trace: () => openTraceDialog(ed),
   });
-  setToolbarControls(createEditorToolbarControls(ed, refreshBars));
+  const controls = createEditorToolbarControls(ed, refreshBars);
+  const sketch = installSketchPanel(ed);
+  setToolbarControls({
+    definitions: { bars: [...controls.definitions.bars, ...sketch.definitions.bars], groups: [...controls.definitions.groups, ...sketch.definitions.groups] },
+    controls: [...controls.controls, ...sketch.controls], actions: sketch.actions, contextual: sketch.contextual, visibleInWorkspace: sketch.visibleInWorkspace,
+    dispose() { controls.dispose(); sketch.dispose(); },
+  });
   buildBars(ed);
   buildLayers(ed);
   const contextCallbacks = {
@@ -161,6 +168,11 @@ export function buildUI(ed: Editor) {
   setTimeout(() => maybeCheckForUpdates(), 5000);
   initSync(ed);
   initDock();
+  // Don't obscure stop controls while a machine job or test fire still needs attention.
+  const refreshDockWorkspace = () => setDockWorkspaceHidden(!!ed.sketchEdit && !machine.running && !machine.fire.locked);
+  ed.on(refreshDockWorkspace);
+  machine.on((event) => { if (event.type !== 'line') refreshDockWorkspace(); });
+  refreshDockWorkspace();
   registerCoreSettings(ed, {
     theme: () => themeMode,
     setTheme: (m) => applyTheme(ed, m),
@@ -186,9 +198,9 @@ export function buildUI(ed: Editor) {
   // 3D-Modelle aus der automatischen Sicherung kommen etwas später: 3D-Ansicht und Prüfung neu zeichnen
   onMeshReady(() => ed.emit('doc'));
   onImageResourceReady(() => ed.emit('doc'));
+  ed.onGridArray = () => openGridArrayDialog(ed);
   ed.onBarcodeEdit = (o) => editBarcode(ed, o);
   ed.onGenEdit = (o) => (o.shape.kind === 'gen' && o.shape.gen === PATTERN_GEN_ID ? openPatternDialog(ed, { edit: o }) : o.shape.kind === 'gen' && isContourOffsetGenerator(o.shape.gen) ? openContourOffsetDialog(ed) : o.shape.kind === 'gen' && isSlotGenerator(o.shape.gen) ? openSlotPlacementDialog(ed, o) : isSketchObj(o) ? void ed.editSketch(o) : openGenDialog(ed, '', o));
-  installSketchPanel(ed);
   ed.onGenGuard = askGenConvert;
   ed.onJointDialog = () => openJointDialog(ed);
   ed.onRelDistance = (cur) => askDistance(cur);
@@ -448,7 +460,7 @@ function buildMenu(ed: Editor) {
       ] },
       { sub: t('Hilfslinien'), items: [
         [t('Hilfslinien anzeigen'), '', () => ed.setGuideLayer({ hidden: ed.guidesShown() }), () => ed.guidesShown()],
-        [t('Hilfslinien sperren'), '', () => ed.setGuideLayer({ locked: !ed.doc.guidesLocked }), () => !!ed.doc.guidesLocked],
+        [t('Hilfslinien sperren'), '', () => ed.setGuideLayer({ locked: !ed.guidesLocked() }), () => ed.guidesLocked()],
         [t('Alle Hilfslinien löschen'), '', () => ed.clearGuides()],
       ] },
       'sep',

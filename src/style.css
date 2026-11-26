@@ -629,6 +629,7 @@ select:focus {
 .toolbar-dock-zone[data-edge='left'] .toolbar-dock-lane,
 .toolbar-dock-zone[data-edge='right'] .toolbar-dock-lane { flex-direction: column; }
 .toolbar-dock-lane:empty { display: none; }
+.toolbar-dock-lane:not(:has(> :not([hidden]))) { display: none; }
 .toolbar-layout-shell { display: flex; align-items: center; min-width: 0; min-height: 0; max-width: 100%; max-height: 100%; gap: 2px; }
 .toolbar-layout-shell[hidden] { display: none !important; }
 .toolbar-layout-shell[data-orientation='horizontal'] { flex-direction: row; }
@@ -1584,6 +1585,18 @@ dialog::backdrop {
 .offset-dialog {
   margin: 110px 330px auto auto;
 }
+.sketch-polyline-dialog {
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+}
+.sketch-polyline-dialog fieldset {
+  min-width: 0;
+  margin: 6px 0;
+  border: 1px solid var(--line);
+}
+.sketch-polyline-dialog label { display: inline-block; margin: 2px 6px 2px 0; }
+.sketch-polyline-dialog .dialog-buttons { flex-wrap: wrap; }
 /* Modeless Bild-Dialog über der Andockleiste halten: .dock-edge (z-index 3)
    malt und klickt sonst durch den Dialog (Titel-Tooltip, Übernehmen blockiert) */
 .image-crop-dialog {
@@ -5687,55 +5700,76 @@ input.jig-count {
   width: 70px;
 }
 
-/* Skizzenmodus: Leiste oben über der Arbeitsfläche */
-.sketch-bar {
-  position: absolute;
-  z-index: 12;
-  top: 8px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 10px;
-  max-width: calc(100% - 16px);
-  padding: 6px 10px;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgb(0 0 0 / 0.18);
-  font-size: calc(12px * var(--ty-interface));
+/* Contextual Sketch toolbar. The shell (including the grip) is shared. */
+.sketch-edit-bar[data-placement='dock'][data-orientation='horizontal'] { flex: 1; min-inline-size: 0; }
+.sketch-bar > .toolbar-view { display: block; }
+.sketch-edit-bar[data-placement='dock'][data-orientation='horizontal'] > .toolbar-view { flex: 1; min-inline-size: 0; container: sketch / inline-size; }
+.sketch-form-bar > .toolbar-view { display: flex; flex-direction: column; align-items: center; }
+.sketch-row, .sketch-direct-scroll, .sketch-direct, .sketch-triggers, .sketch-sessions, .sketch-options { display: flex; align-items: center; gap: 3px; }
+.sketch-direct-scroll { flex: 1 1 auto; min-inline-size: 0; overflow: auto; }
+.sketch-direct { flex: none; }
+.sketch-direct + .sketch-direct { border-inline-start: 1px solid var(--line); margin-inline-start: 3px; padding-inline-start: 6px; }
+.sketch-row > :not(.sketch-direct-scroll) { flex: none; }
+.sketch-options { padding: 3px 0; flex-wrap: wrap; }
+.sketch-options[hidden], .sketch-options [hidden], .sketch-popup [hidden], .sketch-popup[hidden] { display: none; }
+.sketch-trigger { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+.sketch-trigger > span:first-child { display: inline-flex; }
+.sketch-solver > span:last-child { font-variant-numeric: tabular-nums; }
+.sketch-solver.bad { color: var(--danger, #c93e3e); font-weight: bold; }
+.toolbar-popup.toolbar-menu.sketch-popup {
+  position: fixed; inset: auto; margin: 0;
+  box-sizing: border-box; min-inline-size: min(220px, calc(100vw - 8px));
+  inline-size: min(23em, calc(100vw - 8px)); max-block-size: min(65vh, calc(100vh - 8px)); color: var(--text);
 }
-.sketch-bar[hidden] {
-  display: none;
+.sketch-popup h4 { margin: 4px 0; }
+.sketch-popup section + section { margin-block-start: 8px; }
+.sketch-issue { display: flex; flex-direction: column; gap: 2px; padding: 3px 0; }
+.sketch-issue + .sketch-issue { border-block-start: 1px solid var(--line); }
+.sketch-issue strong { font-weight: 600; }
+.sketch-issue > span { color: var(--muted, var(--text)); font-size: 0.92em; }
+.sketch-edit-bar[data-orientation='vertical'] :is(.sketch-row, .sketch-direct-scroll, .sketch-sessions, .sketch-options) { flex-direction: column; align-items: stretch; }
+.sketch-edit-bar[data-orientation='vertical'] .sketch-direct { display: grid; grid-template-columns: repeat(2, max-content); }
+.sketch-edit-bar[data-orientation='vertical'] .sketch-direct + .sketch-direct { border: 0; margin: 0; padding: 0; }
+.sketch-bar .sketch-more { display: none; }
+.sketch-bar[data-orientation='vertical'] .sketch-triggers { display: none; }
+.sketch-bar[data-orientation='vertical'] .sketch-more { display: inline-flex; }
+@container sketch (max-width: 56em) {
+  .sketch-bar .sketch-triggers { display: none; }
+  .sketch-bar .sketch-more { display: inline-flex; }
 }
-.sketch-group {
-  display: flex;
-  gap: 2px;
+@media (max-width: 760px) {
+  .sketch-bar[data-placement='floating'] .sketch-triggers { display: none; }
+  .sketch-bar[data-placement='floating'] .sketch-more { display: inline-flex; }
 }
-.sketch-group .btn {
-  min-width: 28px;
-  padding: 3px 6px;
-  font-size: calc(14px * var(--ty-interface));
-  line-height: 1;
-}
-.sketch-bar .btn.on {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-}
-.sketch-status {
-  min-width: 110px;
-  color: #2f6fe8;
-  font-variant-numeric: tabular-nums;
-}
-.sketch-status.full {
-  color: var(--text);
-  font-weight: 600;
-}
-.sketch-status.bad {
-  color: #d03a3a;
-  font-weight: 600;
-}
+.sketch-bar .sketch-session-action { white-space: nowrap; }
+
+/* Skizzen-Seitenkarte: schwebendes Standard-Panel rechts. Nur Layout; alle Aktionen/Flags bleiben. */
+.sketch-side-card { display: flex; flex-direction: column; gap: 8px; inline-size: min(288px, calc(100vw - 48px)); padding: 10px 12px; background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 4px 16px var(--shadow, rgba(0, 0, 0, 0.25)); }
+/* CAD-Fenster: schwebendes Standard-Fenster im Stil der Skizzen-Seitenkarte.
+   Rahmen für alle Fenster im CAD-Modus (Titel, Einklappen, Schließen, Ziehen per Kopf). */
+.cad-window { position: fixed; z-index: 60; }
+.cad-window .sketch-side-head { cursor: move; user-select: none; -webkit-user-select: none; touch-action: none; }
+.cad-window .sketch-side-head button { cursor: pointer; }
+.sketch-side-head { display: flex; align-items: center; gap: 4px; }
+.sketch-side-name { flex: 1 1 auto; min-inline-size: 0; margin: 0; font-size: 1em; overflow-wrap: anywhere; }
+.sketch-side-head .ib { flex: none; min-inline-size: 24px; min-block-size: 24px; }
+.sketch-side-body { display: flex; flex-direction: column; gap: 8px; min-inline-size: 0; }
+.sketch-side-body[hidden] { display: none; }
+.sketch-side-status { margin: 0; overflow-wrap: anywhere; }
+.sketch-side-progress { inline-size: 100%; min-block-size: 8px; }
+.sketch-side-segment { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; align-items: stretch; }
+.sketch-side-segment .sketch-side-type { inline-size: 100%; height: auto; min-block-size: 48px; padding: 4px 2px; font-size: 11px; line-height: 1.25; text-align: center; overflow-wrap: normal; hyphens: auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; }
+.sketch-side-segment .sketch-side-type svg { width: 24px; height: 24px; flex: none; }
+.sketch-side-segment .sketch-side-type.on { background: var(--accent-soft); border-color: var(--accent); color: var(--text); }
+.sketch-side-card label.check { display: flex; align-items: center; gap: 8px; inline-size: 100%; min-block-size: 24px; }
+.sketch-side-card label.check input { order: 2; margin-inline-start: auto; inline-size: 16px; block-size: 16px; flex: none; }
+.sketch-side-more { margin: 0; border-block-start: 1px solid var(--line); padding-block-start: 4px; }
+.sketch-side-more > summary { cursor: pointer; min-block-size: 24px; }
+.sketch-side-finish { inline-size: 100%; background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.sketch-side-row { display: flex; gap: 6px; }
+.sketch-side-row > * { flex: 1 1 0; min-inline-size: 0; overflow-wrap: anywhere; }
+.sketch-side-card :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+@media (prefers-reduced-motion: reduce) { .sketch-side-card * { transition: none !important; animation: none !important; } }
 
 /* Einstellungen übertragen (syncDialog.ts) */
 .sync-dialog { max-width: 620px; }

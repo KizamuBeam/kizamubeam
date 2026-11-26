@@ -90,11 +90,10 @@ check('unassign on a dangling link reports problem and fix without changing the 
 });
 
 check('assign uses the image world matrix under zoom/offset (non-identity)', () => {
-  // Two-page setup gives the image a parent matrix so worldMatrix() != o.m.
+  // The group nests the image so its world matrix differs from its local one.
   const img = imageObj(), c = pathObj();
-  const { ed, find } = fixture([img, c], [img, c]);
-  const W = [1.5, 0.3, -0.2, 0.9, 40, -15] as const;
-  ed.worldMatrix = (o: Obj) => (o === img ? [...W] : o.m);
+  const { ed, find } = fixture([{ id: 9000, m: [1.5, 0.3, -0.2, 0.9, 40, -15], layer: 0,
+    shape: { kind: 'group', children: [img] } } as Obj, c], [img, c]);
   find('assign-image-cut')!.run();
   assert.deepEqual(cut(img), { mode: 'contour', contourId: c.id });
   const nodes = (c.shape as { subs: { nodes: { x: number; y: number }[] }[] }).subs[0].nodes;

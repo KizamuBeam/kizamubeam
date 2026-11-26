@@ -13,6 +13,10 @@ export function geomText(f: Pick<GeomIssue, 'code' | 'values'>): string {
       return t('Diese Kontur würde zweimal geschnitten (deckungsgleiches Objekt).');
     case 'double':
       return t('{len} mm würden zweimal geschnitten (deckungsgleiche Linien).', { len: fmt(v.len ?? 0) });
+    case 'double-self':
+      return t('Dieser Pfad fährt dieselbe Schnittstrecke mehrfach ab.');
+    case 'crossing':
+      return t('Schnittlinien kreuzen sich an den markierten Stellen.');
     case 'unjoined':
       return tn(
         'Diese Linie bildet einen Umriss, ist aber nicht verbunden: Kerf und Füllen wirken nur auf geschlossene Formen.',
@@ -34,7 +38,7 @@ export function geomText(f: Pick<GeomIssue, 'code' | 'values'>): string {
   }
 }
 
-const GEOM_CODES = new Set<string>(['double', 'double-whole', 'unjoined', 'open', 'open-fill', 'hole-lost', 'hole-small', 'web', 'web-cut']);
+const GEOM_CODES = new Set<string>(['double', 'double-whole', 'double-self', 'crossing', 'unjoined', 'open', 'open-fill', 'hole-lost', 'hole-small', 'web', 'web-cut']);
 
 /** Text of a finding of the host function check of plugins (code check-<what>, #388); undefined for other codes */
 export function checkCodeText(code: string, values?: Record<string, unknown>): string | undefined {

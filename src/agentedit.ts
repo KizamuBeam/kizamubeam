@@ -1198,7 +1198,7 @@ export const EDIT_TOOLS: ToolDef[] = [
           const e = m && names.has(m[1]) ? entOf(sk, names.get(m[1])!) : undefined;
           if (e && m) {
             const k = m[2];
-            const id = e.t === 'line' ? (k === 'a' ? e.a : k === 'b' ? e.b : undefined) : e.t === 'circle' ? (k === 'c' ? e.c : undefined) : (k === 'c' ? e.c : k === 's' ? e.s : k === 'e' ? e.e : undefined);
+            const id = e.t === 'line' ? (k === 'a' ? e.a : k === 'b' ? e.b : undefined) : e.t === 'circle' ? (k === 'c' ? e.c : undefined) : e.t === 'arc' ? (k === 'c' ? e.c : k === 's' ? e.s : k === 'e' ? e.e : undefined) : undefined;
             if (id !== undefined) return id;
           }
         }

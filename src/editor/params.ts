@@ -8,6 +8,8 @@ import {
   coerce, defaultValue, evaluate, hasPlaceholders, nameError, ParamType, ProjectParam, renameInExpr, renameInTemplate, Scope, scopeOf, usesName,
 } from '../params';
 import { t } from '../i18n';
+import { evalExpr } from '../dom';
+import { normalizeDimUnits, splitDimAssignment } from '../sketch/model';
 import type { Editor } from '../editor';
 import { normalizeTemplate, TemplateInfo } from '../templates';
 import { renameSketchParam, sketchUsesParam } from './sketch';
@@ -21,8 +23,8 @@ export class EditorParams {
     const k = name.toLowerCase();
     return this.paramList().find((p) => p.name.toLowerCase() === k);
   }
-  /** Neuer Parameter; ohne Namen „Zahl1“, „Text1“ … */
-  addParam(this: Editor, type: ParamType, init: Partial<ProjectParam> = {}): ProjectParam {
+  /** Neuer Parameter; ohne Namen „Zahl1“, „Text1“ … undo = false: ohne eigenen Schritt (Teil eines größeren Durchgangs, z. B. Bemaßung) */
+  addParam(this: Editor, type: ParamType, init: Partial<ProjectParam> = {}, undo = true): ProjectParam {
     const base = init.name || { number: t('Zahl'), text: t('Text'), bool: t('Schalter') }[type];
     let name = base;
     if (!init.name) for (let i = 1; this.findParam(name) || nameError(name, this.paramList()); i++) name = `${base}${i}`;
@@ -30,7 +32,7 @@ export class EditorParams {
     if (err) throw new Error(err);
     const p: ProjectParam = { ...init, name, type, value: defaultValue(type) };
     p.value = coerce(p, init.value ?? p.value);
-    this.snapshot(t('Parameter „{name}“ anlegen', { name }));
+    if (undo) this.snapshot(t('Parameter „{name}“ anlegen', { name }));
     (this.doc.params ??= []).push(p);
     this.emit('doc');
     return p;
@@ -377,3 +379,100 @@ export const BIND_LABEL = (): Record<ObjBindKey, string> => ({
   x: 'X', y: 'Y', w: t('Breite'), h: t('Höhe'), rot: t('Drehung'), r: t('Eckenradius'), sides: t('Ecken'), size: t('Schriftgröße'),
   maxW: t('Max. Breite'), maxH: t('Max. Höhe'),
 });
+
+/**
+ * Param-Intent aus readDimField einlösen, ohne eigenen Verlaufsschritt.
+ * Owned dimension inputs call this only after sketchChange snapshots the original document;
+ * trial solves use dimParamScope instead of mutating parameters or dependent geometry.
+ */
+export function materializeDimParam(ed: Editor, pending: { name: string; value: number }) {
+  const existing = ed.findParam(pending.name);
+  if (existing) ed.setParamValue(existing, pending.value, false);
+  else ed.addParam('number', { name: pending.name, value: pending.value }, false);
+}
+
+/** Resolve a pending assignment exactly as materialization would, without changing the document. */
+export function dimParamScope(ed: Editor, pending?: { name: string; value: number }): Scope {
+  if (!pending) return scopeOf(ed.paramList());
+  const existing = ed.findParam(pending.name);
+  const parameter: ProjectParam = existing ? { ...existing, value: coerce(existing, pending.value) }
+    : { name: pending.name, type: 'number', value: pending.value };
+  return scopeOf([...ed.paramList().filter((p) => p !== existing), parameter]);
+}
+
+/** Eingabe aus der Wertbox auflösen: Zahl, Rechnung, Formel oder `name = wert` (nur Intent, keine Anlage) */
+export function readDimField(ed: Editor, src: string, unit: string): { v: number; expr?: string; pendingParam?: { name: string; value: number } } | { error: string } {
+  const text = normalizeDimUnits(src.trim());
+  const assign = splitDimAssignment(text);
+  if (assign) {
+    const existing = ed.findParam(assign.name);
+    if (existing && existing.type !== 'number') return { error: t('„{name}“ ist kein Zahlenparameter.', { name: existing.name }) };
+    if (!existing) {
+      const err = nameError(assign.name, ed.paramList());
+      if (err) return { error: err };
+    }
+    let v: unknown;
+    try {
+      v = evaluate(assign.expr, scopeOf(ed.paramList()));
+    } catch (e) {
+      return { error: t('Ungültiger Wert: {msg}', { msg: e instanceof Error ? e.message : String(e) }) };
+    }
+    if (typeof v !== 'number' || !isFinite(v)) return { error: t('„{expr}“ ergibt keine Zahl.', { expr: assign.expr }) };
+    return { v, expr: existing?.name ?? assign.name, pendingParam: { name: assign.name, value: v } };
+  }
+  const n = evalExpr(text);
+  if (n !== null && isFinite(n)) {
+    if (!(n > 0) && unit === 'mm') return { error: t('Der Wert muss größer als 0 sein.') };
+    return { v: n };
+  }
+  // Formel mit Projekt-Parametern (Einheiten wie mm, cm, 1 in versteht evaluate)
+  try {
+    const v = evaluate(text, scopeOf(ed.paramList()));
+    if (typeof v !== 'number' || !isFinite(v)) throw new Error(t('Keine Zahl'));
+    return { v, expr: text };
+  } catch (e) {
+    return { error: t('Ungültiger Wert: {msg}', { msg: e instanceof Error ? e.message : String(e) }) };
+  }
+}
+
+/**
+ * Legacy input callbacks may still materialize `name = value` before returning. If no
+ * dimension commits, roll back their parameter changes. Owned inputs return an intent instead:
+ * sketchChange validates against dimParamScope, snapshots, then materializes it atomically.
+ * Erfolg heißt: ein Verlaufsschritt liegt vor. Die Skizzen-Geometrie wird bewusst nicht
+ * verglichen: applyParams löst referenzierte Maße nach einer Wertänderung sofort neu, sodass
+ * sich die Skizze auch ohne neues Maß ändern kann.
+ */
+export async function withDimParamRollback(ed: Editor, run: () => Promise<void>): Promise<void> {
+  const s = ed.sketchEdit;
+  const before = ed.paramList().map((p) => ({ p, value: p.value }));
+  const keep = new Set(before.map((b) => b.p));
+  const position = ed.history.position;
+  try {
+    await run();
+  } finally {
+    if (!s || ed.sketchEdit !== s) return;
+    // Ein neuer Schritt heißt: sketchChange hat den Maß-Con committed — Param bleibt.
+    if (ed.history.position !== position) return;
+    let touched = false;
+    for (const { p, value } of before) if (p.value !== value) { p.value = value; touched = true; }
+    if (ed.paramList().length !== before.length || ed.paramList().some((p) => !keep.has(p))) {
+      const survivors = ed.paramList().filter((p) => keep.has(p));
+      if (survivors.length) ed.doc.params = survivors;
+      else delete ed.doc.params;
+      touched = true;
+    }
+    if (touched) { ed.applyParams(); ed.emit('doc'); }
+  }
+}
+
+const dimGuarded = new WeakSet<Editor>();
+/** Sichert addSketchDim/editSketchDim gegen Param-Reste aus abgelehnten `name = wert`-Eingaben ab. */
+export function guardDimParams(ed: Editor) {
+  if (dimGuarded.has(ed)) return;
+  dimGuarded.add(ed);
+  const origAdd = ed.addSketchDim.bind(ed);
+  ed.addSketchDim = ((...args: Parameters<Editor['addSketchDim']>) => withDimParamRollback(ed, () => origAdd(...args))) as Editor['addSketchDim'];
+  const origEdit = ed.editSketchDim.bind(ed);
+  ed.editSketchDim = ((...args: Parameters<Editor['editSketchDim']>) => withDimParamRollback(ed, () => origEdit(...args))) as Editor['editSketchDim'];
+}

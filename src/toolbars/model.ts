@@ -21,6 +21,8 @@ export interface BarDefinition {
   id: string;
   label: string;
   items: Item[];
+  /** Contextual controls own their commands; retain placement but refresh their fixed contents. */
+  fixedItems?: boolean;
   layout: ViewLayout;
   iconSize?: IconSize;
   visible?: boolean;

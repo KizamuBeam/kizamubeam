@@ -8,12 +8,31 @@ import { bezierPt, Box, boundsOf, drawText, localPath, segments, shapeSubs, subs
 import { SNAP_LABELS } from '../snap';
 import { shapeCenters, shownMark } from '../arcs';
 import { measureOf, RelElem } from '../relations';
-import { entOf, isDim, measureCon, pointPair, ptOf, SkCon } from '../sketch/model';
-import { CON_GLYPHS } from './sketch';
+import { coincidentRoots, entOf, isDim, measureCon, ptOf, sketchSubs, SkCon } from '../sketch/model';
+import type { Sketch } from '../sketch/model';
+import { infiniteLineEnds, isConstructionGeometry, isEntVisible, sketchVisibilityOf } from '../sketch/sidepanel';
+import { dimensionSegment } from '../sketch/dimensionPlacement';
+import { solveDiagnostics } from '../sketch/diagnostics';
+import { planSmoothOffset } from '../sketch/smoothOffset';
+import { planSplitInset } from '../sketch/splitInset';
+import { sketchPolylineArc } from '../sketch/polyline';
+import { CON_GLYPHS, PATTERN_PREVIEW_SUB_CAP, cachedPatternPreviewGeom, isSketchCircleTool, isSketchLineEdit, isSketchShapePlacement, isSketchTransform, patternBadgeAnchor, patternParamResolver, patternSpacingArrows } from './sketch';
+import { gestureSpline } from '../shaperSpline';
+import { sketchRigidMatrix, transformedSketch } from '../sketch/transform';
+import { planSketchCircleOffset } from '../sketch/circleOffset';
+import { sketchSlotAxis, sketchSlotWidth } from '../sketch/slot';
+import { arcSlotCenterPreview, arcSlotThroughPreview } from '../sketch/slotModes';
+import { roundedRectangleSize } from '../sketch/roundedRectangle';
+import { sketchPolygonEdgeVertices, sketchPolygonVertices } from '../sketch/polygon';
+import { centerCornerRectCorners, threePointRectCorners } from '../sketch/rectModes';
+import { refEndDir, tangentArcPreview } from '../sketch/arcTangent';
+import { twoTangentPreview } from '../sketch/circleModes';
+import type { SketchConstrMode } from '../sketch/constrLines';
+import { arcNodes } from '../sketch/model';
 import { dec, t } from '../i18n';
+import { degreeNumber } from '../sketchDimensionInput';
 import type { Editor } from '../editor';
 import { RULER, HANDLE_OFF, cachedWorldPath, SNAP_COLOR } from './shared';
-import { gestureSpline } from '../shaperSpline';
 import { curvaturePreview } from './vector';
 import { arcSubPath } from './arc';
 import { GRID_MIN_PX, gridLevels, gridLines, LEVEL_ALPHA } from '../grid';
@@ -91,6 +110,18 @@ function closedPath(subs: SubPath[], m: Mat): Path2D {
   const p = new Path2D();
   p.addPath(subsToPath2D(subs.filter((sp) => sp.closed)), new DOMMatrix(m));
   return p;
+}
+
+/** Punkt-Modi des Konstruktionslinien-Werkzeugs (Entwurf ab erstem Punkt als Linie vorschauen). */
+function isPointConstrMode(mode: SketchConstrMode | undefined): boolean {
+  return mode === undefined || mode === 'free' || mode === 'horizontal' || mode === 'vertical' || mode === 'angle';
+}
+
+/** Vorschau des Tangentenbogens (Start + Referenz + Cursor); null ohne gültige Lage. */
+function tangentArcDraft(sk: Sketch, refId: number, start: Pt, startId: number | null, cursor: Pt, flip: boolean) {
+  if (startId == null) return null;
+  const dir = refEndDir(sk, refId, startId);
+  return dir ? tangentArcPreview(start, dir, cursor, flip) : null;
 }
 
 // Anzeigewünsche der Arbeitsfläche (Phase 3 der Settings-Quick-Wins): eigenes Thema-unabhängiges
@@ -227,6 +258,47 @@ const fmt = (v: number) => (Math.abs(v) < 1e-9 ? '0' : String(Math.round(v * 100
 /** Anker- und Anfasser-Markierungen für den Zeichen-Draft (Geisterknoten ausgenommen). */
 export function draftHandleMarks(nodes: Node[], count: number): { anchor: Node; arms: Pt[] }[] {
   return nodes.slice(0, count).map((n) => ({ anchor: n, arms: [n.cin, n.cout].filter((p): p is Pt => !!p) }));
+}
+
+/**
+ * Skizzen-Bestimmungsfarben (Strich): unterbestimmt = klar gesättigtes Blau, unbekannt =
+ * entsättigtes Neutralgrau. Pfirsich markiert nur offene Enden (Marker), nie den Strich.
+ * Hell: Blau #2866b2 (gesättigt) vs. Grau #5a5a5a (achromatisch, dunkler als das vorige
+ * bläuliche #606d7d). Dunkel: Blau #83b3f5 vs. Grau #8a8a8a (entsättigt gegenüber #a2aab7,
+ * dunkler für Abstand zum fast weißen Neutral #e4e9f0). Alle Werte sind paarweise verschieden
+ * und liegen im Farbton weit weg von Konflikt-Rot (#b52626/#ff7777) und Auswahl-Orange (#ff6020).
+ */
+export const SKETCH_STATE_COLORS = {
+  free: { light: '#2866b2', dark: '#83b3f5' },
+  unknown: { light: '#5a5a5a', dark: '#8a8a8a' },
+  openMarker: { light: '#FFC478', dark: '#E69A3C' },
+} as const;
+
+/**
+ * Offene Ketten-Enden (Grad 1 im Nicht-Hilfs-Profilgraphen, koinzidente Punkte vereint).
+ * Kreise/Ellipsen sind eigene geschlossene Umrisse, Konstruktionsgeometrie zählt nicht.
+ */
+export function sketchOpenEndPts(sk: Sketch): Pt[] {
+  const root = coincidentRoots(sk);
+  const degree = new Map<number, number>();
+  const ends: number[] = [];
+  for (const e of sk.ents) {
+    if (isConstructionGeometry(e) || e.t === 'point' || e.t === 'circle' || e.t === 'ellipse') continue;
+    const pair = e.t === 'line' ? [e.a, e.b] : [e.s, e.e];
+    for (const p of pair) {
+      degree.set(root(p), (degree.get(root(p)) ?? 0) + 1);
+      ends.push(p);
+    }
+  }
+  const seen = new Set<number>(), out: Pt[] = [];
+  for (const p of ends) {
+    const r = root(p);
+    if (degree.get(r) !== 1 || seen.has(r)) continue;
+    seen.add(r);
+    const q = ptOf(sk, p);
+    if (q) out.push(q);
+  }
+  return out;
 }
 
 export class EditorRender {
@@ -431,9 +503,10 @@ export class EditorRender {
       const p = cachedWorldPath(o, m);
       bt.stroke.addPath(p);
       if (fill) {
-        // Offene Pfade werden auf Füll-Layern nicht gefüllt
-        const s = o.shape;
-        bt.fillPath.addPath(s.kind !== 'path' || s.subs.every((sp) => sp.closed) ? p : closedPath(s.subs, m));
+        // Offene Pfade werden auf Füll-Layern nicht gefüllt (gilt auch für Generator-Formen
+        // wie offene Skizzenprofile, deren Umriss die Füllung sonst implizit schließen würde)
+        const subs = shapeSubs(o.shape);
+        bt.fillPath.addPath(subs.every((sp) => sp.closed) ? p : closedPath(subs, m));
       }
     }
     // Bilder liegen unter den Vektoren und zeigen das Ergebnis der Bildverarbeitung
@@ -878,7 +951,9 @@ export class EditorRender {
     }
     // Auswahlrahmen
     const b = this.selBounds();
-    if (b && this.tool !== 'node') {
+    // Im Skizzenmodus keine Dok-Auswahl zeigen: das Skizzen-Objekt bleibt beim
+    // Skizzeneintritt selektiert, Rahmen und Griffe wären dort tot (pointer.ts leitet alles an sketchDown).
+    if (b && this.tool !== 'node' && !this.sketchEdit) {
       const hs = this.handlePoints(b);
       ctx.strokeStyle = T.sel;
       ctx.lineWidth = 1;
@@ -971,7 +1046,7 @@ export class EditorRender {
     const d = this.drag;
     if (d && d.type === 'rotate') {
       const q = this.toScreen(this.cursor);
-      const label = `${d.angle.toFixed(1)}°`;
+      const label = `${degreeNumber(d.angle)}°`;
       // Arbeitsflächen-Skalierung: Schrift und Box wachsen gemeinsam (Baseline: 12/18/10/19)
       const fWs = groupFactor(this.typo, 'workspace');
       ctx.font = `${12 * fWs}px system-ui, sans-serif`;
@@ -1276,8 +1351,9 @@ export class EditorRender {
   }
 
   /**
-   * Skizzenmodus: übrige Arbeitsfläche abdunkeln, Elemente in Zustandsfarbe (blau = unterbestimmt, schwarz bzw. weiß =
-   * voll bestimmt, rot = Widerspruch), Hilfsgeometrie gestrichelt, Punkte, Beziehungssymbole und Bemaßungen.
+   * Skizzenmodus: übrige Arbeitsfläche abdunkeln, Elemente in Zustandsfarbe (blau = unterbestimmt, neutral =
+   * voll bestimmt, grau = nicht ausgewertet, Pfirsich-Marker = offenes Ende, rot = Widerspruch),
+   * Hilfsgeometrie gestrichelt, Punkte, Beziehungssymbole und Bemaßungen.
    */
   renderSketch(this: Editor, ctx: CanvasRenderingContext2D) {
     this.syncSketch();
@@ -1289,58 +1365,448 @@ export class EditorRender {
     ctx.save();
     ctx.fillStyle = this.dark ? 'rgba(18,20,24,0.6)' : 'rgba(255,255,255,0.62)';
     ctx.fillRect(RULER, RULER, this.w - RULER, this.h - RULER);
-    const full = s.status && s.status.ok && s.status.dof === 0;
-    const base = full ? (this.dark ? '#f2f2f2' : '#15181d') : '#1f6fe0';
-    const bad = new Set([...(s.status?.conflicting ?? []), ...(s.status?.redundant ?? [])]);
+    const base = this.dark ? '#e4e9f0' : '#222936';
+    const bad = new Set([...solveDiagnostics(s.status), ...(s.rejectedDiagnostics ?? [])].flatMap((issue) => issue.ids));
+    const conflicting = new Set(solveDiagnostics(s.status).filter((issue) => issue.kind === 'conflict').flatMap((issue) => issue.ids));
     const SEL = '#ff6020',
       DIM = '#d0451b';
-    const colorOf = (id: number) => (s.sel.has(id) ? SEL : s.hover?.id === id ? SNAP_COLOR : base);
+    const mode = this.dark ? 'dark' : 'light';
+    const related = new Set<number>(), conflictGeometry = new Set<number>();
+    for (const c of sk.cons) for (const id of c.r) {
+      if (s.sel.has(c.id) || s.hover?.id === c.id) related.add(id);
+      if (conflicting.has(c.id)) conflictGeometry.add(id);
+    }
+    const definitionColor = (id: number) => {
+      const state = s.status?.ok ? s.status.definition?.get(id) : undefined;
+      return state === 'fixed' ? base : state === 'free' ? SKETCH_STATE_COLORS.free[mode] : SKETCH_STATE_COLORS.unknown[mode];
+    };
+    const colorOf = (id: number) => conflictGeometry.has(id) ? (this.dark ? '#ff7777' : '#b52626')
+      : s.sel.has(id) ? SEL : s.hover?.id === id || related.has(id) ? SNAP_COLOR : definitionColor(id);
     // Elemente in Skizzenkoordinaten zeichnen
     const { zoom: z, ox, oy } = this.view;
     const m = s.m;
     const k = this.skScale() || 1;
+    const vis = sketchVisibilityOf(s);
+    // Sichtbarer Ausschnitt in Skizzenkoordinaten (für unendliche Linien).
+    const toSketch = (sx: number, sy: number) => apply(inv(m), (sx - ox) / z, (sy - oy) / z);
+    const corners = [toSketch(RULER, RULER), toSketch(this.w, this.h)];
+    const viewRect = {
+      minX: Math.min(corners[0].x, corners[1].x), minY: Math.min(corners[0].y, corners[1].y),
+      maxX: Math.max(corners[0].x, corners[1].x), maxY: Math.max(corners[0].y, corners[1].y),
+    };
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.transform(z, 0, 0, z, ox, oy);
     ctx.transform(m[0], m[1], m[2], m[3], m[4], m[5]);
     for (const e of sk.ents) {
+      // Sichtbarkeitsschalter des Seitenmenüs: reine Anzeige (kein Einfluss auf Geometrie/Ausgabe).
+      if (!isEntVisible(e, vis)) continue;
       ctx.beginPath();
-      if (e.t === 'line') {
+      if (e.t === 'point') {
+        if (!vis.points) continue;
+        // Einzelpunkt als bildschirmkonstantes X-Kreuz (kein Profil, keine Offen-Farbe)
+        const p = ptOf(sk, e.p);
+        if (!p) continue;
+        const h = 4 / k;
+        ctx.moveTo(p.x - h, p.y - h);
+        ctx.lineTo(p.x + h, p.y + h);
+        ctx.moveTo(p.x - h, p.y + h);
+        ctx.lineTo(p.x + h, p.y - h);
+      } else if (e.t === 'line') {
         const a = ptOf(sk, e.a),
           b = ptOf(sk, e.b);
         if (!a || !b) continue;
-        ctx.moveTo(a.x, a.y);
-        ctx.lineTo(b.x, b.y);
+        // Unendlich: über die Viewportgrenzen verlängert zeichnen (Solver sieht weiter die 2-Punkt-Linie).
+        const ends = e.infinite ? infiniteLineEnds(a, b, viewRect) : null;
+        const from = ends?.[0] ?? a, to = ends?.[1] ?? b;
+        ctx.moveTo(from.x, from.y);
+        ctx.lineTo(to.x, to.y);
       } else {
         const c = ptOf(sk, e.c);
         if (!c) continue;
         if (e.t === 'circle') ctx.arc(c.x, c.y, e.r, 0, Math.PI * 2);
-        else ctx.arc(c.x, c.y, e.r, e.a0, e.a1);
+        else if (e.t === 'arc') ctx.arc(c.x, c.y, e.r, e.a0, e.a1);
+        else {
+          // Volle Ellipse, rotiert um die Hauptachse (Mitte c → Ende m); aux gestrichelt wie Kreis.
+          const m = ptOf(sk, e.m);
+          if (!m) continue;
+          const dx = m.x - c.x, dy = m.y - c.y, major = Math.hypot(dx, dy);
+          if (!(major > 0) || !(e.r > 0)) continue;
+          ctx.ellipse(c.x, c.y, major, e.r, Math.atan2(dy, dx), 0, Math.PI * 2);
+        }
       }
       ctx.strokeStyle = colorOf(e.id);
       ctx.lineWidth = (s.sel.has(e.id) || s.hover?.id === e.id ? 2.5 : 1.6) / k;
-      ctx.setLineDash(e.aux ? [6 / k, 4 / k] : []);
+      // Mittellinie: Strich-Punkt; Hilfsgeometrie (aux): gestrichelt; sonst voll.
+      ctx.setLineDash(e.t === 'line' && e.centerline ? [12 / k, 4 / k, 2.5 / k, 4 / k] : e.aux ? [6 / k, 4 / k] : []);
       ctx.stroke();
     }
+    // Offene Enden: Pfirsich-Marker (bildschirmkonstant wie das Punkt-X-Kreuz), über Auswahl/Hover
+    // sichtbar, aber klein; ersetzt die Bestimmungs-Strichfarbe nicht.
+    const openEnds = sketchOpenEndPts(sk);
+    if (openEnds.length) {
+      ctx.save();
+      ctx.fillStyle = SKETCH_STATE_COLORS.openMarker[mode];
+      for (const p of openEnds) {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 3.5 / k, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+    // Muster-Badges (Phase 4): je Muster eine dezente Glyphe am Anker (Quellenschwerpunkt,
+    // sonst Kreismitte/erster Quellpunkt — siehe patternBadgeAnchor). Violett-Ring mit Punkt,
+    // eigene Farbe/Form gegenüber Vorschau (grün) und Pfeilen (orange/blau). Reine Anzeige:
+    // liest nur, mutiert nie den Input.
+    if (sk.patterns?.length) {
+      ctx.save();
+      ctx.strokeStyle = '#7a4fd0';
+      ctx.fillStyle = '#7a4fd0';
+      ctx.lineWidth = 1.6 / k;
+      for (const pattern of sk.patterns) {
+        const a = patternBadgeAnchor(sk, pattern);
+        if (!a) continue;
+        ctx.beginPath();
+        ctx.arc(a.x, a.y, 5 / k, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(a.x, a.y, 1.4 / k, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
     ctx.setLineDash([]);
+    if (s.polyline) {
+      const draft = s.polyline;
+      ctx.strokeStyle = SNAP_COLOR;
+      ctx.lineWidth = 1.2 / k;
+      ctx.setLineDash([5 / k, 3 / k]);
+      ctx.beginPath();
+      let from = draft.start;
+      ctx.moveTo(from.x, from.y);
+      const segment = (end: Pt, through?: Pt) => {
+        const arc = through && sketchPolylineArc(from, through, end);
+        if (arc && typeof arc !== 'string') {
+          const { center: c, radius, forward } = arc;
+          ctx.arc(c.x, c.y, radius, Math.atan2(from.y - c.y, from.x - c.x), Math.atan2(end.y - c.y, end.x - c.x), !forward);
+        } else if (!through) ctx.lineTo(end.x, end.y);
+        from = end;
+      };
+      for (const edge of draft.segments) segment(edge.end, edge.through);
+      if (this.cursorOnCanvas) {
+        if (s.polylineArc && !draft.through) ctx.moveTo(from.x, from.y);
+        segment(this.skFromWorld(this.cursor), draft.through);
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.arc(draft.start.x, draft.start.y, 4 / k, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    if (s.trimPreview) {
+      const plan = s.trimPreview;
+      ctx.beginPath();
+      ctx.strokeStyle = s.tool === 'extend' ? SNAP_COLOR : SEL;
+      ctx.lineWidth = 4 / k;
+      ctx.setLineDash([6 / k, 3 / k]);
+      if ('sides' in plan) {
+        const [a, b] = plan.sides.map((side) => side.cut);
+        if (plan.center) {
+          const c = plan.center, start = plan.reverse ? b : a, end = plan.reverse ? a : b;
+          ctx.arc(c.x, c.y, plan.size, Math.atan2(start.y - c.y, start.x - c.x), Math.atan2(end.y - c.y, end.x - c.x));
+        } else {
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b.x, b.y);
+        }
+      } else if ('splitAt' in plan) {
+        ctx.setLineDash([]);
+        ctx.strokeStyle = SNAP_COLOR;
+        ctx.arc(plan.splitAt.x, plan.splitAt.y, 5 / k, 0, Math.PI * 2);
+      } else if (!('stroke' in plan)) {
+        ctx.moveTo(plan.hit.x, plan.hit.y);
+        ctx.lineTo(plan.drop.x, plan.drop.y);
+      } else if ('center' in plan.stroke) {
+        const { center, radius, start, end } = plan.stroke;
+        ctx.arc(center.x, center.y, radius, start, end);
+      } else {
+        ctx.moveTo(plan.stroke.from.x, plan.stroke.from.y);
+        ctx.lineTo(plan.stroke.to.x, plan.stroke.to.y);
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    if ((s.tool === 'polyline' || s.tool === 'centerRect' || isSketchShapePlacement(s.tool) || isSketchCircleTool(s.tool) || isSketchLineEdit(s.tool)) && s.polylineKeys) {
+      const p = this.skFromWorld(isSketchLineEdit(s.tool) ? this.toWorld(s.polylineKeys.x, s.polylineKeys.y) : this.cursor);
+      ctx.strokeStyle = SNAP_COLOR;
+      ctx.lineWidth = 1.2 / k;
+      const r = 5 / k;
+      ctx.strokeRect(p.x - r, p.y - r, r * 2, r * 2);
+    }
+    if (s.translationPreview) {
+      const { delta, subs } = s.translationPreview;
+      ctx.save();
+      ctx.translate(delta.x, delta.y);
+      ctx.strokeStyle = SNAP_COLOR;
+      ctx.lineWidth = 1.2 / k;
+      ctx.setLineDash([5 / k, 3 / k]);
+      ctx.stroke(subsToPath2D(subs));
+      ctx.restore();
+    }
+    // Muster-Fenster: Kopien-Geometrie als grünes Overlay (auf geklontem Sketch berechnet — Dokument unberührt;
+    // Budget-Guard: pro Belegungs-Signatur höchstens einmal aufgebaut, höchstens PATTERN_PREVIEW_SUB_CAP Subs gezeichnet).
+    if (s.patternDraft) {
+      const preview = cachedPatternPreviewGeom(s.sk, s.patternDraft, patternParamResolver(this.doc.params));
+      if (preview && (preview.subs.length || preview.points.length)) {
+        ctx.save();
+        ctx.strokeStyle = '#1f9d55';
+        ctx.lineWidth = 1.2 / k;
+        ctx.setLineDash([5 / k, 3 / k]);
+        for (const sub of preview.subs.slice(0, PATTERN_PREVIEW_SUB_CAP)) ctx.stroke(subsToPath2D([sub]));
+        ctx.setLineDash([]);
+        const h = 4 / k;
+        for (const p of preview.points) {
+          ctx.beginPath();
+          ctx.moveTo(p.x - h, p.y - h);
+          ctx.lineTo(p.x + h, p.y + h);
+          ctx.moveTo(p.x - h, p.y + h);
+          ctx.lineTo(p.x + h, p.y - h);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+      // Abstands-Pfeile (nur Rechteck, gültige Belegung): je Richtung ein Pfeil ab dem
+      // Quellenschwerpunkt, eigene Farbe plus „1“/„2“-Beschriftung. Kreisfenster: kein Pfeil.
+      const arrows = patternSpacingArrows(s.sk, s.patternDraft, patternParamResolver(this.doc.params));
+      if (arrows?.length) {
+        const colors = ['#ff6020', '#1f6fe0'];
+        ctx.save();
+        ctx.lineWidth = 2 / k;
+        ctx.font = `${12 / k}px sans-serif`;
+        ctx.textBaseline = 'middle';
+        for (const a of arrows) {
+          const col = colors[a.dir] ?? colors[0];
+          const ex = a.origin.x + a.vec.x * a.spacing, ey = a.origin.y + a.vec.y * a.spacing;
+          const len = Math.hypot(ex - a.origin.x, ey - a.origin.y);
+          ctx.strokeStyle = col;
+          ctx.fillStyle = col;
+          ctx.beginPath();
+          ctx.arc(a.origin.x, a.origin.y, 3 / k, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.moveTo(a.origin.x, a.origin.y);
+          ctx.lineTo(ex, ey);
+          ctx.stroke();
+          if (len > 1e-9) {
+            const ux = (ex - a.origin.x) / len, uy = (ey - a.origin.y) / len;
+            const head = 8 / k, ang = Math.PI / 6;
+            const c = Math.cos(ang), si = Math.sin(ang);
+            ctx.beginPath();
+            ctx.moveTo(ex, ey);
+            ctx.lineTo(ex - head * (ux * c - uy * si), ey - head * (uy * c + ux * si));
+            ctx.moveTo(ex, ey);
+            ctx.lineTo(ex - head * (ux * c + uy * si), ey - head * (uy * c - ux * si));
+            ctx.stroke();
+            ctx.fillText(String(a.dir + 1), ex + (6 / k) * ux - 3 / k, ey + (6 / k) * uy);
+          }
+        }
+        ctx.restore();
+      }
+    }
+    if (isSketchTransform(s.tool) && (s.draft.length || s.mirrorLineMode)) {
+      const mirror = s.tool === 'mirror', cursor = this.skFromWorld(this.cursor);
+      const pointer = s.polylineKeys ?? s.snapPointer;
+      const axis = mirror && s.mirrorLineMode && pointer && (this.cursorOnCanvas || s.polylineKeys) ? this.sketchMirrorAxis(pointer.x, pointer.y) : undefined;
+      const m = axis ? sketchRigidMatrix(true, [axis[0]], axis[1]) : s.mirrorLineMode ? undefined : sketchRigidMatrix(mirror, s.draft, cursor);
+      const preview = m && transformedSketch(sk, s.sel, m, mirror);
+      ctx.save();
+      ctx.strokeStyle = SNAP_COLOR;
+      ctx.lineWidth = 1.2 / k;
+      ctx.setLineDash([5 / k, 3 / k]);
+      if (preview && 'sketch' in preview) ctx.stroke(subsToPath2D(sketchSubs({ ...preview.sketch, ents: preview.sketch.ents.filter((e) => s.sel.has(e.id)) })));
+      const [pivot, from] = axis ?? s.draft, end = axis?.[1] ?? cursor;
+      if (pivot) {
+        ctx.beginPath();
+        ctx.moveTo(pivot.x, pivot.y);
+        ctx.lineTo(end.x, end.y);
+        if (from && !axis) { ctx.moveTo(pivot.x, pivot.y); ctx.lineTo(from.x, from.y); }
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const scr = (p: { x: number; y: number }) => this.skToScreen(p);
+    if (s.frame || s.frameKeys) {
+      ctx.strokeStyle = SNAP_COLOR;
+      ctx.lineWidth = 1.2;
+      if (s.frame) {
+        const { from, to } = s.frame;
+        ctx.setLineDash(to.x < from.x ? [5, 3] : []);
+        ctx.strokeRect(from.x, from.y, to.x - from.x, to.y - from.y);
+        ctx.setLineDash([]);
+      }
+      if (s.frameKeys) ctx.strokeRect(s.frameKeys.x - 4, s.frameKeys.y - 4, 8, 8);
+    }
     // Zeichnen im Entstehen
-    if (s.draft.length && s.tool !== 'dim') {
+    if (s.draft.length && s.tool !== 'dim' && ((s.tool !== 'polygon' && !isSketchCircleTool(s.tool)) || this.cursorOnCanvas || s.polylineKeys || s.splitInsetPending)) {
       const cur = this.toScreen(this.cursor);
       const d0 = scr(s.draft[0]);
       ctx.strokeStyle = '#1f6fe0';
       ctx.lineWidth = 1.2;
       ctx.setLineDash([5, 3]);
       ctx.beginPath();
-      if (s.tool === 'line') {
+      if (s.tool === 'line' || (s.tool === 'constr' && isPointConstrMode(s.constrMode))) {
         const last = scr(s.draft[s.draft.length - 1]);
         ctx.moveTo(last.x, last.y);
         ctx.lineTo(cur.x, cur.y);
-      } else if (s.tool === 'rect') ctx.rect(d0.x, d0.y, cur.x - d0.x, cur.y - d0.y);
-      else if (s.tool === 'circle') ctx.arc(d0.x, d0.y, Math.hypot(cur.x - d0.x, cur.y - d0.y), 0, Math.PI * 2);
+      } else if (s.tool === 'polygon') {
+        const mode = s.polygonMode ?? 'inscribed';
+        const vertices = mode === 'edge'
+          ? sketchPolygonEdgeVertices(s.draft[0], this.skFromWorld(this.cursor), s.polygonSides ?? 6)
+          : sketchPolygonVertices(s.draft[0], this.skFromWorld(this.cursor), s.polygonSides ?? 6, mode);
+        vertices.forEach((vertex, i) => { const p = scr(vertex); if (i) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y); });
+        if (vertices.length) ctx.closePath();
+      } else if (s.tool === 'circleOffset') {
+        const id = s.draftIds[0] ?? -1, position = this.skFromWorld(this.cursor);
+        const split = s.splitInsetPending ?? planSplitInset(s.sk, id, position);
+        const plan = split ? undefined : planSketchCircleOffset(s.sk, id, position);
+        if (split) {
+          for (const points of split.contours) {
+            points.forEach((pt, i) => { const p = scr(pt); if (i) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y); });
+            ctx.closePath();
+          }
+        } else if (plan) {
+          const nodes = arcNodes(plan.center, plan.radius, 0, 2 * Math.PI);
+          const start = scr(nodes[0]);
+          ctx.moveTo(start.x, start.y);
+          for (let i = 1; i < nodes.length; i++) {
+            const a = scr(nodes[i - 1].cout!), b = scr(nodes[i].cin!), c = scr(nodes[i]);
+            ctx.bezierCurveTo(a.x, a.y, b.x, b.y, c.x, c.y);
+          }
+          ctx.closePath();
+        } else if (entOf(s.sk, id)?.t !== 'circle') {
+          const candidate = planSmoothOffset(s.sk, id, position);
+          if (candidate) for (const sub of sketchSubs(candidate)) {
+            const start = scr(sub.nodes[0]);
+            ctx.moveTo(start.x, start.y);
+            for (let i = 0; i < sub.nodes.length; i++) {
+              const a = sub.nodes[i], b = sub.nodes[(i + 1) % sub.nodes.length], end = scr(b);
+              if (a.cout || b.cin) {
+                const u = scr(a.cout ?? a), v = scr(b.cin ?? b);
+                ctx.bezierCurveTo(u.x, u.y, v.x, v.y, end.x, end.y);
+              } else ctx.lineTo(end.x, end.y);
+            }
+            ctx.closePath();
+          }
+        }
+      } else if (s.tool === 'slot') {
+        const slotMode = s.slotMode ?? 'centerToCenter';
+        const [a, b, c] = s.draft;
+        const edge = this.skFromWorld(this.cursor);
+        if (slotMode === 'arcCenter' || slotMode === 'arcThreePoint') {
+          const arc = slotMode === 'arcCenter'
+            ? arcSlotCenterPreview(a, b, c, edge)
+            : arcSlotThroughPreview(a, b, c, edge);
+          if (!arc) {
+            ctx.moveTo(d0.x, d0.y);
+            ctx.lineTo(cur.x, cur.y);
+          } else {
+            const nodes = arcNodes(arc.c, arc.r, arc.a0, arc.a1);
+            const first = scr(nodes[0]);
+            ctx.moveTo(first.x, first.y);
+            for (let j = 1; j < nodes.length; j++) {
+              const u = scr(nodes[j - 1].cout!), v = scr(nodes[j].cin!), w = scr(nodes[j]);
+              ctx.bezierCurveTo(u.x, u.y, v.x, v.y, w.x, w.y);
+            }
+          }
+        } else {
+          const q = b ?? (slotMode === 'overall' ? edge : sketchSlotAxis(a, edge, 4 / this.skScale(), !!s.linkedSnap));
+          const r = sketchSlotWidth(a, q, edge) / 2;
+          if (!b || !r) {
+            const end = scr(q);
+            ctx.moveTo(d0.x, d0.y);
+            ctx.lineTo(end.x, end.y);
+          } else {
+            const angle = Math.atan2(q.y - a.y, q.x - a.x) + Math.PI / 2;
+            for (const [i, [center, start]] of ([[a, angle], [q, angle + Math.PI]] as const).entries()) {
+              const nodes = arcNodes(center, r, start, start + Math.PI);
+              const p = scr(nodes[0]);
+              if (i) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y);
+              for (let j = 1; j < nodes.length; j++) {
+                const u = scr(nodes[j - 1].cout!), v = scr(nodes[j].cin!), w = scr(nodes[j]);
+                ctx.bezierCurveTo(u.x, u.y, v.x, v.y, w.x, w.y);
+              }
+            }
+            ctx.closePath();
+          }
+        }
+      } else if (s.tool === 'roundRect') {
+        const [center, corner] = s.draft, cursor = this.skFromWorld(this.cursor);
+        const { width, height, radius } = roundedRectangleSize(center, corner ?? cursor, corner ? cursor : undefined);
+        const x = width / 2, y = height / 2, r = radius > 1e-6 && radius < Math.min(x, y) - 1e-6 ? radius : 0;
+        for (const [i, [dx, dy]] of ([[1, -1], [1, 1], [-1, 1], [-1, -1]] as const).entries()) {
+          const c = { x: center.x + dx * (x - r), y: center.y + dy * (y - r) };
+          const a = (i - 1) * Math.PI / 2, nodes: Node[] = r ? arcNodes(c, r, a, a + Math.PI / 2) : [c];
+          const p = scr(nodes[0]);
+          if (i) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y);
+          if (r) {
+            const [u, v, w] = [scr(nodes[0].cout!), scr(nodes[1].cin!), scr(nodes[1])];
+            ctx.bezierCurveTo(u.x, u.y, v.x, v.y, w.x, w.y);
+          }
+        }
+        ctx.closePath();
+      } else if (s.tool === 'centerRect') {
+        const a = s.draft[0], b = this.skFromWorld(this.cursor);
+        const x = Math.abs(b.x - a.x), y = Math.abs(b.y - a.y);
+        const p = scr({ x: a.x - x, y: a.y - y });
+        ctx.moveTo(p.x, p.y);
+        for (const corner of [{ x: a.x + x, y: a.y - y }, { x: a.x + x, y: a.y + y }, { x: a.x - x, y: a.y + y }]) {
+          const q = scr(corner);
+          ctx.lineTo(q.x, q.y);
+        }
+        ctx.closePath();
+      } else if (s.tool === 'rect') {
+        const corners = (s.rectMode ?? 'corners') === 'threePoint' && s.draft.length >= 2
+          ? threePointRectCorners(s.draft[0], s.draft[1], this.skFromWorld(this.cursor))
+          : (s.rectMode ?? 'corners') === 'centerCorner' && s.draft.length >= 1
+            ? centerCornerRectCorners(s.draft[0], this.skFromWorld(this.cursor))
+            : null;
+        if (corners) {
+          corners.forEach((corner, i) => { const p = scr(corner); if (i) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y); });
+          ctx.closePath();
+        } else ctx.rect(d0.x, d0.y, cur.x - d0.x, cur.y - d0.y);
+      }
+      else if (s.tool === 'circle' && (s.circleMode ?? 'centerRim') === 'centerRim') ctx.arc(d0.x, d0.y, Math.hypot(cur.x - d0.x, cur.y - d0.y), 0, Math.PI * 2);
+      else if (s.tool === 'ellipse') {
+        // 1. Klick: Hauptachse als Linie; 2. Klick: volle Ellipse mit Nebenradius am Cursor.
+        const c = s.draft[0], m = s.draft[1] ?? this.skFromWorld(this.cursor);
+        const dx = m.x - c.x, dy = m.y - c.y, major = Math.hypot(dx, dy);
+        if (s.draft.length < 2 || !(major > 1e-9)) {
+          ctx.moveTo(d0.x, d0.y);
+          ctx.lineTo(cur.x, cur.y);
+        } else {
+          const p = this.skFromWorld(this.cursor);
+          const minor = Math.abs((p.x - c.x) * dy - (p.y - c.y) * dx) / major;
+          if (minor > 1e-9) {
+            const a = scr(c), b = scr(m);
+            const scale = Math.hypot(b.x - a.x, b.y - a.y) / major;
+            ctx.ellipse(a.x, a.y, major * scale, minor * scale, Math.atan2(b.y - a.y, b.x - a.x), 0, Math.PI * 2);
+          }
+        }
+      }
       else if (s.tool === 'arc') {
-        const st = s.draft.length > 1 ? scr(s.draft[1]) : cur;
-        const r = Math.hypot(st.x - d0.x, st.y - d0.y);
+        const tangentDraft = (s.arcMode ?? 'centerStartEnd') === 'tangent' && s.draft.length && s.arcRef != null
+          ? tangentArcDraft(s.sk, s.arcRef, s.draft[0], s.draftIds[0], this.skFromWorld(this.cursor), !!s.arcFlip)
+          : null;
+        if (tangentDraft) {
+          const nodes = arcNodes(tangentDraft.c, tangentDraft.r, tangentDraft.a0, tangentDraft.a1);
+          const first = scr(nodes[0]);
+          ctx.moveTo(first.x, first.y);
+          for (let j = 1; j < nodes.length; j++) {
+            const u = scr(nodes[j - 1].cout!), v = scr(nodes[j].cin!), w = scr(nodes[j]);
+            ctx.bezierCurveTo(u.x, u.y, v.x, v.y, w.x, w.y);
+          }
+        } else {
+          const st = s.draft.length > 1 ? scr(s.draft[1]) : cur;
+          const r = Math.hypot(st.x - d0.x, st.y - d0.y);
         ctx.moveTo(d0.x, d0.y);
         ctx.lineTo(st.x, st.y);
         if (s.draft.length > 1) {
@@ -1349,12 +1815,36 @@ export class EditorRender {
           ctx.moveTo(st.x, st.y);
           ctx.arc(d0.x, d0.y, r, a0, a1 <= a0 ? a1 + Math.PI * 2 : a1);
         }
+        }
       }
       ctx.stroke();
       ctx.setLineDash([]);
     }
+    // 2-Tangenten-Kreis: Kandidatenkreis unter dem Cursor (Radius aus Klickabstand).
+    if (s.tool === 'circle' && (s.circleMode ?? 'centerRim') === 'twoTangent'
+      && (s.circleRefs?.length ?? 0) === 2 && this.cursorOnCanvas) {
+      const cursor = this.skFromWorld(this.cursor);
+      const preview = twoTangentPreview(s.sk, s.circleRefs![0], s.circleRefs![1], cursor);
+      if (preview) {
+        ctx.strokeStyle = '#1f6fe0';
+        ctx.lineWidth = 1.2;
+        ctx.setLineDash([5, 3]);
+        ctx.beginPath();
+        const nodes = arcNodes(preview.center, preview.radius, 0, 2 * Math.PI);
+        const start = scr(nodes[0]);
+        ctx.moveTo(start.x, start.y);
+        for (let i = 1; i < nodes.length; i++) {
+          const a = scr(nodes[i - 1].cout!), b = scr(nodes[i].cin!), c = scr(nodes[i]);
+          ctx.bezierCurveTo(a.x, a.y, b.x, b.y, c.x, c.y);
+        }
+        ctx.closePath();
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
     // Punkte
     for (const p of sk.pts) {
+      if (!vis.points) break;
       const q = scr(p);
       ctx.fillStyle = colorOf(p.id);
       const r = s.sel.has(p.id) || s.hover?.id === p.id ? 4 : 2.5;
@@ -1375,6 +1865,11 @@ export class EditorRender {
         hov = s.hover?.id === id;
       ctx.fillStyle = bad.has(id) ? '#d02020' : sel ? SEL : hov ? SNAP_COLOR : bg;
       ctx.fillRect(bx, by, w, h);
+      if (sel) {
+        ctx.strokeStyle = this.dark ? '#ffffff' : '#15181d';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(bx - 2, by - 2, w + 4, h + 4);
+      }
       ctx.fillStyle = bad.has(id) || sel || hov ? '#ffffff' : fg;
       ctx.fillText(text, bx + 4, by + h / 2 + 0.5);
       s.labels.push({ id, x: bx, y: by, w, h });
@@ -1388,7 +1883,7 @@ export class EditorRender {
       return { x: x + dx * (1 + n * 1.6), y: y + dy * (1 + n * 1.6) };
     };
     for (const c of sk.cons) {
-      if (isDim(c.t)) continue;
+      if (!vis.relations || isDim(c.t)) continue;
       const g = CON_GLYPHS[c.t] ?? '?';
       const first = c.r[0];
       const e0 = entOf(sk, first);
@@ -1396,10 +1891,17 @@ export class EditorRender {
         const p = ptOf(sk, first);
         if (!p) continue;
         const q = scr(p);
-        ctx.fillStyle = bad.has(c.id) ? '#d02020' : base;
+        ctx.fillStyle = bad.has(c.id) ? '#d02020' : s.sel.has(c.id) ? SEL : base;
         ctx.beginPath();
         ctx.arc(q.x, q.y, 3.5, 0, Math.PI * 2);
         ctx.fill();
+        if (s.sel.has(c.id)) {
+          ctx.strokeStyle = this.dark ? '#ffffff' : '#15181d';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.arc(q.x, q.y, 6, 0, Math.PI * 2);
+          ctx.stroke();
+        }
         s.labels.push({ id: c.id, x: q.x - 5, y: q.y - 5, w: 10, h: 10 });
         continue;
       }
@@ -1412,7 +1914,7 @@ export class EditorRender {
           const L = Math.hypot(b.x - a.x, b.y - a.y) || 1;
           return { key: `e${id}`, x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, dx: (-(b.y - a.y) / L) * 13 * fWs, dy: ((b.x - a.x) / L) * 13 * fWs };
         }
-        if (e) {
+        if (e && (e.t === 'circle' || e.t === 'arc')) {
           const c0 = scr(ptOf(sk, e.c)!);
           const r = e.r * k;
           return { key: `e${id}`, x: c0.x + r * 0.71, y: c0.y - r * 0.71, dx: 11 * fWs, dy: -11 * fWs };
@@ -1432,20 +1934,36 @@ export class EditorRender {
     // Bemaßungen
     const fmt = (c: SkCon) => {
       const v = c.v ?? measureCon(sk, c) ?? 0;
-      const num = dec((Math.round(v * 100) / 100).toString());
-      const pre = c.t === 'radius' ? 'R' : c.t === 'diameter' ? 'Ø' : '';
+      const num = dec(v.toFixed(2));
+      const pre = c.t === 'radius' ? 'R' : c.t === 'diameter' ? 'Ø' : c.t === 'arcLength' ? '⌒' : '';
       const unit = c.t === 'angle' ? '°' : '';
-      return (c.expr ? `${c.expr} = ` : '') + pre + num + unit;
+      const text = (c.expr ? `${c.expr} = ` : '') + pre + num + unit;
+      // Referenzmaß: misst nur mit (getrieben)
+      return c.driven ? `(${text})` : text;
     };
     ctx.strokeStyle = DIM;
     ctx.lineWidth = 1;
-    for (const c of sk.cons) {
+    // Ausgeblendete Bemaßungen: keine Striche, keine Labels (und damit keine Treffer), Geometrie bleibt.
+    const dimCons = !vis.dims ? [] : s.valueEdit?.draft ? [...sk.cons, s.valueEdit.draft] : sk.cons;
+    for (const c of dimCons) {
       if (!isDim(c.t)) continue;
       const at = c.at ?? { x: 0, y: 0 };
       let label: { x: number; y: number } | null = null;
-      if (c.t === 'radius' || c.t === 'diameter') {
+      if (c.t === 'radialOffset') {
+        const a = entOf(sk, c.r[0]), b = entOf(sk, c.r[1]);
+        if (a?.t !== 'circle' || b?.t !== 'circle') continue;
+        const center = ptOf(sk, a.c)!;
+        const dir = Math.hypot(at.x, at.y) > 1e-9 ? Math.atan2(at.y, at.x) : -Math.PI / 4;
+        const atRadius = (r: number) => scr({ x: center.x + r * Math.cos(dir), y: center.y + r * Math.sin(dir) });
+        const from = atRadius(a.r), to = atRadius(b.r), outer = atRadius(Math.max(a.r, b.r));
+        ctx.beginPath();
+        ctx.moveTo(from.x, from.y);
+        ctx.lineTo(to.x, to.y);
+        ctx.stroke();
+        label = { x: outer.x + 14 * fWs, y: outer.y + 11 * fWs };
+      } else if (c.t === 'radius' || c.t === 'diameter') {
         const e = entOf(sk, c.r[0]);
-        if (!e || e.t === 'line') continue;
+        if (!e || e.t === 'line' || e.t === 'point') continue;
         const C = ptOf(sk, e.c)!;
         const dir = Math.hypot(at.x, at.y) > 1e-9 ? Math.atan2(at.y, at.x) : e.t === 'arc' ? (e.a0 + e.a1) / 2 : -Math.PI / 4;
         const rim = { x: C.x + e.r * Math.cos(dir), y: C.y + e.r * Math.sin(dir) };
@@ -1453,6 +1971,20 @@ export class EditorRender {
         const a = scr(from),
           b = scr(rim);
         const out = { x: b.x + Math.cos(dir) * 18 * fWs, y: b.y + Math.sin(dir) * 18 * fWs };
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(out.x, out.y);
+        ctx.stroke();
+        label = { x: out.x + Math.cos(dir) * 14 * fWs, y: out.y + Math.sin(dir) * 8 * fWs };
+      } else if (c.t === 'arcLength') {
+        const e = entOf(sk, c.r[0]);
+        if (e?.t !== 'arc') continue;
+        const C = ptOf(sk, e.c)!;
+        const mid = (e.a0 + e.a1) / 2;
+        const dir = Math.hypot(at.x, at.y) > 1e-9 ? Math.atan2(at.y, at.x) : mid;
+        const rim = { x: C.x + e.r * Math.cos(mid), y: C.y + e.r * Math.sin(mid) };
+        const a = scr(rim);
+        const out = { x: a.x + Math.cos(dir) * 18 * fWs, y: a.y + Math.sin(dir) * 18 * fWs };
         ctx.beginPath();
         ctx.moveTo(a.x, a.y);
         ctx.lineTo(out.x, out.y);
@@ -1470,26 +2002,9 @@ export class EditorRender {
         label = scr(mid);
       } else {
         // Abstände: Punkt–Punkt (auch Linienlänge) oder Punkt–Linie
-        let a: { x: number; y: number } | null = null,
-          b: { x: number; y: number } | null = null;
-        const l = c.r.length === 2 ? entOf(sk, c.r[1]) : undefined;
-        if (l?.t === 'line' && c.t === 'distance') {
-          const p = ptOf(sk, c.r[0])!,
-            la = ptOf(sk, l.a)!,
-            lb = ptOf(sk, l.b)!;
-          const dx = lb.x - la.x,
-            dy = lb.y - la.y,
-            l2 = dx * dx + dy * dy || 1;
-          const tt = ((p.x - la.x) * dx + (p.y - la.y) * dy) / l2;
-          a = p;
-          b = { x: la.x + dx * tt, y: la.y + dy * tt };
-        } else {
-          const pp = pointPair(sk, c.r);
-          if (!pp) continue;
-          [a, b] = pp;
-          if (c.t === 'hdistance') b = { x: b.x, y: a.y };
-          if (c.t === 'vdistance') b = { x: a.x, y: b.y };
-        }
+        const segment = dimensionSegment(sk, c);
+        if (!segment) continue;
+        const { a, b, endpoint } = segment;
         // Maßlinie seitlich versetzt (um den Anteil von at senkrecht zur Strecke, sonst 5 mm)
         const L = Math.hypot(b.x - a.x, b.y - a.y) || 1;
         const nx = -(b.y - a.y) / L,
@@ -1499,7 +2014,7 @@ export class EditorRender {
         const A = scr({ x: a.x + nx * off, y: a.y + ny * off }),
           B = scr({ x: b.x + nx * off, y: b.y + ny * off });
         const sa = scr(a),
-          sb = scr(b);
+          sb = scr(endpoint ?? b);
         ctx.beginPath();
         ctx.moveTo(sa.x, sa.y);
         ctx.lineTo(A.x, A.y);
@@ -1608,7 +2123,7 @@ export class EditorRender {
       }
       const r = measureOf(m.a, b);
       label(
-        t('{len} mm · Δx {dx} · Δy {dy} · {angle}°', { len: mm(r.len), dx: mm(r.dx), dy: mm(r.dy), angle: dec(r.angle.toFixed(1)) }),
+        t('{len} mm · Δx {dx} · Δy {dy} · {angle}°', { len: mm(r.len), dx: mm(r.dx), dy: mm(r.dy), angle: degreeNumber(r.angle) }),
         (p.x + q.x) / 2 + 10, (p.y + q.y) / 2 - 22,
       );
     }
@@ -1635,6 +2150,13 @@ export class EditorRender {
       ctx.setLineDash([4, 3]);
       ctx.beginPath();
       for (const g of this.alignGuides) {
+        if (g.axis === 'seg') {
+          const a = this.toScreen(g.a),
+            b = this.toScreen(g.b);
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b.x, b.y);
+          continue;
+        }
         const a = this.toScreen(g.axis === 'x' ? { x: g.v, y: g.a } : { x: g.a, y: g.v }),
           b = this.toScreen(g.axis === 'x' ? { x: g.v, y: g.b } : { x: g.b, y: g.v });
         const pad = 12;
@@ -1650,6 +2172,22 @@ export class EditorRender {
       }
       ctx.stroke();
       ctx.setLineDash([]);
+    }
+    if (this.trackPts?.length) {
+      ctx.strokeStyle = SNAP_COLOR;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      for (const t of this.trackPts) {
+        const q = this.toScreen(t);
+        const x = Math.round(q.x) + 0.5, y = Math.round(q.y) + 0.5;
+        ctx.rect(x - 4, y - 4, 8, 8);
+        ctx.moveTo(x - 6, y);
+        ctx.lineTo(x + 6, y);
+        ctx.moveTo(x, y - 6);
+        ctx.lineTo(x, y + 6);
+      }
+      ctx.stroke();
     }
     const hit = this.snapHit;
     if (!hit) return;
@@ -1684,17 +2222,37 @@ export class EditorRender {
         ctx.closePath();
         break;
       case 'cross':
+        if (this.sketchEdit?.boundCrossSnap) ctx.rect(x - 7, y - 7, 14, 14);
         ctx.moveTo(x - 5, y - 5);
         ctx.lineTo(x + 5, y + 5);
         ctx.moveTo(x + 5, y - 5);
         ctx.lineTo(x - 5, y + 5);
         break;
+      case 'intersection':
+        ctx.arc(x, y, 7, 0, Math.PI * 2);
+        ctx.moveTo(x - 4, y - 4);
+        ctx.lineTo(x + 4, y + 4);
+        ctx.moveTo(x + 4, y - 4);
+        ctx.lineTo(x - 4, y + 4);
+        break;
       case 'line':
+      case 'ext':
         ctx.moveTo(x, y - 5);
         ctx.lineTo(x + 5, y);
         ctx.lineTo(x, y + 5);
         ctx.lineTo(x - 5, y);
         ctx.closePath();
+        break;
+      case 'track':
+        ctx.rect(x - 5, y - 5, 10, 10);
+        ctx.moveTo(x - 5, y - 5);
+        ctx.lineTo(x + 5, y + 5);
+        ctx.moveTo(x + 5, y - 5);
+        ctx.lineTo(x - 5, y + 5);
+        break;
+      case 'angle':
+        ctx.moveTo(x + 4, y);
+        ctx.arc(x, y, 4, 0, Math.PI * 2);
         break;
     }
     ctx.stroke();

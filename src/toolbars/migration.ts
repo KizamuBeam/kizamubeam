@@ -29,6 +29,7 @@ function normalizeState(state: ToolbarState, definitions: Definitions): ToolbarS
   for (const id of defaults.layout.hidden)
     if (!Object.hasOwn(state.content.bars, id) && !out.layout.hidden.includes(id)) out.layout.hidden.push(id);
   out.content.bars = { ...defaults.content.bars, ...out.content.bars };
+  for (const bar of definitions.bars) if (bar.fixedItems) setEntry(out.content.bars, bar.id, clone(bar.items));
   out.content.groups = { ...defaults.content.groups, ...out.content.groups };
   out.content.iconSizes = { ...defaults.content.iconSizes, ...out.content.iconSizes };
   out.content.labels = { ...defaults.content.labels, ...(out.content.labels ?? {}) };

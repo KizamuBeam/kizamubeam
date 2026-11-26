@@ -10,6 +10,7 @@ import { assignLayerAsk } from './layerAssign';
 import { EDIT_TITLE, runImageEdit } from './imageCropUi';
 import { openPathIslandsDialog } from './pathIslandsDialog';
 import { overlapCandidates } from './overlapPicker';
+import { selectSketchContextHit, sketchContextGroups, sketchContextReady, sketchContextStamp } from './sketchContext';
 
 export interface ContextCallbacks {
   adjust: () => void; trace: () => void; background: () => void; saveBitmap: () => void | Promise<unknown>;
@@ -141,19 +142,28 @@ export function stackingActions(ed: Editor, editable = ed.sel.length > 0 && ed.s
  */
 export function openEditorContextMenu(ed: Editor, x: number, y: number, groups: ContextAction[][]) {
   const doc = ed.doc, stamp = ed.state();
+  const session = ed.sketchEdit, sketchStamp = sketchContextStamp(ed);
+  const sameSketch = () => ed.sketchEdit === session && sketchContextStamp(ed) === sketchStamp;
+  const valid = () => ed.doc === doc && ed.state() === stamp && sameSketch();
   const guard = (items: ContextAction[]): ContextAction[] => items.map((item) => ({ ...item,
     items: item.items ? guard(item.items) : undefined,
     run: async () => {
-      if (ed.doc !== doc || ed.state() !== stamp || document.querySelector('dialog[open]')) return;
+      if (!valid() || document.querySelector('dialog[open]')) return;
       try { await item.run(); }
       catch (error) { ed.hint = error instanceof Error ? error.message : String(error); ed.emit('tool'); }
     } }));
   let close: () => void;
   // Pointer moves, zoom and panning only emit 'view'; they must not close the menu when the pointer leaves it.
   // Real changes still close it, and the guard above refuses actions after any change of document or selection.
-  const changed = (what: 'doc' | 'sel' | 'view' | 'tool') => { if (what !== 'view') close?.(); };
-  close = showEditorMenu(x, y, groups.map(guard), () => ed.off(changed));
+  const changed = (what: 'doc' | 'sel' | 'view' | 'tool') => { if (what !== 'view' || !valid()) close?.(); };
+  let frame: number | undefined;
+  close = showEditorMenu(x, y, groups.map(guard), () => { ed.off(changed); if (frame !== undefined) cancelAnimationFrame(frame); });
   ed.on(changed);
+  // Sketch picks/tools redraw without emitting editor events. Watch only while their menu is open.
+  if (session) {
+    const check = () => { if (!sameSketch()) close(); else frame = requestAnimationFrame(check); };
+    frame = requestAnimationFrame(check);
+  }
 }
 
 /**
@@ -181,9 +191,27 @@ export function resolveContextHit(ed: Editor, wp: Pt, candidates: (ed: Editor, p
 }
 
 export function installEditorContext(ed: Editor, callbacks: ContextCallbacks) {
+  const blocked = () => !!document.querySelector('dialog[open]') || !!ed.drag || !!ed.draft || !!ed.pickHandler || ed.tool === 'builder';
+  ed.canvas.addEventListener('keydown', (event) => {
+    if (ed.tool !== 'sketch' || (event.key !== 'ContextMenu' && !(event.key === 'F10' && event.shiftKey))) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (blocked() || !sketchContextReady(ed)) return;
+    const rect = ed.canvas.getBoundingClientRect();
+    const at = ed.sketchEdit!.snapPointer ?? { x: Math.max(RULER, rect.width / 2), y: Math.max(RULER, rect.height / 2) };
+    // Keyboard invocation acts on the current selection, not whatever lies under the menu anchor.
+    openEditorContextMenu(ed, rect.left + at.x, rect.top + at.y, sketchContextGroups(ed));
+  });
   ed.onCanvasContext = (event) => {
-    if (document.querySelector('dialog[open]') || ed.drag || ed.draft || ed.pickHandler || ed.tool === 'sketch' || ed.tool === 'builder') return;
+    if (blocked()) return;
     const { sx, sy } = ed.evPt(event);
+    if (ed.tool === 'sketch') {
+      if (sx < RULER || sy < RULER || !sketchContextReady(ed)) return;
+      closeEditorMenu();
+      selectSketchContextHit(ed, sx, sy);
+      openEditorContextMenu(ed, event.clientX, event.clientY, sketchContextGroups(ed));
+      return;
+    }
     if (sx < RULER || sy < RULER) {
       // S6: Lineal-Rechtsklick öffnet das Linealmenü statt ins Leere zu laufen.
       openEditorContextMenu(ed, event.clientX, event.clientY, rulerContextGroups(ed, sx, sy));
@@ -216,7 +244,7 @@ export function rulerContextGroups(ed: Editor, sx: number, sy: number): ContextA
   ];
   const guides: ContextAction[] = [
     action('ruler-guides-show', t('Hilfslinien anzeigen'), () => ed.setGuideLayer({ hidden: ed.guidesShown() }), true, ed.guidesShown()),
-    action('ruler-guides-lock', t('Hilfslinien sperren'), () => ed.setGuideLayer({ locked: !ed.doc.guidesLocked }), true, !!ed.doc.guidesLocked),
+    action('ruler-guides-lock', t('Hilfslinien sperren'), () => ed.setGuideLayer({ locked: !ed.guidesLocked() }), true, ed.guidesLocked()),
   ];
   const onTop = sy < RULER && sx >= RULER;
   const onLeft = sx < RULER && sy >= RULER;

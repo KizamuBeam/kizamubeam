@@ -227,6 +227,7 @@ const activeOf = (g: Group) => {
 
 function shownNow() {
   const s = new Set<string>();
+  if (workspaceHidden) return s;
   // Vor dem ersten Aufbau gilt alles als sichtbar, damit die Fenster ihren Inhalt einmal füllen
   if (!layout) return new Set(wins.keys());
   const narrow = window.matchMedia('(max-width: 820px)').matches;
@@ -253,6 +254,15 @@ const sideOf = (g: Group): Side | null => (layout.left.includes(g) ? 'left' : la
 
 let dockEls: Record<Side, HTMLElement>;
 let floatLayer: HTMLElement;
+let workspaceHidden = false;
+
+/** Temporarily hide the dock surfaces without rebuilding windows or saving their layout. */
+export function setDockWorkspaceHidden(hidden: boolean) {
+  if (!dockEls || workspaceHidden === hidden) return;
+  workspaceHidden = hidden;
+  for (const el of [dockEls.left, dockEls.right, floatLayer]) el.hidden = hidden;
+  notifyShown();
+}
 
 export function initDock() {
   dockEls = { left: document.getElementById('dock-left')!, right: document.getElementById('dock-right')! };
@@ -314,6 +324,10 @@ function render() {
   restoreScroll();
   // Ein aus dem Dokument genommenes Video hält an: Kamera-Vorschau weiterlaufen lassen
   document.querySelectorAll<HTMLVideoElement>('.win-body video').forEach((v) => v.paused && v.srcObject && v.play().catch(() => {}));
+  notifyShown();
+}
+
+function notifyShown() {
   const now = shownNow();
   if (started) for (const id of now) if (!shownBefore.has(id)) wins.get(id)?.onShow?.();
   shownBefore = now;

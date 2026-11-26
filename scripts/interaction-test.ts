@@ -199,4 +199,50 @@ await test('releasing a move drag is reported, so views that pause while draggin
   seen.length = 0; ed.onUp(event(60, 40));
   assert.equal(ed.drag, null); assert.ok(seen.includes('sel'), `events on release: ${seen.join(', ')}`);
 });
+await test('double-click on sketch geometry opens the sketch editor without an Undo step', () => {
+  const sk = { id: newId(), m: [1, 0, 0, 1, 0, 0], layer: 0,
+    shape: { kind: 'gen', gen: 'sketch', v: 1, params: { sketch: '{}' }, subs: [] } } as unknown as Obj;
+  const ed = editor([sk]);
+  ed.hitTest = () => sk;
+  const opened: Obj[] = [];
+  (ed as unknown as { editSketch: (o: Obj) => Promise<void> }).editSketch = async (o: Obj) => { opened.push(o); };
+  let genCalled = 0;
+  ed.onGenEdit = () => { genCalled++; };
+  const before = ed.history.position;
+  ed.onDouble({ clientX: 10, clientY: 10, preventDefault() {} } as unknown as MouseEvent);
+  assert.deepEqual(ed.sel, [sk]);
+  assert.equal(opened.length, 1);
+  assert.equal(opened[0], sk);
+  assert.equal(genCalled, 0);
+  assert.equal(ed.history.position, before);
+});
+await test('double-click on a path keeps node editing', () => {
+  const p = rect(), ed = editor([p]);
+  ed.hitTest = () => p;
+  ed.onDouble({ clientX: 40, clientY: 40, preventDefault() {} } as unknown as MouseEvent);
+  assert.equal(ed.tool, 'node');
+  assert.deepEqual(ed.sel, [p]);
+});
+await test('double-click on a non-sketch generator keeps onGenEdit', () => {
+  const g = { id: newId(), m: [1, 0, 0, 1, 0, 0], layer: 0,
+    shape: { kind: 'gen', gen: 'gear', v: 1, params: {}, subs: [] } } as unknown as Obj;
+  const ed = editor([g]);
+  ed.hitTest = () => g;
+  const opened: Obj[] = [];
+  (ed as unknown as { editSketch: (o: Obj) => Promise<void> }).editSketch = async (o: Obj) => { opened.push(o); };
+  let genCalled = 0;
+  ed.onGenEdit = () => { genCalled++; };
+  ed.onDouble({ clientX: 10, clientY: 10, preventDefault() {} } as unknown as MouseEvent);
+  assert.equal(opened.length, 0);
+  assert.equal(genCalled, 1);
+});
+await test('double-click on empty canvas changes nothing', () => {
+  const ed = editor([rect()]);
+  ed.hitTest = () => null;
+  const before = ed.state();
+  ed.onDouble({ clientX: 500, clientY: 500, preventDefault() {} } as unknown as MouseEvent);
+  assert.equal(ed.state(), before);
+  assert.equal(ed.tool, 'select');
+  assert.equal(ed.history.position, 0);
+});
 console.log(`Interaction prototypes: ${count} checks passed without hardware/app startup.`);

@@ -9,12 +9,24 @@ import { RULER } from './shared';
 const GRAB_PX = 4;
 
 export class EditorGuides {
-  /** Hilfslinien des Projekts (gelten für alle Seiten) */
+  /**
+   * Wirksame Hilfslinien: im Skizzenmodus die der Skizze (Weltkoordinaten, mit ihr
+   * gespeichert, außerhalb unsichtbar), sonst die des Dokuments (alle Seiten).
+   */
   guideList(this: Editor): Guide[] {
+    const s = this.sketchEdit;
+    if (s) return s.sk.guides ?? [];
     return this.doc.guides ?? [];
   }
   guidesShown(this: Editor): boolean {
+    const s = this.sketchEdit;
+    if (s) return !s.guideHidden;
     return !this.doc.guidesHidden;
+  }
+  guidesLocked(this: Editor): boolean {
+    const s = this.sketchEdit;
+    if (s) return !!s.guideLocked;
+    return !!this.doc.guidesLocked;
   }
   /** Bildschirmlage einer Hilfslinie (x bei senkrechten, y bei waagrechten) */
   guideScreen(this: Editor, g: Guide): number {
@@ -22,7 +34,9 @@ export class EditorGuides {
   }
   /** Hilfslinie unter dem Mauszeiger, die sich verschieben lässt (sichtbar, nicht gesperrt), sonst -1 */
   guideAt(this: Editor, sx: number, sy: number): number {
-    if (this.doc.guidesHidden || this.doc.guidesLocked || sx < RULER || sy < RULER) return -1;
+    const s = this.sketchEdit;
+    if (s ? (s.guideHidden || s.guideLocked) : (this.doc.guidesHidden || this.doc.guidesLocked)) return -1;
+    if (sx < RULER || sy < RULER) return -1;
     const list = this.guideList();
     let best = -1,
       bd = GRAB_PX;
@@ -37,17 +51,38 @@ export class EditorGuides {
   }
   /** Neue Hilfslinie anhängen (vorher snapshot) und ihren Index liefern; eine ausgeblendete Ebene wird wieder sichtbar */
   pushGuide(this: Editor, g: Guide): number {
-    (this.doc.guides ??= []).push(g);
+    if (this.sketchEdit) {
+      const list = (this.sketchEdit.sk.guides ??= []);
+      list.push(g);
+      delete this.sketchEdit.guideHidden;
+      if (this.sketchEdit) this.writeSketch();
+      return list.length - 1;
+    }
+    const list = (this.doc.guides ??= []);
+    list.push(g);
     delete this.doc.guidesHidden;
-    return this.doc.guides.length - 1;
+    return list.length - 1;
   }
   removeGuide(this: Editor, i: number) {
-    const list = this.doc.guides;
-    if (!list) return;
+    const s = this.sketchEdit;
+    const list = this.guideList();
+    if (!list[i]) return;
     list.splice(i, 1);
-    if (!list.length) delete this.doc.guides;
+    if (!list.length) {
+      if (s) delete s.sk.guides;
+      else delete this.doc.guides;
+    }
     // Hervorhebung zeigt sonst auf eine andere Linie
     this.guideHover = this.guidePin = null;
+    if (this.sketchEdit) this.writeSketch();
+  }
+  /** Laufende Verschiebung direkt übernehmen (Aufrufer snapshotet + emitted); Skizze schreibt nach */
+  setGuideLive(this: Editor, i: number, v: number) {
+    const list = this.guideList();
+    const g = list[i];
+    if (!g || !isFinite(v)) return;
+    list[i] = { axis: g.axis, v };
+    if (this.sketchEdit) this.writeSketch();
   }
   /** Hilfslinie i auf Weltkoordinate v (mm) setzen; ein Undo-Schritt, keine Änderung bei gleichem/ungültigem Wert */
   setGuidePos(this: Editor, i: number, v: number) {
@@ -56,27 +91,37 @@ export class EditorGuides {
     if (!g || !isFinite(v) || g.v === v) return;
     this.snapshot(t('Hilfslinie'));
     list[i] = { axis: g.axis, v };
+    if (this.sketchEdit) this.writeSketch();
     this.emit('doc');
   }
-  /** Ebene „Hilfslinien“ ein-/ausblenden oder sperren */
+  /** Ebene „Hilfslinien“ ein-/ausblenden oder sperren (Skizze: nur für die Sitzung) */
   setGuideLayer(this: Editor, patch: { hidden?: boolean; locked?: boolean }) {
+    const s = this.sketchEdit;
     this.snapshot(t('Hilfslinien'));
     if (patch.hidden !== undefined) {
-      if (patch.hidden) this.doc.guidesHidden = true;
+      if (s) {
+        if (patch.hidden) s.guideHidden = true;
+        else delete s.guideHidden;
+      } else if (patch.hidden) this.doc.guidesHidden = true;
       else delete this.doc.guidesHidden;
     }
     if (patch.locked !== undefined) {
-      if (patch.locked) this.doc.guidesLocked = true;
+      if (s) {
+        if (patch.locked) s.guideLocked = true;
+        else delete s.guideLocked;
+      } else if (patch.locked) this.doc.guidesLocked = true;
       else delete this.doc.guidesLocked;
     }
     this.emit('doc');
   }
   /** Alle Hilfslinien löschen */
   clearGuides(this: Editor) {
-    if (!this.doc.guides?.length) return;
+    if (!this.guideList().length) return;
     this.snapshot(t('Hilfslinien löschen'));
-    delete this.doc.guides;
+    if (this.sketchEdit) delete this.sketchEdit.sk.guides;
+    else delete this.doc.guides;
     this.guideHover = this.guidePin = null;
+    if (this.sketchEdit) this.writeSketch();
     this.emit('doc');
   }
   /** S6-Follow-up: flüchtige Hervorhebung aus dem Objekte-Panel (Hover); kein Undo, keine Sicherung */
@@ -100,13 +145,13 @@ export class EditorGuides {
   /** Hilfslinien über die ganze Arbeitsfläche zeichnen (Bildschirmkoordinaten) */
   renderGuides(this: Editor, ctx: CanvasRenderingContext2D) {
     const list = this.guideList();
-    if (!list.length || this.doc.guidesHidden) return;
+    if (!list.length || !this.guidesShown()) return;
     const d = this.drag;
     const active = d?.type === 'guide' ? d.idx : null;
     ctx.save();
     ctx.strokeStyle = this.colors.guide;
     ctx.lineWidth = 1;
-    ctx.globalAlpha = this.doc.guidesLocked ? 0.6 : 0.9;
+    ctx.globalAlpha = this.guidesLocked() ? 0.6 : 0.9;
     ctx.setLineDash([6, 4]);
     const line = (g: Guide) => {
       const s = Math.round(this.guideScreen(g)) + 0.5;

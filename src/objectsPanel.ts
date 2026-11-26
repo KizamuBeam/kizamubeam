@@ -320,7 +320,7 @@ export function buildObjectsPanel(ed: Editor, callbacks?: ContextCallbacks) {
   const renderGuides = (out: HTMLElement[]) => {
     const list = ed.guideList();
     const shown = ed.guidesShown();
-    const locked = !!ed.doc.guidesLocked;
+    const locked = ed.guidesLocked();
     out.push(
       h(
         'div',

@@ -1,4 +1,5 @@
 import { createToolbarDocking } from './docking';
+import { setIcon } from '../dom';
 import { t } from '../i18n';
 import { detachedId, ownEntry } from './model';
 import type { Definitions, ViewLayout } from './model';
@@ -13,6 +14,10 @@ export interface ToolbarHost {
   element: HTMLElement;
   ownerId: string;
   groupId?: string;
+  /** Temporary feature visibility, independent of the saved layout. */
+  visible?: () => boolean;
+  gripIcon?: string;
+  resetGripWithHome?: boolean;
 }
 export interface ToolbarSystemOptions extends RuntimeOptions {
   definitions: Definitions;
@@ -22,6 +27,8 @@ export interface ToolbarSystemOptions extends RuntimeOptions {
   hosts: ReadonlyMap<string, ToolbarHost>;
   /** Existing palette/status DOM stays outside the renderer. */
   visibilityHosts?: ReadonlyMap<string, HTMLElement>;
+  /** Workspace visibility, without changing the saved layout. Applies to detached groups too. */
+  visibleInWorkspace?: (ownerId: string) => boolean;
 }
 
 /** One state owner and one subscription for every mounted view. No editor dependencies. */
@@ -138,7 +145,10 @@ export function initToolbarFramework(options: ToolbarSystemOptions) {
     const snapshot = runtime.read();
     docking?.syncLock();
     for (const [id, host] of options.hosts) {
-      host.element.hidden = snapshot.layout.hidden.includes(host.ownerId);
+      const hidden = snapshot.layout.hidden.includes(host.ownerId) || host.visible?.() === false || options.visibleInWorkspace?.(host.ownerId) === false;
+      if (hidden && !host.element.hidden) docking?.cancel(host.element);
+      if (hidden) views.get(id)?.closePopup(false);
+      host.element.hidden = hidden;
       const layout = host.groupId === undefined ? ownEntry(snapshot.layout.bars, host.ownerId)
         : Object.values(snapshot.layout.detached).find((view) => view.ownerId === host.ownerId && view.groupId === host.groupId)?.layout
           ?? ownEntry(snapshot.layout.bars, host.ownerId);
@@ -154,7 +164,7 @@ export function initToolbarFramework(options: ToolbarSystemOptions) {
       views.get(id)?.update();
       if (layout) docking?.update(host.element, layout);
     }
-    for (const [id, element] of options.visibilityHosts ?? []) element.hidden = snapshot.layout.hidden.includes(id);
+    for (const [id, element] of options.visibilityHosts ?? []) element.hidden = snapshot.layout.hidden.includes(id) || options.visibleInWorkspace?.(id) === false;
     if (layer) {
       const seen = new Set<string>();
       for (const [id, dv] of Object.entries(snapshot.layout.detached)) {
@@ -163,7 +173,10 @@ export function initToolbarFramework(options: ToolbarSystemOptions) {
         seen.add(id);
         let float = floats.get(id);
         if (!float) float = createFloat(dv.ownerId, dv.groupId, dv.layout);
-        float.element.style.display = snapshot.layout.hidden.includes(dv.ownerId) ? 'none' : '';
+        const contextual = [...options.hosts.values()].find((host) => host.ownerId === dv.ownerId && host.visible);
+        const hidden = snapshot.layout.hidden.includes(dv.ownerId) || contextual?.visible?.() === false || options.visibleInWorkspace?.(dv.ownerId) === false;
+        if (hidden) float.view.closePopup(false);
+        float.element.style.display = hidden ? 'none' : '';
         docking?.update(float.element, dv.layout);
         const close = float.element.querySelector<HTMLButtonElement>('.toolbar-float-close');
         if (close) close.disabled = snapshot.layout.locked;
@@ -190,12 +203,14 @@ export function initToolbarFramework(options: ToolbarSystemOptions) {
       const mark = layerDoc.createElement('span');
       mark.className = 'toolbar-grip-mark';
       mark.setAttribute('aria-hidden', 'true');
-      mark.textContent = '⋮';
+      if (host.gripIcon) setIcon(mark, host.gripIcon);
+      else mark.textContent = '⋮';
       grip.append(mark);
       host.element.prepend(grip);
       barGrips.push(grip);
       const layout = ownEntry(runtime.read().layout.bars, host.ownerId);
-      if (layout) docking.mount(host.element, grip, { barId: host.ownerId }, layout);
+      const home = host.resetGripWithHome ? options.definitions.bars.find((bar) => bar.id === host.ownerId)?.layout : undefined;
+      if (layout) docking.mount(host.element, grip, { barId: host.ownerId }, layout, home);
     }
   }
   const unsubscribe = runtime.subscribe(refresh);

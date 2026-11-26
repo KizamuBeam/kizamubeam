@@ -127,6 +127,37 @@ test('Einzellinien, die einen Umriss bilden: nicht verbunden, Korrektur verbinde
   assert.equal(xs[0].objs.length, 3);
 });
 
+test('Schnittkreuzungen zwischen Pfaden und an einem inneren Knoten werden einmal markiert', () => {
+  const a = path([line([[0, 10], [10, 10], [20, 10]])]);
+  a.m = translate(20, 20);
+  const b = path([line([[30, 20], [30, 30], [30, 40]])]);
+  const findings = run([a, b]).filter((x) => x.kind === 'crossing');
+  assert.equal(findings.length, 1);
+  assert.deepEqual(findings[0].pts, [{ x: 30, y: 30 }]);
+  assert.equal(findings[0].fix, undefined);
+  assert.ok(!run([a, { ...b, noLaser: true }]).some((x) => x.kind === 'crossing'));
+  assert.ok(!run([a, { ...b, layer: 2 }], { engraveLayers: [2] }).some((x) => x.kind === 'crossing'));
+});
+
+test('Selbstkreuzung und Rücklauf werden getrennt gemeldet', () => {
+  const bow = path([line([[10, 10], [30, 30], [10, 30], [30, 10]], true)]);
+  assert.deepEqual(run([bow]).find((x) => x.kind === 'crossing')?.pts, [{ x: 20, y: 20 }]);
+  const retrace = path([line([[10, 10], [30, 10], [25, 10], [25, 20]])]);
+  const findings = run([retrace]);
+  assert.ok(!findings.some((x) => x.kind === 'crossing'));
+  assert.deepEqual(findings.find((x) => x.kind === 'double')?.lines, [[{ x: 30, y: 10 }, { x: 25, y: 10 }]]);
+});
+
+test('Kurvenschnitt erkannt, gemeinsame Endpunkte und Berührungen sind keine Kreuzung', () => {
+  const disk = ellipse(10, 40, 40);
+  const across = path([line([[20, 40], [60, 40]])]);
+  const tangent = path([line([[20, 30], [60, 30]])]);
+  const end = path([line([[60, 40], [60, 60]])]);
+  assert.equal(run([disk, across]).find((x) => x.kind === 'crossing')?.pts.length, 2);
+  assert.ok(!run([disk, tangent, end]).some((x) => x.kind === 'crossing'));
+  assert.ok(!run([across, end]).some((x) => x.kind === 'crossing'));
+});
+
 test('Schmaler Steg zwischen Loch und Rand: gemeldet mit Breite', () => {
   const plate = rect(50, 50, 10, 10);
   const hole = rect(10, 10, 20, 10.6); // 0,6 mm vom oberen Rand

@@ -1,6 +1,6 @@
 // Editor: Fangen an Raster, Objekten und Hilfslinien.
 import { Obj, Pt } from '../model';
-import { alignBox, alignPoint, buildSnapSet, findSnap, SNAP_TARGET_ORDER, SnapHit, SnapKind, SnapSet } from '../snap';
+import { alignBox, alignPoint, AlignGuide, buildSnapSet, EXT_REACH_MULT, findSnap, guideIntersections, PROJ_CORRIDOR_MULT, SNAP_TARGET_ORDER, SnapHit, SnapKind, SnapSet, snapToAllExtensions, snapToAllPolar, trackDwellNext, trackPoint } from '../snap';
 import type { Editor } from '../editor';
 import { Drag } from './shared';
 import { cleanGrid, GRID_KEY, GridSettings } from '../grid';
@@ -29,12 +29,41 @@ export function loadSnapTargets(): SnapKind[] {
 
 const SNAP_PX_ALT = 20;
 
+/** Hover-Dwell in ms, bis ein Fangpunkt als Tracking-Referenz gemerkt wird */
+export const TRACK_DWELL_MS = 500;
+/** Max. gemerkte Tracking-Punkte; darüber fällt der älteste raus */
+const TRACK_MAX = 7;
+
 /** Fangdistanzen in px (normal, mit Alt); frei einstellbar, Defaults wie bisher */
 export interface SnapTolerance { normal: number; alt: number }
 const SNAP_TOLERANCE_KEY = 'kizamubeam.snapTolerance';
 const DEFAULT_SNAP_TOLERANCE: SnapTolerance = { normal: 8, alt: SNAP_PX_ALT };
 const SNAP_TOL_MIN = 1, SNAP_TOL_MAX = 64;
 const validSnapTol = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v >= SNAP_TOL_MIN && v <= SNAP_TOL_MAX;
+/**
+ * Bester Schnittpunkt der Projektions-Kandidaten für den Cursor: paarweise Schnitte aller
+ * seg-Guides, nur über Kandidaten-Grenzen hinweg (Führungen desselben Kandidaten — etwa beide
+ * Achsen einer Fangspur — kreuzen sich im eigenen Treffer und zählen nicht). Der Schnitt muss
+ * in exakter Punkttoleranz tol liegen; Gleichstand: näherer, dann kleinerer Guide-Index
+ * (guideIntersections liefert nach (i, j) sortiert). Liefert beide kreuzenden Führungen.
+ * Modullokal (kein this), damit schlanke Test-Harnische ohne neue Methode auskommen.
+ */
+function projIntersectionWinners(
+  cands: { p: Pt; guides: AlignGuide[]; kind: 'track' | 'angle' | 'ext'; d: number }[],
+  p: Pt,
+  tol: number,
+): { p: Pt; guides: AlignGuide[] } | null {
+  const guides = cands.flatMap((c) => c.guides);
+  const src = cands.flatMap((c, s) => c.guides.map(() => s));
+  let win: { p: Pt; guides: AlignGuide[]; d: number } | null = null;
+  for (const x of guideIntersections(guides, 0)) {
+    if (src[x.i] === src[x.j]) continue;
+    const d = Math.hypot(x.p.x - p.x, x.p.y - p.y);
+    if (d > tol || (win && d >= win.d - 1e-9)) continue;
+    win = { p: x.p, guides: [guides[x.i], guides[x.j]], d };
+  }
+  return win && { p: win.p, guides: win.guides };
+}
 export function loadSnapTolerance(): SnapTolerance {
   try {
     const raw = JSON.parse(localStorage.getItem(SNAP_TOLERANCE_KEY) ?? 'null');
@@ -168,6 +197,51 @@ export class EditorSnapping {
     this.snapHit = null;
     this.alignGuides = [];
   }
+  /** Gemerkte Spur + Dwell + Timer verwerfen (Esc, Werkzeugwechsel, Schließen) */
+  clearTrack(this: Editor) {
+    this.trackPts = [];
+    this.trackDwell = null;
+    this.clearTrackTimer();
+  }
+  clearTrackTimer(this: Editor) {
+    if (this.trackTimer != null) clearTimeout(this.trackTimer);
+    this.trackTimer = null;
+  }
+  /** Stillhalte-Timer: feuert, auch wenn die Maus sich nicht mehr bewegt (sonst käme kein Dwell zustande) */
+  armTrackTimer(this: Editor) {
+    if (this.trackTimer != null || !this.trackDwell) return;
+    const wait = Math.max(0, TRACK_DWELL_MS - (Date.now() - this.trackDwell.since));
+    const t = setTimeout(() => this.fireTrackDwell(), wait);
+    (t as unknown as { unref?: () => void }).unref?.();
+    this.trackTimer = t;
+  }
+  /** Timer-Ablauf (oder Test mit Zeit): Dwell mit aktueller Zeit fortsetzen */
+  fireTrackDwell(this: Editor, now = Date.now()) {
+    this.trackTimer = null;
+    const dw = this.trackDwell;
+    if (!dw) return;
+    const next = trackDwellNext(dw, dw.p, now);
+    this.trackDwell = next.next;
+    if (next.acquire) this.addTrackPt(next.acquire, 1e-6);
+    else if (this.trackDwell) this.armTrackTimer();
+  }
+  /** Hover-Dwell für einen exakten Treffer fortschreiben (Weltkoord.); acquire → merken. now: Zeitbasis, Standard Date.now(). */
+  trackDwellOnHit(this: Editor, p: Pt, tolWorld: number, now = Date.now()) {
+    const dw = trackDwellNext(this.trackDwell, p, now, TRACK_DWELL_MS, tolWorld * 0.25);
+    this.trackDwell = dw.next;
+    if (dw.acquire) {
+      this.addTrackPt(dw.acquire, tolWorld);
+      this.clearTrackTimer();
+    } else if (this.trackDwell) this.armTrackTimer();
+    else this.clearTrackTimer();
+  }
+  /** Gemerkten Tracking-Punkt übernehmen: entdoppelt (tol), max. TRACK_MAX — ältester fällt raus */
+  addTrackPt(this: Editor, q: Pt, tol: number) {
+    const arr = this.trackPts ?? (this.trackPts = []);
+    if (arr.some((a) => Math.hypot(a.x - q.x, a.y - q.y) <= tol)) return;
+    arr.push({ x: q.x, y: q.y });
+    while (arr.length > TRACK_MAX) arr.shift();
+  }
   /** Fangpunkte aller sichtbaren Objekte außer skip, dazu die sichtbaren Hilfslinien (Fang an der ganzen Linie und an Kreuzungen) */
   buildSnap(this: Editor, skip: Obj[] = []): SnapSet {
     const set = buildSnapSet(this.viewObjects(), (o) => this.layer(o.layer).show, new Set(skip));
@@ -175,8 +249,8 @@ export class EditorSnapping {
       const { w, h } = this.doc.bed;
       const m = Math.max(w, h) * 10;
       for (const g of this.guideList()) {
-        if (g.axis === 'x') set.addPiece(g.v, -m, g.v, h + m);
-        else set.addPiece(-m, g.v, w + m, g.v);
+        if (g.axis === 'x') set.addPiece(g.v, -m, g.v, h + m, false);
+        else set.addPiece(-m, g.v, w + m, g.v, false);
       }
     }
     return set;
@@ -196,10 +270,20 @@ export class EditorSnapping {
     return { x: Math.round(p.x / g) * g, y: Math.round(p.y / g) * g };
   }
   /**
-   * Weltpunkt fangen: zuerst Objektfang, mit Alt Ausrichtung an Fangpunkten, sonst Raster.
+   * Weltpunkt fangen: zuerst exakter Objektfang (dabei Hover-Dwell für Tracking), mit Alt
+   * Ausrichtung an Fangpunkten, sonst Fangspur/Polar/Verlängerung, dann Raster.
    * toggle: Ctrl kehrt das Fangen um (nicht beim Aufziehen von Formen, dort heißt Ctrl „von der Mitte“).
+   * track: explizite Fangspur-Referenzen (z. B. bereits gesetzte Punkte); extensions: Fang auf
+   * Verlängerungslinien gerader Stücke. Gemerkte Punkte (trackPts) gelten immer als Referenzen.
+   * Rangfolge: exakt > Schnittpunkt zweier Projektionen > Spur ≈ Polar ≈ Verlängerung
+   * (nächster gewinnt, stabil: Spur, Polar, Verlängerung). Ein Schnittpunkt braucht den Cursor
+   * in exakter Punkttoleranz tol; Gleichstand zweier Schnitte: näherer, dann kleinerer
+   * Guide-Index (guideIntersections liefert nach (i, j) sortiert). Paare aus demselben
+   * Kandidaten (z. B. beide Achsen einer Fangspur) kreuzen sich im eigenen Treffer und zählen nicht.
+   * Verlängerungen fangen seitlich bis PROJ_CORRIDOR_MULT × tol, längs bleibt
+   * EXT_REACH_MULT × tol. now: Zeitbasis für Dwell (Tests), Standard Date.now().
    */
-  snapPt(this: Editor, p: Pt, e: Mods | null, opt: { set?: SnapSet; extra?: Pt[]; toggle?: boolean } = {}): Pt {
+  snapPt(this: Editor, p: Pt, e: Mods | null, opt: { set?: SnapSet; extra?: Pt[]; toggle?: boolean; track?: Pt[]; extensions?: boolean; now?: number } = {}): Pt {
     this.clearSnap();
     const md = this.snapModes(e, opt.toggle ?? true);
     if (md.obj) {
@@ -208,13 +292,45 @@ export class EditorSnapping {
       const hit = findSnap(set, p, tol, opt.extra, this.snapTargetSet());
       if (hit) {
         this.snapHit = hit;
+        this.trackDwellOnHit(hit.p, tol, opt.now);
         return hit.p;
       }
+      this.trackDwell = null;
+      this.clearTrackTimer();
       if (md.alt) {
         const a = alignPoint(set, p, tol, opt.extra);
         if (a.guides.length) {
           this.alignGuides = a.guides;
           return a.p;
+        }
+      } else {
+        const cands: { p: Pt; guides: AlignGuide[]; kind: 'track' | 'angle' | 'ext'; d: number }[] = [];
+        if (opt.track?.length || (this.trackPts?.length ?? 0)) {
+          const refs = [...(this.trackPts ?? []), ...(opt.track ?? [])];
+          const t = trackPoint(refs, p, tol);
+          if (t) cands.push({ p: t.p, guides: t.guides, kind: 'track', d: Math.hypot(t.p.x - p.x, t.p.y - p.y) });
+          for (const pol of snapToAllPolar(refs, p, tol))
+            cands.push({ p: pol.p, guides: [pol.guide], kind: 'angle', d: pol.d });
+        }
+        if (opt.extensions) {
+          // Seitlich verbreiterter Korridor, längs unverändert: maxExt aus der Basis-tol.
+          // Vorsortiert nach (Abstand, Verlängerung), damit der Gesamt-Sieger dem bisherigen entspricht.
+          const allX = snapToAllExtensions(set, p, PROJ_CORRIDOR_MULT * tol, EXT_REACH_MULT * tol)
+            .sort((a, b) => (Math.abs(a.d - b.d) > 1e-9 ? a.d - b.d : a.ext - b.ext));
+          for (const x of allX) cands.push({ p: x.p, guides: [x.guide], kind: 'ext', d: x.d });
+        }
+        const cross = projIntersectionWinners(cands, p, tol);
+        if (cross) {
+          this.alignGuides = cross.guides;
+          this.snapHit = { p: cross.p, kind: 'intersection' };
+          return cross.p;
+        }
+        if (cands.length) {
+          cands.sort((a, b) => Math.abs(a.d - b.d) > 1e-9 ? a.d - b.d : 0); // stabil: Gleichstand behält Spur vor Polar vor Verlängerung
+          const w = cands[0];
+          this.alignGuides = w.guides;
+          this.snapHit = { p: w.p, kind: w.kind };
+          return w.p;
         }
       }
     }

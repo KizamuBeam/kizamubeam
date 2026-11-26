@@ -12,7 +12,7 @@ import { BoolBase } from './ops';
 import { onFontLoaded } from './fonts';
 import { EdgePick } from './joints';
 import { Box, boundsOf, hitLeaf } from './geom';
-import { AlignGuide, SNAP_TARGET_ORDER, SnapHit, SnapKind, SnapSet } from './snap';
+import { AlignGuide, SNAP_TARGET_ORDER, SnapHit, SnapKind, SnapSet, TrackDwell } from './snap';
 import { History } from './history';
 import { Tool, RULER, CANVAS_THEMES, HANDLE_OFF, Drag, NodeHover, SegHover, TOOL_HINTS } from './editor/shared';
 import { EditorCommands } from './editor/commands';
@@ -110,6 +110,12 @@ export class Editor {
   snapHit: SnapHit | null = null;
   /** Ausrichtungshilfen (Alt) zur Anzeige */
   alignGuides: AlignGuide[] = [];
+  /** Gemerkte Tracking-Punkte (Hover-Dwell, Weltkoordinaten, max. 7); Esc/Werkzeugwechsel löscht */
+  trackPts: Pt[] = [];
+  /** Laufende Hover-Dwell-Beobachtung für trackPts */
+  trackDwell: TrackDwell | null = null;
+  /** Stillhalte-Timer für Dwell ohne Mausbewegung */
+  trackTimer: ReturnType<typeof setTimeout> | null = null;
   /** Mittelpunktkreuze: aus, bei Auswahl/unter dem Mauszeiger, immer */
   centerMarks: 'off' | 'auto' | 'all' = 'auto';
   /** Objekt unter dem Mauszeiger, dessen Mittelpunkte gezeigt werden */
@@ -128,8 +134,10 @@ export class Editor {
 
   // Skizzenmodus (Skizzen mit Beziehungen und Bemaßungen)
   sketchEdit: SketchSession | null = null;
-  /** Wert einer Bemaßung erfragen (ui.ts): Zahl oder Formel; null = abgebrochen */
-  onSketchValue: ((title: string, current: number, unit: string, expr?: string) => Promise<{ v: number; expr?: string } | null>) | null = null;
+  /** Wert einer Bemaßung erfragen (ui.ts): Zahl oder Formel; null = abgebrochen; place = Ablage (Bildschirm-px) */
+  onSketchValue: ((title: string, current: number, unit: string, expr?: string, options?: import('./sketchDimensionInput').DimensionInputOptions) => Promise<import('./sketchDimensionInput').DimensionValue | null>) | null = null;
+  onSketchTrimLosses?: (losses: readonly import('./sketch/model').SkCon[], deleting?: boolean) => Promise<boolean>;
+  onSketchSplitInset?: (plan: NonNullable<ReturnType<typeof import('./sketch/splitInset').planSplitInset>>) => Promise<boolean>;
   snapCache: { ver: number; set: SnapSet } | null = null;
   snapVer = 0;
   /** Counts document changes only ('doc' events); caches that hover hints must not invalidate key on it */
@@ -348,6 +356,8 @@ export class Editor {
   }
 
   // Befehle: Löschen, Kopieren, Einfügen, Transformieren, Formparameter
+  /** Rasterarray-Dialog öffnen (Ctrl+Shift+A, von der Oberfläche gesetzt) */
+  onGridArray: (() => void) | null = null;
   /** Datei > Importieren (von der Oberfläche gesetzt) */
   onImport: (() => void) | null = null;
   /** Tastenkürzel ausführen (von der Oberfläche gesetzt, #453); true = Taste verarbeitet */
@@ -415,14 +425,22 @@ export class Editor {
       this.typo = resolveTypography(getTypography());
       this.redraw();
     });
-    new ResizeObserver(() => this.resize()).observe(canvas);
+    new ResizeObserver(([entry]) => this.resize(entry.contentRect)).observe(canvas);
     canvas.addEventListener('pointerdown', (e) => this.onDown(e));
     installOverlapPicker(this);
     canvas.addEventListener('pointermove', (e) => this.onMove(e));
     canvas.addEventListener('pointerup', (e) => this.onUp(e));
-    canvas.addEventListener('pointercancel', (e) => this.cancelPointerDrag(e));
-    canvas.addEventListener('lostpointercapture', (e) => this.cancelPointerDrag(e));
+    const cancelPointer = (e: PointerEvent) => {
+      if (this.sketchEdit?.dimPress?.pointerId === e.pointerId) this.sketchEdit.dimPress = undefined;
+      this.cancelPointerDrag(e);
+    };
+    canvas.addEventListener('pointercancel', cancelPointer);
+    canvas.addEventListener('lostpointercapture', cancelPointer);
     canvas.addEventListener('pointerleave', () => {
+      if (this.sketchEdit?.trimPreview) {
+        this.sketchEdit.trimPreview = undefined;
+        this.redraw();
+      }
       const hideCrosshair = this.cursorOnCanvas && this.showCrosshair;
       this.cursorOnCanvas = false;
       if (this.drag || (!this.nodeHover && !this.segHover && !this.snapHit && !this.alignGuides.length)) {
@@ -481,8 +499,7 @@ export class Editor {
 
   // ---------- Ansicht ----------
 
-  private resize() {
-    const r = this.canvas.getBoundingClientRect();
+  private resize(r: Pick<DOMRectReadOnly, 'width' | 'height'>) {
     const oldW = this.w,
       oldH = this.h;
     // Zeigte die Ansicht gerade den ganzen Arbeitsbereich (Start oder „Seite einpassen“), wird neu eingepasst,
@@ -717,7 +734,10 @@ export class Editor {
     this.relHover = null;
     this.measure = null;
     this.measureCircle = null;
-    if (t !== 'sketch') this.sketchEdit = null;
+    if (t !== 'sketch') {
+      this.sketchEdit?.valueEdit?.controller.abort();
+      this.sketchEdit = null;
+    }
     this.clearSnap();
     this.hint = TOOL_HINTS[t];
     this.canvas.style.cursor = t === 'select' ? 'default' : t === 'text' ? 'text' : 'crosshair';

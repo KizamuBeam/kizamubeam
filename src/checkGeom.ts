@@ -9,7 +9,7 @@ import { SCALE } from './clip';
 import { copySub, joinSubs } from './pathtools';
 import type { Params } from './generators/types';
 
-export type CheckKind = 'double' | 'open' | 'unjoined' | 'web' | 'hole' | 'bed' | 'import' | 'fit' | 'thickness' | 'loose' | 'insert' | 'engrave' | 'image' | 'font' | 'order' | 'spelling';
+export type CheckKind = 'double' | 'crossing' | 'open' | 'unjoined' | 'web' | 'hole' | 'bed' | 'import' | 'fit' | 'thickness' | 'loose' | 'insert' | 'engrave' | 'image' | 'font' | 'order' | 'spelling';
 export type CheckLevel = 'error' | 'warn' | 'info';
 
 /** Korrektur zu einem Befund; ausgeführt vom Editor (src/editor/check.ts) */
@@ -68,7 +68,7 @@ export interface CheckSettings {
 export const DEFAULT_CHECK: CheckSettings = { minWeb: 1, beam: 0.15, tol: 0.05, closeGap: 1, engraveLayers: [], beforeLaser: true, ignoreOutOfBounds: false, checkSpelling: false };
 
 /** A finding of the geometric checks: a message code and its numbers instead of a text */
-export type GeomCode = 'double' | 'double-whole' | 'unjoined' | 'open' | 'open-fill' | 'hole-lost' | 'hole-small' | 'web' | 'web-cut';
+export type GeomCode = 'double' | 'double-whole' | 'double-self' | 'crossing' | 'unjoined' | 'open' | 'open-fill' | 'hole-lost' | 'hole-small' | 'web' | 'web-cut';
 export type GeomIssue = Omit<CheckIssue, 'msg'> & { code: GeomCode; values?: Record<string, number> };
 
 // ---------- Konturen ----------
@@ -231,10 +231,10 @@ class SegGrid {
       for (let gy = Math.floor(y0 / c); gy <= Math.floor(y1 / c); gy++) for (const id of this.map.get(this.k(gx, gy)) ?? []) out.add(id);
     return [...out];
   }
-  seg(id: number): [Contour, Pt, Pt] {
+  seg(id: number): [Contour, Pt, Pt, number] {
     const c = this.segC[id],
       i = this.segI[id];
-    return [c, c.pts[i], c.pts[i + 1]];
+    return [c, c.pts[i], c.pts[i + 1], i];
   }
 }
 
@@ -400,6 +400,77 @@ export function checkDouble(cs: Contour[], s: CheckSettings, out: GeomIssue[]) {
       issue.fix = { kind: 'spans', items: [...A.spans].flatMap(([leaf, bySub]) => [...bySub].map(([sub, spans]) => ({ leaf, sub, spans }))) };
     out.push(issue);
   }
+}
+
+/** Detect crossings and retracing on the flattened output geometry, without offering an unsafe fix. */
+export function checkCutIntersections(cs: Contour[], out: GeomIssue[]) {
+  const cuts = cs.filter((c) => c.cut);
+  const grid = new SegGrid(cuts, 5);
+  const eps = 1e-7;
+  const sub = (a: Pt, b: Pt) => ({ x: a.x - b.x, y: a.y - b.y });
+  const det = (a: Pt, b: Pt) => a.x * b.y - a.y * b.x;
+  const dot = (a: Pt, b: Pt) => a.x * b.x + a.y * b.y;
+  const length = (v: Pt) => Math.hypot(v.x, v.y);
+  const at = (p: Pt, v: Pt, d: number) => ({ x: p.x + v.x * d, y: p.y + v.y * d });
+  const rays = (c: Contour, i: number, d: number, len: number, p: Pt) => {
+    const n = c.pts.length - 1;
+    if (d > eps && d < len - eps) return [sub(c.pts[i], p), sub(c.pts[i + 1], p)];
+    const vertex = d <= eps ? i : i + 1;
+    if (!c.closed && (vertex === 0 || vertex === n)) return [];
+    const v = vertex % n;
+    const origin = c.pts[v];
+    const ray = (step: number) => {
+      for (let k = 1; k < c.pts.length; k++) {
+        const j = v + k * step;
+        if (!c.closed && (j < 0 || j > n)) break;
+        const direction = sub(c.pts[c.closed ? (j + n) % n : j], origin);
+        if (length(direction) > eps) return direction;
+      }
+    };
+    const a = ray(-1), b = ray(1);
+    return a && b ? [a, b] : [];
+  };
+  const crosses = (a: Pt[], b: Pt[]) => {
+    if (a.length !== 2 || b.length !== 2) return false;
+    const sorted = [a, b].flatMap((r, i) => r.map((v) => ({ i, angle: Math.atan2(v.y, v.x) }))).sort((u, v) => u.angle - v.angle);
+    return sorted.every((r, i) => {
+      const s = sorted[(i + 1) % 4];
+      return r.i !== s.i && (s.angle - r.angle + 2 * Math.PI) % (2 * Math.PI) > eps;
+    });
+  };
+  const issues = new Map<string, GeomIssue>();
+  for (const c of cuts) for (let i = 0; i + 1 < c.pts.length; i++) {
+    const a = c.pts[i], b = c.pts[i + 1], ab = sub(b, a), l = length(ab);
+    if (l <= eps) continue;
+    const u = { x: ab.x / l, y: ab.y / l };
+    for (const id of grid.query(Math.min(a.x, b.x) - eps, Math.min(a.y, b.y) - eps, Math.max(a.x, b.x) + eps, Math.max(a.y, b.y) + eps)) {
+      const [o, x, y, j] = grid.seg(id);
+      if (o.idx > c.idx || o === c && j >= i) continue;
+      const xy = sub(y, x), m = length(xy);
+      if (m <= eps) continue;
+      const v = { x: xy.x / m, y: xy.y / m }, delta = sub(x, a), d = det(u, v);
+      if (Math.abs(d) <= eps) {
+        if (o !== c || Math.abs(det(u, delta)) > eps || Math.abs(det(u, sub(y, a))) > eps) continue;
+        const s = dot(delta, u), t = dot(sub(y, a), u);
+        const lo = Math.max(0, Math.min(s, t)), hi = Math.min(l, Math.max(s, t));
+        if (hi - lo <= eps) continue;
+        const key = `double-self:${c.leaf.id}.${c.sub}`;
+        const issue = issues.get(key) ?? { key, kind: 'double', code: 'double-self', level: 'warn', objs: [c.top], lines: [], pts: [] };
+        if (issue.lines.length < 100) issue.lines.push([at(a, u, lo), at(a, u, hi)]);
+        issues.set(key, issue);
+      } else {
+        const s = det(delta, v) / d, t = det(delta, u) / d;
+        if (s < -eps || s > l + eps || t < -eps || t > m + eps) continue;
+        const p = at(a, u, s);
+        if (!crosses(rays(c, i, s, l, p), rays(o, j, t, m, p))) continue;
+        const key = `crossing:${c.leaf.id}.${c.sub}:${o.leaf.id}.${o.sub}`;
+        const issue = issues.get(key) ?? { key, kind: 'crossing', code: 'crossing', level: 'warn', objs: [...new Set([c.top, o.top])], lines: [], pts: [] };
+        if (issue.pts.length < 100 && !issue.pts.some((q) => length(sub(q, p)) <= eps)) issue.pts.push(p);
+        issues.set(key, issue);
+      }
+    }
+  }
+  for (const issue of issues.values()) out.push(issue);
 }
 
 /** Offene Umrisse: fast geschlossen, auf Füll-Layern oder aus Einzellinien, die zusammen einen Umriss ergeben */
@@ -588,4 +659,3 @@ export function checkWebsAndHoles(cs: Contour[], s: CheckSettings, out: GeomIssu
     });
   }
 }
-
