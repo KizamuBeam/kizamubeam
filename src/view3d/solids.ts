@@ -21,6 +21,11 @@ export interface Solid {
   part?: string;
   /** Local x where a strip was cut off its neighbours; the outline draws no edges there */
   seams?: number[];
+  /**
+   * Penetration (mm) up to which the plate counts as touching, in its plane and through its faces: for strips bent round a curve by
+   * the Joint tool, whose curved fingers are fitted to Bézier curves within 0.01 mm and whose flat strips are chords of the arc
+   */
+  tol?: number;
 }
 
 /** Key of the part a solid belongs to (a strip of a bent part: that part) */
@@ -428,9 +433,19 @@ export const OVERLAP_TOLERANCE = 0.01;
 
 /** Platte auf beiden Flächen um die Toleranz verkleinern; dünnere Platten bleiben unverändert */
 function shrunk(s: Solid): Solid {
-  if (s.th <= 4 * OVERLAP_TOLERANCE) return s;
-  const o = add(s.pose.o, s.pose.n, OVERLAP_TOLERANCE);
-  return { ...s, pose: { ...s.pose, o }, th: s.th - 2 * OVERLAP_TOLERANCE };
+  let polys = s.polys;
+  if (s.tol) {
+    const off = new ClipperLib.ClipperOffset();
+    off.AddPaths(polys.map((poly) => poly.map((q) => ({ X: Math.round(q.x * SCALE), Y: Math.round(q.y * SCALE) }))), ClipperLib.JoinType.jtMiter, ClipperLib.EndType.etClosedPolygon);
+    const core: Paths = [];
+    off.Execute(core, -s.tol * SCALE);
+    polys = core.map((p) => p.map((q) => ({ x: q.X / SCALE, y: q.Y / SCALE })));
+  }
+  // A tolerance of its own also covers the faces: a bent part's flat strips are chords of its arc
+  const t = Math.max(OVERLAP_TOLERANCE, s.tol ?? 0);
+  if (s.th <= 4 * t) return { ...s, polys };
+  const o = add(s.pose.o, s.pose.n, t);
+  return { ...s, polys, pose: { ...s.pose, o }, th: s.th - 2 * t };
 }
 
 /**

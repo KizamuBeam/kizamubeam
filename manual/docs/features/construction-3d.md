@@ -39,7 +39,7 @@ Finger joints and mortise and tenon also work on curved edges, for example a rou
 1. Click the curve first (a circle, an ellipse, a rounded corner or an arc). A smooth run of the outline counts as one edge; a whole circle is picked as a ring.
 2. Click a straight edge second, usually the edge of the strip. For tenons, the slots go into the curved panel instead.
 
-Fingers, tenons and slots are measured on the middle of the wall, so the parts fit after bending, and their flanks point to the centre of the curve. The dialog shows the strip length to cut. A longer strip gets the pattern from its start and stays plain at the end; a strip that is too short is reported. Add living hinge cuts to the strip with [Living hinge](#living-hinges) afterwards. Curved joints are not yet assembled in the 3D view.
+Fingers, tenons and slots are measured on the middle of the wall, so the parts fit after bending, and their flanks point to the centre of the curve. The dialog shows the strip length to cut. A longer strip gets the pattern from its start and stays plain at the end; a strip that is too short is reported. Add living hinge cuts to the strip with [Living hinge](#living-hinges) afterwards. With finger joints, the 3D view bends the strip around the curve and assembles the parts. A second curve on the strip’s other edge, such as a lid, is placed on the bent strip, but only if its pattern starts where the strip’s other pattern does. Tab-and-slot joints on curves are not assembled yet.
 
 ## Lid hinge
 

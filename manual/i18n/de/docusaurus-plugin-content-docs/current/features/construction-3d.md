@@ -39,7 +39,7 @@ Fingerzinken sowie Schlitz und Zapfen gehen auch an gebogenen Kanten, zum Beispi
 1. Klicke zuerst die Kurve an (Kreis, Ellipse, runde Ecke oder Bogen). Ein glatter Abschnitt der Kontur zählt als eine Kante, ein ganzer Kreis wird als Ring gewählt.
 2. Klicke danach eine gerade Kante an, meist die Kante des Streifens. Bei Zapfen kommen die Schlitze stattdessen in die gebogene Platte.
 
-Zinken, Zapfen und Schlitze werden auf der Wandmitte gemessen, damit die Teile nach dem Biegen passen; ihre Flanken zeigen zur Kurvenmitte. Der Dialog nennt die Streifenlänge zum Zuschneiden. Ein längerer Streifen bekommt das Muster ab seinem Anfang und bleibt am Ende glatt, ein zu kurzer wird gemeldet. Biegeschnitte setzt du danach mit [Biegeschnitte](#living-hinges) in den Streifen. Gebogene Verbindungen werden in der 3D-Ansicht noch nicht zusammengesetzt.
+Zinken, Zapfen und Schlitze werden auf der Wandmitte gemessen, damit die Teile nach dem Biegen passen; ihre Flanken zeigen zur Kurvenmitte. Der Dialog nennt die Streifenlänge zum Zuschneiden. Ein längerer Streifen bekommt das Muster ab seinem Anfang und bleibt am Ende glatt, ein zu kurzer wird gemeldet. Biegeschnitte setzt du danach mit [Biegeschnitte](#living-hinges) in den Streifen. Bei Fingerzinken biegt die 3D-Ansicht den Streifen um die Kurve und setzt die Teile zusammen. Eine zweite Kurve an der anderen Kante des Streifens, etwa ein Deckel, wird auf den gebogenen Streifen gesetzt, aber nur, wenn ihr Muster dort beginnt, wo das andere Muster des Streifens beginnt. Schlitz und Zapfen an Kurven werden noch nicht zusammengesetzt.
 
 ## Deckelscharnier {#lid-hinge}
 

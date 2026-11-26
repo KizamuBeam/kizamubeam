@@ -1,5 +1,5 @@
 // Editor: Verbindungen (Fingerzinken, Schlitz und Zapfen).
-import { apply, IDENT, inv, leaves, Mat, newId, Obj, Pt, SubPath, visibleLeaves } from '../model';
+import { apply, IDENT, inv, leaves, Mat, Mate, newId, Obj, Pt, SubPath, visibleLeaves } from '../model';
 import { transformSubs } from '../importers';
 import { computeJoint, EdgePick, edgePickAt, jointMate, JointOptions, samePick, validEdge } from '../joints';
 import { bezierPt } from '../curves';
@@ -143,10 +143,22 @@ export class EditorJoints {
       const im = inv(m);
       return pts.map((p) => apply(im, p.x, p.y)) as [Pt, Pt, Pt];
     };
+    const localPts = (m: Mat, pts: Pt[]) => {
+      const im = inv(m);
+      // Hundredths of a micrometre are plenty and keep the saved file small
+      return pts.map((p) => {
+        const q = apply(im, p.x, p.y);
+        return { x: Math.round(q.x * 1e5) / 1e5, y: Math.round(q.y * 1e5) / 1e5 };
+      });
+    };
     const obj = A.obj;
     obj.mates = [
       ...(obj.mates ?? []),
-      { to: B.obj.id, kind: opt.kind, th: opt.thickness, a: local(A.m, mate.a), b: local(B.m, mate.b), ...(mate.out ? { out: true } : {}), ...(mate.lap ? { lap: mate.lap } : {}), fit: { k: opt.kerf, c: opt.clearance, v: JOINT_GEOMETRY_VERSION } },
+      {
+        to: B.obj.id, kind: opt.kind, th: opt.thickness, a: local(A.m, mate.a), b: local(B.m, mate.b), ...(mate.out ? { out: true } : {}), ...(mate.lap ? { lap: mate.lap } : {}),
+        fit: { k: opt.kerf, c: opt.clearance, v: JOINT_GEOMETRY_VERSION },
+        ...(mate.bend ? { bend: { on: mate.bend.on === 0 ? 'a' : 'b', path: localPts(mate.bend.on === 0 ? A.m : B.m, mate.bend.path), x0: mate.bend.x0, z: mate.bend.z } } : {}),
+      } as Mate,
     ];
   }
 }
