@@ -7,7 +7,9 @@
 import type { Mat, Mate, Pt } from '../model';
 import { apply } from '../model';
 import { flatPose, Pose, V3 } from './poses';
-import type { Solid } from './solids';
+import { bentSolids, type Solid } from './solids';
+import ClipperLib from 'clipper-lib';
+import { execute, SCALE } from '../clip';
 
 export interface MatePart {
   id: number;
@@ -100,7 +102,8 @@ export function mateRelative(A: Line, B: Line, mt: Mate): Pose | null {
 /** Verkettung: erst q, dann p */
 export function compose(p: Pose, q: Pose): Pose {
   const L = (w: V3): V3 => plus(scale(p.u, w[0]), scale(p.v, w[1]), scale(p.n, w[2]));
-  return { o: plus(p.o, L(q.o)), u: L(q.u), v: L(q.v), n: L(q.n) };
+  // A bend lies in the plane of u and n of q, so it moves with them
+  return { o: plus(p.o, L(q.o)), u: L(q.u), v: L(q.v), n: L(q.n), ...(q.bend ? { bend: q.bend } : {}) };
 }
 
 /** Umkehrung (die Achsen sind orthonormal: Transponierte) */
@@ -120,24 +123,129 @@ export interface MateAssembly {
   groups: Map<string, string>;
   /** Teile, die über Verbindungen angesetzt wurden */
   placed: Set<number>;
+  /**
+   * Bent strips (#513): their outlines in the solids are not in world coordinates of the work area but along the strip
+   * (x along its edge from the start, y into the material); this maps the work area onto them
+   */
+  frames: Map<number, Mat>;
+}
+
+/** World of the work area → coordinates along a strip's edge line (x from its start, y into the material) */
+function stripFrame(L: Line): Mat {
+  // apply(m, x, y) = (a·x + c·y + e, b·x + d·y + f)
+  return [L.dir.x, L.in.x, L.dir.y, L.in.y, -(L.a.x * L.dir.x + L.a.y * L.dir.y), -(L.a.x * L.in.x + L.a.y * L.in.y)] as Mat;
+}
+
+/**
+ * Point of a bent plate in space: local (x, y) at height s in the plate, exactly as bentSolids lays the strips (the
+ * plate goes on straight before the first and after the last point of the path)
+ */
+export function bentPoint(p: Pose, x: number, y: number, s: number, th: number): V3 {
+  const path = p.bend!.path;
+  const xs = [p.bend!.x0 ?? 0];
+  for (let i = 1; i < path.length; i++) xs.push(xs[i - 1] + Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]));
+  let i = 0;
+  while (i < path.length - 2 && x > xs[i + 1]) i++;
+  const len = xs[i + 1] - xs[i] || 1;
+  const ta = (path[i + 1][0] - path[i][0]) / len,
+    tb = (path[i + 1][1] - path[i][1]) / len;
+  const comb = (a: number, b: number): V3 => plus(scale(p.u, a), scale(p.n, b));
+  return plus(p.o, comb(path[i][0], path[i][1]), scale(comb(ta, tb), x - xs[i]), scale(p.v, y), scale(comb(-tb, ta), s - th / 2));
+}
+
+const sub3 = (a: V3, b: V3): V3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const dot3 = (a: V3, b: V3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const cross3 = (a: V3, b: V3): V3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const unit = (a: V3): V3 => scale(a, 1 / (Math.hypot(...a) || 1));
+
+/** Orthonormal frame through three points (columns: along p0→p1, in the plane towards p2, normal) */
+function frame3(p: V3[]): [V3, V3, V3] {
+  const e1 = unit(sub3(p[1], p[0]));
+  const w = sub3(p[2], p[0]);
+  const e2 = unit(sub3(w, scale(e1, dot3(w, e1))));
+  return [e1, e2, cross3(e1, e2)];
+}
+
+/**
+ * Placement of a plate that takes the points src (its local coordinates x, y at one height, all in its plane) onto dst
+ * (space), from three of them, with its thickness pointing along up (towards the strip that stands on it): mirrored
+ * if need be, like the work area is mirrored for the plates placed from it. null if the others land more than 0.2 mm
+ * off (the two curves do not have the same shape, or the patterns are not laid out alike).
+ */
+function rigidFit(src: V3[], dst: V3[], up: V3): Pose | null {
+  const k = [0, Math.floor(src.length / 3), Math.floor((2 * src.length) / 3)];
+  const S = frame3(k.map((i) => src[i])),
+    D = frame3(k.map((i) => dst[i]));
+  // The points lie in the plate's plane: its normal may go to either side; take the side of the strip
+  if (dot3(S[2], [0, 0, 1]) * dot3(D[2], up) < 0) D[2] = scale(D[2], -1);
+  // R = D·Sᵀ: a vector w in local coordinates goes to Σ (w·S_j) D_j
+  const R = (w: V3): V3 => plus(scale(D[0], dot3(w, S[0])), scale(D[1], dot3(w, S[1])), scale(D[2], dot3(w, S[2])));
+  const pose: Pose = { o: sub3(dst[k[0]], R(src[k[0]])), u: R([1, 0, 0]), v: R([0, 1, 0]), n: R([0, 0, 1]) };
+  for (let i = 0; i < src.length; i++) {
+    const q = plus(pose.o, scale(pose.u, src[i][0]), scale(pose.v, src[i][1]), scale(pose.n, src[i][2]));
+    if (Math.hypot(...sub3(q, dst[i])) > 0.2) return null;
+  }
+  return pose;
+}
+
+/** A finger joint between a curve and a straight edge: the strip S is bent round the curve of C */
+interface BentLink {
+  C: number;
+  S: number;
+  /** The strip's edge line (world) */
+  edge: Line;
+  /** Pose of the strip (along its edge line) when C has the pose "identity" */
+  rel: Pose;
+  th: number;
+}
+
+function bentLink(p: MatePart, q: MatePart, mt: Mate): BentLink | null {
+  const b = mt.bend;
+  if (!b || b.path.length < 2) return null;
+  const [C, S] = b.on === 'a' ? [p, q] : [q, p];
+  const edge = line(S.m, b.on === 'a' ? mt.b : mt.a);
+  // The middle of the strip stands on path (local coordinates of C → world), its edge line at height z over C, its
+  // material upwards
+  const path = b.path.map((pt) => {
+    const w = apply(C.m, pt.x, pt.y);
+    return [w.x, w.y] as [number, number];
+  });
+  return { C: C.id, S: S.id, edge, rel: { o: [0, 0, b.z], u: [1, 0, 0], v: [0, 0, 1], n: [0, 1, 0], bend: { path, x0: b.x0 } }, th: mt.th };
 }
 
 /**
  * Verbundene Teile zusammensetzen. Teile ohne Verbindung kommen nicht vor. fallbackTh: Dicke für Teile, deren
  * Verbindungen keine nennen (gibt es nicht, aber sicher ist sicher).
+ *
+ * A strip joined to a curve (#513) is bent round it and placed only through such joints: from the curved plate,
+ * and from a placed strip on to another curved plate (a lid), which is fitted onto where the strip stands.
  */
 export function assembleMates(parts: MatePart[], fallbackTh: number): MateAssembly {
   const byId = new Map(parts.map((p) => [p.id, p]));
   // Kanten des Verbindungsgraphen in beide Richtungen
   const adj = new Map<number, { other: number; rel: Pose; th: number }[]>();
+  const bent = new Map<number, BentLink[]>();
+  const strips = new Set<number>();
   const link = (x: number, y: number, rel: Pose, th: number) => {
     if (!adj.has(x)) adj.set(x, []);
     adj.get(x)!.push({ other: y, rel, th });
+  };
+  const linkBent = (x: number, l: BentLink) => {
+    if (!bent.has(x)) bent.set(x, []);
+    bent.get(x)!.push(l);
   };
   for (const p of parts)
     for (const mt of p.mates) {
       const q = byId.get(mt.to);
       if (!q || q === p) continue;
+      if (mt.bend) {
+        const l = bentLink(p, q, mt);
+        if (!l) continue;
+        strips.add(l.S);
+        linkBent(l.C, l);
+        linkBent(l.S, l);
+        continue;
+      }
       const rel = mateRelative(line(p.m, mt.a), line(q.m, mt.b), mt);
       if (!rel) continue;
       link(p.id, q.id, rel, mt.th);
@@ -146,14 +254,19 @@ export function assembleMates(parts: MatePart[], fallbackTh: number): MateAssemb
   const poses = new Map<number, Pose>();
   const thick = new Map<number, number>();
   const groups = new Map<string, string>();
-  // Wurzel: das Teil mit den meisten Verbindungen, bei Gleichstand das größte (Seitenwand statt Regalboden)
+  const frames = new Map<number, Mat>();
+  // Wurzel: das Teil mit den meisten Verbindungen, bei Gleichstand das größte (Seitenwand statt Regalboden); a bent
+  // strip never (it is placed round its curve)
   const size = (id: number) => {
     const pts = byId.get(id)!.polys.flat();
     const xs = pts.map((q) => q.x),
       ys = pts.map((q) => q.y);
     return (Math.max(...xs) - Math.min(...xs)) * (Math.max(...ys) - Math.min(...ys));
   };
-  const order = [...adj.keys()].sort((x, y) => adj.get(y)!.length - adj.get(x)!.length || size(y) - size(x));
+  const degree = (id: number) => (adj.get(id)?.length ?? 0) + (bent.get(id)?.length ?? 0);
+  const order = [...new Set([...adj.keys(), ...bent.keys()])]
+    .filter((id) => !strips.has(id))
+    .sort((x, y) => degree(y) - degree(x) || size(y) - size(x) || x - y);
   for (const root of order) {
     if (poses.has(root)) continue;
     // Wurzel liegt flach, von oben gesehen wie auf der Arbeitsfläche
@@ -162,19 +275,93 @@ export function assembleMates(parts: MatePart[], fallbackTh: number): MateAssemb
     while (queue.length) {
       const x = queue.shift()!;
       groups.set(String(x), 'm' + root);
-      for (const e of adj.get(x)!) {
-        if (!thick.has(x)) thick.set(x, e.th);
-        if (poses.has(e.other)) continue;
-        poses.set(e.other, compose(poses.get(x)!, e.rel));
-        thick.set(e.other, e.th);
-        queue.push(e.other);
+      const px = poses.get(x)!;
+      // Rigid joints only between flat plates: a bent strip's pose is not a rigid frame
+      if (!strips.has(x))
+        for (const e of adj.get(x) ?? []) {
+          if (!thick.has(x)) thick.set(x, e.th);
+          if (poses.has(e.other) || strips.has(e.other)) continue;
+          poses.set(e.other, compose(px, e.rel));
+          thick.set(e.other, e.th);
+          queue.push(e.other);
+        }
+      for (const l of bent.get(x) ?? []) {
+        if (!thick.has(x)) thick.set(x, l.th);
+        if (x === l.C) {
+          if (poses.has(l.S)) continue;
+          poses.set(l.S, compose(px, l.rel));
+          frames.set(l.S, stripFrame(l.edge));
+          thick.set(l.S, l.th);
+          queue.push(l.S);
+        } else {
+          if (poses.has(l.C)) continue;
+          // The other curved plate: its line of the strip's middle onto the strip as it is already bent
+          const to = frames.get(x)!;
+          const path = l.rel.bend!.path;
+          // Round a closed ring the strip's other edge may start at its far end (a strip longer than the ring, cut
+          // to length later): count positions round the ring the strip is bent on
+          const own = px.bend!;
+          const ring = Math.hypot(own.path[0][0] - own.path.at(-1)![0], own.path[0][1] - own.path.at(-1)![1]) < 0.01;
+          let ringLen = 0;
+          for (let i = 1; i < own.path.length; i++) ringLen += Math.hypot(own.path[i][0] - own.path[i - 1][0], own.path[i][1] - own.path[i - 1][1]);
+          const ox = own.x0 ?? 0;
+          const wrap = (v: number) => (ring && ringLen > 0 ? ox + ((((v - ox) % ringLen) + ringLen) % ringLen) : v);
+          const src: V3[] = [],
+            dst: V3[] = [];
+          const x0 = l.rel.bend!.x0 ?? 0;
+          let along = x0;
+          for (let i = 0; i < path.length; i++) {
+            if (i) along += Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]);
+            // Point on this joint's edge line, in world coordinates of the strip, then along the strip as placed
+            const w = { x: l.edge.a.x + l.edge.dir.x * along, y: l.edge.a.y + l.edge.dir.y * along };
+            const f = apply(to, w.x, w.y);
+            dst.push(bentPoint(px, wrap(f.x), f.y, l.th / 2, l.th));
+            src.push([path[i][0], path[i][1], l.rel.o[2]]);
+          }
+          // Into the strip's material from this joint's edge, in space
+          const e0 = { x: l.edge.a.x + l.edge.dir.x * x0, y: l.edge.a.y + l.edge.dir.y * x0 };
+          const f0 = apply(to, e0.x, e0.y),
+            f1 = apply(to, e0.x + l.edge.in.x, e0.y + l.edge.in.y);
+          const up = sub3(bentPoint(px, wrap(f1.x), f1.y, l.th / 2, l.th), bentPoint(px, wrap(f0.x), f0.y, l.th / 2, l.th));
+          const pose = rigidFit(src, dst, up);
+          if (!pose) continue;
+          poses.set(l.C, pose);
+          thick.set(l.C, l.th);
+          queue.push(l.C);
+        }
       }
     }
   }
   const solids: Solid[] = [];
   for (const [id, pose] of poses) {
     const p = byId.get(id)!;
-    solids.push({ key: String(id), label: p.label, polys: p.polys, pose, th: thick.get(id) ?? fallbackTh });
+    const th = thick.get(id) ?? fallbackTh;
+    const fr = frames.get(id);
+    if (!fr) {
+      solids.push({ key: String(id), label: p.label, polys: p.polys, pose, th });
+      continue;
+    }
+    let polys = p.polys.map((poly) => poly.map((q) => apply(fr, q.x, q.y)));
+    // A strip longer than its ring would go on straight past its own start, through the plate; that end gets cut
+    // off, so it is left out here
+    const b = pose.bend!;
+    const ring = Math.hypot(b.path[0][0] - b.path.at(-1)![0], b.path[0][1] - b.path.at(-1)![1]) < 0.01;
+    if (ring) {
+      let len = 0;
+      for (let i = 1; i < b.path.length; i++) len += Math.hypot(b.path[i][0] - b.path[i - 1][0], b.path[i][1] - b.path[i - 1][1]);
+      const x1 = (b.x0 ?? 0) + len + 0.01;
+      const ys = polys.flat().map((q) => q.y);
+      const xs = polys.flat().map((q) => q.x);
+      if (Math.max(...xs) > x1) {
+        const box = [[Math.min(...xs) - 1, Math.min(...ys) - 1], [x1, Math.min(...ys) - 1], [x1, Math.max(...ys) + 1], [Math.min(...xs) - 1, Math.max(...ys) + 1]].map(([x, y]) => ({ X: Math.round(x * SCALE), Y: Math.round(y * SCALE) }));
+        const subj = polys.map((poly) => poly.map((q) => ({ X: Math.round(q.x * SCALE), Y: Math.round(q.y * SCALE) })));
+        polys = execute(ClipperLib.ClipType.ctIntersection, subj, [box], ClipperLib.PolyFillType.pftEvenOdd)
+          .filter((q) => q.length > 2)
+          .map((q) => q.map((r) => ({ x: r.X / SCALE, y: r.Y / SCALE })));
+      }
+    }
+    // Curved fingers are fitted within 0.01 mm on both parts: up to 0.03 mm along the strip counts as touching
+    solids.push(...bentSolids({ key: String(id), label: p.label, polys, pose, th, tol: 0.03 }));
   }
-  return { solids, groups, placed: new Set(poses.keys()) };
+  return { solids, groups, placed: new Set(poses.keys()), frames };
 }

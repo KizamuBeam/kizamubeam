@@ -385,3 +385,87 @@ export function computeCurveJointGeom<K>(picks: JointEdge<K>[], o: JointOptions,
   if (curved >= 0) info.push({ code: 'curve-strip', values: { len: geoms[curved].len, ...(geoms[curved].loop ? { loop: 1 } : {}) } });
   return { changes, added: [], info };
 }
+
+/** Largest turn (degrees) and length (mm) of one straight piece of a bent strip in the 3D view */
+const BEND_DEG = 0.75;
+const BEND_STEP = 2;
+
+/**
+ * Where a finger joint between a curve and a straight edge puts the strip in the 3D view (#513): the line where the
+ * middle of the strip stands (a polyline in world coordinates, thinned to pieces of at most 2 mm and 0.75°), which
+ * edge is the curve, the position along the strip at the first point of that line, and the height of the strip's
+ * edge over the curved plate (0 for fingers cut in, one thickness for fingers out). The strip runs along the line in
+ * the direction of its own edge: both patterns are laid out from the start of their edge. null for anything else
+ * (other kinds, two curves, one edge).
+ */
+export function curveMate<K>(picks: JointEdge<K>[], o: JointOptions): { on: 0 | 1; path: Pt[]; x0: number; z: number } | null {
+  if (o.kind !== 'finger' || picks.length < 2 || !(o.thickness > 0)) return null;
+  const curved = picks.map(isCurvedEdge);
+  if (curved[0] === curved[1]) return null;
+  const on: 0 | 1 = curved[0] ? 0 : 1;
+  const th = o.thickness;
+  const w = o.direction === 'in' ? -th / 2 : th / 2;
+  const c = sampleEdge(picks[on], w);
+  const s = sampleEdge(picks[1 - on], w);
+  // The pattern of a loop starts at the start of both edges; otherwise both lie in the middle of their edge
+  const x0 = c.loop ? 0 : (s.len - c.len) / 2;
+  // Where the fingers change, a short piece on both sides of the flank: a straight piece of the bent strip has its
+  // flanks square to itself, so a piece centred on the flank keeps it square to the curve, as the curved part's is
+  let n: number, margin: number;
+  if (c.loop) {
+    n = Math.max(4, 2 * Math.round(c.len / Math.max(0.1, o.fingerWidth) / 2));
+    margin = 0;
+  } else {
+    const pattern = Math.min(c.len, s.len);
+    n = fingerCount(pattern, o.fingerWidth);
+    margin = (c.len - pattern) / 2;
+  }
+  const half = 0.05 + Math.abs(o.clearance) + Math.abs(o.kerf);
+  const keep: number[] = [];
+  for (let k = c.loop ? 0 : 1; k < n; k++) {
+    const b = margin + (k * (c.len - 2 * margin)) / n;
+    for (const u of [b - half, b + half]) if (u > 1e-6 && u < c.len - 1e-6) keep.push(u);
+  }
+  keep.sort((a, b) => a - b);
+  // The line of the strip's middle, with those points added
+  const pts: Pt[] = [];
+  const forced: boolean[] = [];
+  let q = 0;
+  for (let i = 0; i < c.P.length; i++) {
+    const at = { x: c.P[i].x + c.N[i].x * w, y: c.P[i].y + c.N[i].y * w };
+    if (i > 0) {
+      const a = pts[pts.length - 1];
+      while (q < keep.length && keep[q] < c.A[i] - 1e-9) {
+        const f = (keep[q] - c.A[i - 1]) / (c.A[i] - c.A[i - 1] || 1);
+        if (f > 1e-9) {
+          pts.push({ x: a.x + (at.x - a.x) * f, y: a.y + (at.y - a.y) * f });
+          forced.push(true);
+        }
+        q++;
+      }
+    }
+    pts.push(at);
+    forced.push(false);
+  }
+  const path: Pt[] = [pts[0]];
+  let last = 0;
+  const dir = (i: number, j: number) => Math.atan2(pts[j].y - pts[i].y, pts[j].x - pts[i].x);
+  const maxTurn = (BEND_DEG * Math.PI) / 180;
+  for (let i = 1; i < pts.length; i++) {
+    if (i === pts.length - 1 || forced[i]) {
+      path.push(pts[i]);
+      last = i;
+      continue;
+    }
+    // Keep the point before the piece from the last kept point would get too long or turn too much
+    const next = pts[i + 1];
+    const len = Math.hypot(next.x - pts[last].x, next.y - pts[last].y);
+    let turn = Math.abs(dir(i, i + 1) - dir(last, last + 1));
+    if (turn > Math.PI) turn = 2 * Math.PI - turn;
+    if (len > BEND_STEP || turn > maxTurn || forced[i + 1]) {
+      path.push(pts[i]);
+      last = i;
+    }
+  }
+  return { on, path, x0, z: o.direction === 'in' ? 0 : th };
+}

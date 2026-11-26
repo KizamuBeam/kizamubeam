@@ -4,7 +4,7 @@
 // runs in the plugin Worker too.
 import type { Node, Pt, SubPath } from './model';
 import { bezierPt, segments } from './curves';
-import { computeCurveJointGeom, isCurvedEdge } from './jointsCurve';
+import { computeCurveJointGeom, curveMate, isCurvedEdge } from './jointsCurve';
 
 /**
  * Version of the joint geometry; a change to the shapes gets a new version so older results can be reproduced.
@@ -341,6 +341,8 @@ export interface MateWorld {
   b: [Pt, Pt, Pt];
   out?: boolean;
   lap?: { ua: number; ub: number; da: number; db: number };
+  /** Finger joint between a curve and a straight edge: see Mate.bend in model.ts (path in world coordinates) */
+  bend?: { on: 0 | 1; path: Pt[]; x0: number; z: number };
 }
 
 /**
@@ -349,8 +351,21 @@ export interface MateWorld {
  */
 export function jointMate(picks: JointEdge[], o: JointOptions): MateWorld | null {
   if (picks.length < 2 || picks[0].obj === picks[1].obj) return null;
-  // A bent partner cannot be placed as a flat plate in the 3D view
-  if (picks.some(isCurvedEdge)) return null;
+  // A straight edge on a curve: the strip is bent round it in the 3D view (finger joints only)
+  if (picks.some(isCurvedEdge)) {
+    const bend = curveMate(picks, o);
+    if (!bend) return null;
+    const ends = (p: JointEdge, i: number): [Pt, Pt, Pt] => {
+      if (i === bend.on) {
+        // The curve: points on the line of the strip's middle (the design check marks the first two)
+        const q = bend.path;
+        return [q[0], q[Math.floor(q.length / 2)], q[Math.floor(q.length / 4)]];
+      }
+      const e = edgeGeom(p, p.subs);
+      return [e.a, e.b, at(e, e.len / 2, -1)];
+    };
+    return { a: ends(picks[0], 0), b: ends(picks[1], 1), ...(o.direction === 'out' ? { out: true } : {}), bend };
+  }
   const subs = picks.map((p) => p.subs);
   const [g, s] = picks.map((p, i) => edgeGeom(p, subs[i]));
   const side = (e: EdgeGeom): [Pt, Pt, Pt] => [e.a, e.b, at(e, e.len / 2, -1)];

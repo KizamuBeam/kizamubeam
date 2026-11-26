@@ -357,11 +357,13 @@ function collectMates(ed: Editor, shown: [Obj, Mat][], th: number, places: Map<s
   const r = assembleMates(parts, th);
   const byGroup = new Map<string, ViewSolid[]>();
   for (const s of r.solids) {
-    const g = r.groups.get(s.key)!;
+    const g = r.groups.get(s.part ?? s.key)!;
     if (!byGroup.has(g)) byGroup.set(g, []);
-    byGroup.get(g)!.push({ ...s, key: 'm' + s.key, group: g, layer: page.get(Number(s.key))?.[0].layer });
-    // Konturen liegen in Koordinaten der Arbeitsfläche ihrer Seite
-    places.set('m' + s.key, { page: pageNo.get(Number(s.key)) ?? ed.doc.page, toLocal: IDENT });
+    // A bent strip comes as several solids (key "id~n", part "id")
+    const id = Number(s.part ?? s.key);
+    byGroup.get(g)!.push({ ...s, key: 'm' + s.key, ...(s.part !== undefined ? { part: 'm' + s.part } : {}), group: g, layer: page.get(id)?.[0].layer });
+    // Konturen liegen in Koordinaten der Arbeitsfläche ihrer Seite (bent strips: along the strip)
+    places.set('m' + s.key, { page: pageNo.get(id) ?? ed.doc.page, toLocal: r.frames.get(id) ?? IDENT });
   }
   // Jede Gruppe unter die Mitte ihrer Teile auf der Arbeitsfläche
   for (const g of byGroup.values()) {
@@ -372,7 +374,7 @@ function collectMates(ed: Editor, shown: [Obj, Mat][], th: number, places: Map<s
   }
   const groups = [...byGroup.values()];
   // Reihenfolge nach der kleinsten Objekt-ID der Gruppe (Schlüssel der Teile: „m“ + ID)
-  return { groups, orders: groups.map((g) => Math.min(...g.map((x) => Number(x.key.slice(1))))), used };
+  return { groups, orders: groups.map((g) => Math.min(...g.map((x) => parseInt(x.key.slice(1), 10)))), used };
 }
 
 /** Rohplatten: Fläche der Platten ohne die Teile, die darauf liegen (diese bleiben eigene Platten) */
@@ -543,7 +545,7 @@ export function buildView3dPanel(ed: Editor) {
       viewer.setSpin(false);
     }
     const parts = scene.solids.length
-      ? t('Teile: {n}', { n: scene.solids.length }) + (asms ? ` (${t('Baugruppen: {n}', { n: asms })})` : '')
+      ? t('Teile: {n}', { n: new Set(scene.solids.map(partKey)).size }) + (asms ? ` (${t('Baugruppen: {n}', { n: asms })})` : '')
       : '';
     info = parts ? `${parts} · ${set.overlaps ? overlapText(scene.overlaps, scene.solids) : ''}` : '';
     statusText.textContent = info;

@@ -518,6 +518,13 @@ export interface Mate {
    * der Verbindungsgeometrie (jointsGeom.ts); ab 2 ist c das Gesamtspiel, ohne v das Spiel je Seite bei Zinken (#402).
    */
   fit?: { k: number; c: number; v?: number };
+  /**
+   * Finger joint between a curve and a straight edge (#513): the straight part is a strip bent round the curve. on:
+   * the curved side ('a' = this part, 'b' = the other one); path: where the middle of the strip stands, in local
+   * coordinates of the curved part; x0: position along the strip (from the start of its edge line) at the first point
+   * of path; z: height of the strip's edge over the curved plate. The strip's edge line (a or b) gives its direction.
+   */
+  bend?: { on: 'a' | 'b'; path: Pt[]; x0: number; z: number };
 }
 
 export type LayerMode = 'line' | 'fill';

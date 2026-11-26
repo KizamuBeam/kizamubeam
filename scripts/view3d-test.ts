@@ -260,6 +260,135 @@ test('Verbindungen: Zapfen stecken in den Schlitzen der Gegenplatte', () => {
   assert.equal(findOverlaps(assembled([wall, plate])).length, 1, 'Presspassung');
 });
 
+// ---------- Joints on curves (#513): the strip is bent round the curve ----------
+{
+  const { smoothChain } = await import('../src/jointsCurve');
+  const { bentPoint } = await import('../src/view3d/mates');
+  const K = 0.5522847498;
+  /** Circle as four Bézier quarters, like the ellipse tool draws it */
+  const circleObj = (cx: number, cy: number, r: number, ry = r): Obj => {
+    const k = r * K, ky = ry * K;
+    return {
+      id: nid++, m: [...I], layer: 0,
+      shape: { kind: 'path', subs: [{ closed: true, nodes: [
+        { x: cx + r, y: cy, cin: { x: cx + r, y: cy - ky }, cout: { x: cx + r, y: cy + ky } },
+        { x: cx, y: cy + ry, cin: { x: cx + k, y: cy + ry }, cout: { x: cx - k, y: cy + ry } },
+        { x: cx - r, y: cy, cin: { x: cx - r, y: cy + ky }, cout: { x: cx - r, y: cy - ky } },
+        { x: cx, y: cy - ry, cin: { x: cx - k, y: cy - ry }, cout: { x: cx + k, y: cy - ry } },
+      ] }] },
+    };
+  };
+  /** Joint like the editor applies and records it, the curve picked as its smooth run */
+  const joinCurve = (a: Obj, segA: number, b: Obj, segB: number, o: Partial<JointOptions>) => {
+    const opt = { ...DEFAULT_JOINT, ...o };
+    const pk = (obj: Obj, seg: number) => {
+      const sp = (obj.shape as { subs: never[] }).subs[0];
+      const c = smoothChain(sp, seg);
+      return { obj, m: I, sub: 0, seg: c.seg, ...(c.segs > 1 ? { segs: c.segs } : {}) };
+    };
+    const picks = [pk(a, segA), pk(b, segB)];
+    const mw = jointMate(picks, opt);
+    const r = computeJoint(picks, opt, 2);
+    assert.ok(!r.error, r.error);
+    for (const [obj, c] of r.changes) obj.shape = { kind: 'path', subs: c.subs };
+    assert.ok(mw?.bend, 'no bend recorded');
+    const bend = { on: mw!.bend!.on === 0 ? 'a' : 'b', path: mw!.bend!.path, x0: mw!.bend!.x0, z: mw!.bend!.z } as Mate['bend'];
+    a.mates = [...(a.mates ?? []), { to: b.id, kind: opt.kind, th: opt.thickness, a: mw!.a, b: mw!.b, ...(mw!.out ? { out: true } : {}), bend }];
+  };
+  const extent = (s: Solid[]) => bounds(s).map(([lo, hi]) => hi - lo);
+
+  test('Curves in 3D: a strip with fingers round a disc stands bent round it, no overlaps', () => {
+    for (const direction of ['in', 'out'] as const) {
+      const R = 50, th = 3;
+      const disc = circleObj(0, 0, R);
+      const L = 2 * Math.PI * (R + (direction === 'in' ? -th / 2 : th / 2));
+      const strip = rect(0, 150, L + 0.05, 40);
+      // The disc first (fingers on the ring), then the strip's upper edge
+      joinCurve(disc, 0, strip, 0, { kind: 'finger', direction, thickness: th, fingerWidth: 10, clearance: 0.1 });
+      const s = assembled([disc, strip]);
+      assert.ok(s.length > 50, `${s.length} solids`);
+      assert.ok(s.filter((x) => x.part === String(strip.id)).length === s.length - 1, 'strip in pieces');
+      assert.deepEqual(pairs(s), [], direction);
+      const e = extent(s);
+      const outer = 2 * R + (direction === 'in' ? 0 : 2 * th);
+      near(e[0], outer, 0.05, `width ${direction}`);
+      near(e[1], outer, 0.05, `depth ${direction}`);
+      near(e[2], direction === 'in' ? 40 : 43, 0.01, `height ${direction}`);
+      // A longer strip: the end past the ring (to be cut off) is left out
+      const d3 = circleObj(0, 0, R), s3 = rect(0, 150, L + 80, 40);
+      joinCurve(d3, 0, s3, 0, { kind: 'finger', direction, thickness: th, fingerWidth: 10, clearance: 0.1 });
+      assert.deepEqual(pairs(assembled([d3, s3])), [], `long strip ${direction}`);
+      // A press fit shows as overlaps
+      const d2 = circleObj(0, 0, R), s2 = rect(0, 150, L + 0.05, 40);
+      joinCurve(d2, 0, s2, 0, { kind: 'finger', direction, thickness: th, fingerWidth: 10, clearance: -0.2 });
+      assert.ok(findOverlaps(assembled([d2, s2])).length > 0, `press fit ${direction}`);
+    }
+  });
+
+  test('Curves in 3D: the strip picked first; a lid on its other edge is fitted onto the bent strip', () => {
+    const th = 3;
+    const floor = circleObj(0, 0, 50), lid = circleObj(300, 0, 50);
+    // As long as the ring on the wall middle: the lid's pattern starts at the strip's far end, round the ring where
+    // the floor's starts
+    const ringLen = 2 * Math.PI * 48.5 + 0.1;
+    const strip = rect(0, 150, ringLen, 60);
+    // Lower edge of the strip (segment 2, runs right to left) with the lid first, then the upper edge with the floor;
+    // the strip picked first both times
+    joinCurve(strip, 2, lid, 0, { kind: 'finger', direction: 'in', thickness: th, fingerWidth: 10, clearance: 0.1 });
+    // The lid's joint starts the strip's outline at its fingers: find the upper edge again
+    const ns = (strip.shape as { subs: { nodes: { x: number; y: number }[] }[] }).subs[0].nodes;
+    const top = ns.findIndex((q, i) => q.y === 150 && ns[(i + 1) % ns.length].y === 150 && Math.abs(ns[(i + 1) % ns.length].x - q.x) > 290);
+    assert.ok(top >= 0);
+    joinCurve(strip, top, floor, 1, { kind: 'finger', direction: 'in', thickness: th, fingerWidth: 10, clearance: 0.1 });
+    const parts = [floor, lid, strip].map((o) => ({ id: o.id, label: String(o.id), polys: subsPolys((o.shape as { subs: never }).subs), m: I, mates: o.mates ?? [] }));
+    const r = assembleMates(parts, 3);
+    const s = r.solids;
+    assert.equal(new Set(r.groups.values()).size, 1, 'one assembly');
+    assert.deepEqual(pairs(s), []);
+    const e = extent(s);
+    near(e[2], 60, 0.01, 'height');
+    // Floor and lid parallel, the strip between them
+    const F = s.find((x) => x.key === String(floor.id))!, Lid = s.find((x) => x.key === String(lid.id))!;
+    near(Math.abs(F.pose.n[2]), 1, 1e-6, 'floor flat');
+    near(Math.abs(Lid.pose.n[2]), 1, 1e-6, 'lid flat');
+    // The two lie face to face: the outline of the upper one 60 over the lower one's, its thickness pointing down
+    const [lo, hi] = F.pose.o[2] < Lid.pose.o[2] ? [F, Lid] : [Lid, F];
+    near(hi.pose.o[2] - lo.pose.o[2], 60, 1e-3, 'lid height');
+    near(lo.pose.n[2], 1, 1e-6, 'lower face up');
+    near(hi.pose.n[2], -1, 1e-6, 'upper face down');
+    assert.ok(r.frames.has(strip.id));
+    // A press fit at the lid shows
+    const f2 = circleObj(0, 0, 50), l2 = circleObj(300, 0, 50), s2 = rect(0, 150, ringLen, 60);
+    joinCurve(s2, 2, l2, 0, { kind: 'finger', direction: 'in', thickness: th, fingerWidth: 10, clearance: -0.3 });
+    const ns2 = (s2.shape as { subs: { nodes: { x: number; y: number }[] }[] }).subs[0].nodes;
+    joinCurve(s2, ns2.findIndex((q, i) => q.y === 150 && ns2[(i + 1) % ns2.length].y === 150 && Math.abs(ns2[(i + 1) % ns2.length].x - q.x) > 290), f2, 1, { kind: 'finger', direction: 'in', thickness: th, fingerWidth: 10, clearance: 0.1 });
+    const bad = findOverlaps(assembled([f2, l2, s2])).map((o) => [o.a, o.b].sort().join('/'));
+    assert.ok(bad.some((x) => x.includes(String(l2.id))), 'lid press fit');
+    assert.ok(!bad.some((x) => x.split('/').includes(String(f2.id))), 'floor fits');
+  });
+
+  test('Curves in 3D: a lid whose pattern cannot meet the strip stays a separate assembly', () => {
+    // An ellipse picked at different places: round the ring the patterns of floor and lid are offset, so the strip
+    // cannot hold both
+    const floor = circleObj(0, 0, 70, 40), lid = circleObj(300, 0, 70, 40);
+    const strip = rect(0, 150, 400, 60);
+    joinCurve(strip, 2, lid, 0, { kind: 'finger', direction: 'in', thickness: 3, fingerWidth: 10 });
+    const ns = (strip.shape as { subs: { nodes: { x: number; y: number }[] }[] }).subs[0].nodes;
+    joinCurve(strip, ns.findIndex((q, i) => q.y === 150 && ns[(i + 1) % ns.length].y === 150 && Math.abs(ns[(i + 1) % ns.length].x - q.x) > 300), floor, 1, { kind: 'finger', direction: 'in', thickness: 3, fingerWidth: 10 });
+    const parts = [floor, lid, strip].map((o) => ({ id: o.id, label: String(o.id), polys: subsPolys((o.shape as { subs: never }).subs), m: I, mates: o.mates ?? [] }));
+    const r = assembleMates(parts, 3);
+    assert.equal(r.placed.size, 3);
+    assert.equal(new Set(r.groups.values()).size, 2);
+  });
+
+  test('Curves in 3D: a point of a bent plate follows its path', () => {
+    const pose = { o: [0, 0, 5] as [number, number, number], u: [1, 0, 0] as [number, number, number], v: [0, 0, 1] as [number, number, number], n: [0, 1, 0] as [number, number, number], bend: { path: [[0, 0], [10, 0], [10, 10]] as [number, number][], x0: 2 } };
+    const q = bentPoint(pose, 17, 4, 1.5, 3);
+    // 2 … 12 along x, then 5 up the second piece; the middle of the plate on the path, y upwards
+    near(q[0], 10, 1e-9); near(q[1], 5, 1e-9); near(q[2], 9, 1e-9);
+  });
+}
+
 test('Verbindungen: Schlitze auf einer Hilfslinie gehören zur Platte darunter', () => {
   const side = rect(0, 0, 120, 160),
     shelf = rect(200, 40, 100, 40);
