@@ -1,11 +1,10 @@
 // Eckenwerkzeug: einzelne Ecken beliebiger Vektorformen runden, nach innen runden (Konkavbogen) oder fasen.
 // Die angrenzenden Segmente werden exakt gekürzt (de Casteljau), die neue Ecke ist eine Bézierkurve bzw. Gerade.
 // Bei Geraden ist die Rundung ein exakter Kreisbogen (Radius r), bei Kurven ein tangentenstetiger Übergang.
-import { Node, Pt, SubPath } from './model';
+import { CornerMode, CornerSeg, CornerSet, Node, Pt, SubPath } from './model';
+export type { CornerMode };
 import { bezierPt } from './curves';
 import { piecesOf, Piece, subPiece } from './pathtools';
-
-export type CornerMode = 'round' | 'inverse' | 'chamfer';
 
 /** Knicke unter diesem Winkel gelten nicht als Ecke (Grad) */
 const MIN_TURN = 0.5;
@@ -89,6 +88,8 @@ export interface CornerResult {
   done: number;
   /** davon mit kleinerem Radius, weil die Segmente zu kurz sind */
   limited: number;
+  /** Bogen-Endpunkte je bearbeiteter Ecke (für Kantensätze) */
+  ends: Map<number, { p1: Pt; p2: Pt }>;
 }
 
 /**
@@ -99,13 +100,14 @@ export interface CornerResult {
 export function cornerSub(sp: SubPath, idxs: number[], mode: CornerMode, r: number): CornerResult {
   const n = sp.nodes.length;
   const targets = new Set(idxs.filter((i) => isCorner(sp, i)));
-  if (!targets.size || !(r > 0)) return { sub: sp, done: 0, limited: 0 };
+  if (!targets.size || !(r > 0)) return { sub: sp, done: 0, limited: 0, ends: new Map() };
   const ps = piecesOf(sp);
   const m = ps.length;
   // Kürzung je Segment: Anfang t0 (Ecke am Anfangsknoten), Ende t1 (Ecke am Endknoten)
   const t0 = ps.map(() => 0),
     t1 = ps.map(() => 1);
   const arcs = new Map<number, Piece>();
+  const ends = new Map<number, { p1: Pt; p2: Pt }>();
   let limited = 0;
   for (const i of targets) {
     const ki = (i - 1 + m) % m, // Segment, das an der Ecke endet
@@ -127,6 +129,7 @@ export function cornerSub(sp: SubPath, idxs: number[], mode: CornerMode, r: numb
     t0[ko] = tb;
     const p1 = at(pin, ta),
       p2 = at(pout, tb);
+    ends.set(i, { p1: { ...p1 }, p2: { ...p2 } });
     let arc: Piece;
     if (mode === 'chamfer') arc = { a: p1, c1: p1, c2: p2, b: p2, curve: false };
     else if (mode === 'round') {
@@ -152,7 +155,7 @@ export function cornerSub(sp: SubPath, idxs: number[], mode: CornerMode, r: numb
     }
     arcs.set(i, arc);
   }
-  if (!arcs.size) return { sub: sp, done: 0, limited };
+  if (!arcs.size) return { sub: sp, done: 0, limited, ends: new Map() };
 
   // Neue Stückfolge: je Knoten erst der Eckbogen, dann das gekürzte Segment
   const out: Piece[] = [];
@@ -185,5 +188,103 @@ export function cornerSub(sp: SubPath, idxs: number[], mode: CornerMode, r: numb
   }
   const res: SubPath = { closed: sp.closed, nodes };
   if (sp.start) res.start = true;
-  return { sub: res, done: arcs.size, limited };
+  return { sub: res, done: arcs.size, limited, ends };
+}
+
+/** Nahe genug für Kantensatz-Vergleiche (lokale mm) */
+const SET_TOL = 1e-6;
+const nearPt = (a: Pt, b: Pt) => Math.hypot(a.x - b.x, a.y - b.y) <= SET_TOL;
+
+/**
+ * Gemeinsamer Eckpunkt zweier Segmente (Stück-Indizes in piecesOf): gibt den Knotenindex zurück.
+ * Benachbart und geschlossen oder offen — Endknoten offener Pfade zählen nicht als Ecke.
+ */
+export function sharedVertex(sp: SubPath, segA: number, segB: number): number | null {
+  const n = sp.nodes.length;
+  const m = sp.closed ? n : n - 1;
+  if (m < 2 || segA === segB) return null;
+  if (segA < 0 || segB < 0 || segA >= m || segB >= m) return null;
+  // Stück i läuft von Knoten i nach (i+1) % n
+  const endA = (segA + 1) % n, startB = segB % n;
+  if (endA === startB) {
+    if (!sp.closed && (endA === 0 || endA === n - 1)) return null;
+    return endA;
+  }
+  const endB = (segB + 1) % n, startA = segA % n;
+  if (endB === startA) {
+    if (!sp.closed && (endB === 0 || endB === n - 1)) return null;
+    return endB;
+  }
+  return null;
+}
+
+/**
+ * Schnittpunkt der Trägergeraden zweier gerader Segmente (für das Verlängerungs-Angebot).
+ * Mit Parametern t1 (auf p1: 0 = Anfang, 1 = Ende) und t2 (auf p2). Null bei parallelen/entarteten Segmenten.
+ */
+export function virtualVertex(p1: Piece, p2: Piece): { x: Pt; t1: number; t2: number } | null {
+  if (p1.curve || p2.curve) return null;
+  const d1x = p1.b.x - p1.a.x, d1y = p1.b.y - p1.a.y;
+  const d2x = p2.b.x - p2.a.x, d2y = p2.b.y - p2.a.y;
+  const l1 = Math.hypot(d1x, d1y), l2 = Math.hypot(d2x, d2y);
+  if (l1 < 1e-9 || l2 < 1e-9) return null;
+  const den = d1x * d2y - d1y * d2x;
+  if (Math.abs(den) < 1e-9 * l1 * l2) return null;
+  const t1 = ((p2.a.x - p1.a.x) * d2y - (p2.a.y - p1.a.y) * d2x) / den;
+  const t2 = ((p2.a.x - p1.a.x) * d1y - (p2.a.y - p1.a.y) * d1x) / den;
+  return { x: { x: p1.a.x + d1x * t1, y: p1.a.y + d1y * t1 }, t1, t2 };
+}
+
+/** Knoten aus Stückfolge zusammensetzen (wie in cornerSub; Glättung bleibt an unveränderten Knoten) */
+function assembleNodes(out: Piece[], closed: boolean, smoothAt: Map<string, boolean>, start?: boolean): SubPath {
+  const nodes: Node[] = [];
+  out.forEach((q, k) => {
+    const nd: Node = { x: q.a.x, y: q.a.y };
+    if (q.curve) nd.cout = { x: q.c1.x, y: q.c1.y };
+    const prev = k > 0 ? out[k - 1] : closed ? out[out.length - 1] : null;
+    if (prev?.curve) nd.cin = { x: prev.c2.x, y: prev.c2.y };
+    if (smoothAt.get(`${nd.x},${nd.y}`)) nd.smooth = true;
+    nodes.push(nd);
+  });
+  if (!closed && out.length) {
+    const q = out[out.length - 1];
+    const nd: Node = { x: q.b.x, y: q.b.y };
+    if (q.curve) nd.cin = { x: q.c2.x, y: q.c2.y };
+    if (smoothAt.get(`${nd.x},${nd.y}`)) nd.smooth = true;
+    nodes.push(nd);
+  }
+  const res: SubPath = { closed, nodes };
+  if (start) res.start = true;
+  return res;
+}
+
+/**
+ * Einen Kantensatz aus dem Unterpfad entfernen (macht das Anwenden rückgängig).
+ * Prüft, ob die Nachbarstücke noch den hinterlassenen Stand haben — ein überlappender
+ * späterer Satz verweigert das Löschen (null), damit nichts verfälscht wird.
+ */
+export function revertCornerSet(sp: SubPath, set: CornerSet): SubPath | null {
+  let ps = piecesOf(sp);
+  let k = ps.findIndex((q) => nearPt(q.a, set.p1) && nearPt(q.b, set.p2));
+  if (k < 0) return null;
+  if (k === 0) {
+    // Bogen an erster Stelle (geschlossene Kontur, Ecke an Index 0): rotieren, damit
+    // Vorgänger/Nachfolger existieren
+    if (!sp.closed) return null;
+    ps = [...ps.slice(-1), ...ps.slice(0, -1)];
+    k = 1;
+  }
+  if (k + 1 >= ps.length) return null;
+  const prev = ps[k - 1], next = ps[k + 1];
+  // Benachbarte Stücke müssen noch den gekürzten Stand haben …
+  if (!nearPt(prev.b, set.p1) || !nearPt(next.a, set.p2)) return null;
+  // … und außen an den Original-Enden hängen (sonst hat ein Nachbarset überlappt).
+  if (!nearPt(prev.a, set.origIn.a) || !nearPt(next.b, set.origOut.b)) return null;
+  const toSeg = (c: CornerSeg): Piece => ({ a: { ...c.a }, c1: { ...c.c1 }, c2: { ...c.c2 }, b: { ...c.b }, curve: c.curve });
+  const out = [...ps.slice(0, k - 1), toSeg(set.origIn), toSeg(set.origOut), ...ps.slice(k + 2)];
+  // Glättung aller Knoten außer der wiederhergestellten Region übernehmen
+  const hide = new Set([`${set.p1.x},${set.p1.y}`, `${set.p2.x},${set.p2.y}`, `${set.vertex.x},${set.vertex.y}`]);
+  const smoothAt = new Map<string, boolean>();
+  for (const nd of sp.nodes) if (nd.smooth && !hide.has(`${nd.x},${nd.y}`)) smoothAt.set(`${nd.x},${nd.y}`, true);
+  return assembleNodes(out, sp.closed, smoothAt, sp.start);
 }

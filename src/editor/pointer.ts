@@ -327,6 +327,12 @@ export class EditorPointer {
       case 'measure':
         this.measureClick(this.snapPt(wp, e, { toggle: true }));
         return;
+      case 'fillet': {
+        this.filletClick();
+        this.emit('tool');
+        this.redraw();
+        return;
+      }
       case 'joint': {
         const h = this.jointHover;
         if (!h) return;
@@ -512,6 +518,7 @@ export class EditorPointer {
       } else if (this.tool === 'builder') this.builderHover(wp.x, wp.y);
       else if (this.tool === 'node') this.updateNodeHover(sx, sy);
       else if (this.tool === 'joint') this.updateJointHover(sx, sy);
+      else if (this.tool === 'fillet') this.updateFilletHover(sx, sy);
       else if (this.tool === 'relate') this.updateRelHover(sx, sy);
       else if (this.tool === 'trim') this.updateTrimHover(sx, sy);
       else if (this.tool === 'start') this.updateStartHover(sx, sy);
