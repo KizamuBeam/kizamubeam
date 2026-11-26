@@ -1,7 +1,7 @@
 import { installPinchGestures } from './canvasZoom';
 // Editor: Zustand, Ansicht, Auswahl und Werkzeugwahl. Die übrigen Bereiche liegen in src/editor/
 // und werden unten in die Klasse eingehängt.
-import { Doc, Mat, apply, newDoc, Obj, Pt, Shape, SubPath, TextShape, visibleLeaves, VarText } from './model';
+import { CornerMode, Doc, Mat, apply, newDoc, Obj, Pt, Shape, SubPath, TextShape, visibleLeaves, VarText } from './model';
 import { defaultVarText, setVarTextSource } from './vartext';
 import { setParamSource } from './params';
 import type { Issue } from './generators';
@@ -22,6 +22,7 @@ import { EditorPattern } from './editor/pattern';
 import { EditorImages, loadDxfFallbackUnit, loadImportAutoGroup, loadImportAutoSelect, loadImportCenterInBed, loadImportCloseTolerance, loadImportHiddenLayers, loadImportSkippedNote, loadSvgDpi, type SvgDpi } from './editor/imageops';
 import { EditorImageHandles } from './editor/imageHandles';
 import { EditorJoints } from './editor/joints';
+import { EditorFillet, type FilletTarget } from './editor/fillet';
 import { EditorKeyboard, loadNudgeSteps, type NudgeSteps } from './editor/keyboard';
 import { EditorNodes } from './editor/nodes';
 import { EditorObjects } from './editor/objects';
@@ -294,6 +295,26 @@ export class Editor {
   jointPreview: SubPath[] | null = null;
   /** Werkzeug „Verbindung“ wurde als Scharnier-Generator gestartet (Dialog öffnet mit „Scharnier für Deckel“) */
   jointHingeMode = false;
+
+  // Interaktives Kanten-Werkzeug (Runden/Innenrunden/Fasen an zwei Kanten)
+  /** Gewählte Kanten (höchstens zwei) und Kante unter dem Mauszeiger */
+  filletPicks: EdgePick[] = [];
+  filletHover: EdgePick | null = null;
+  /** Vorschau des Kantensatzes (Welt, ohne das Dokument zu ändern) */
+  filletPreview: SubPath[] | null = null;
+  /** Modus und Wert des Kanten-Werkzeugs */
+  filletMode: CornerMode = 'round';
+  filletR = 3;
+  /** Angebot bei nicht benachbarten Kanten: Schnittpunkt der Verlängerungen (lokal) + beteiligte Stücke */
+  filletOffer: { obj: Obj; m: Mat; sub: number; segA: number; segB: number; x: Pt } | null = null;
+  /** Satz, der gerade geändert wird (null = neuer Satz) */
+  filletEditId: string | null = null;
+  /** Ausstehendes Kantenziel (Eckpunkt, Rechteck-Ecke oder Verlängerung) */
+  filletTarget: FilletTarget | null = null;
+  /** Objekt, dessen Sätze das Panel zeigt (null = alle) */
+  filletListObj: Obj | null = null;
+  /** Panel-Callback (filletPanel.ts, gesetzt von ui.ts) */
+  onFilletPanel: (() => void) | null = null;
 
   // Biegeschnitte (Living Hinges)
   /** Vorschau der Biegeschnitte (Welt) */
@@ -684,6 +705,12 @@ export class Editor {
     this.endPick();
     this.jointHover = null;
     this.jointHingeMode = false;
+    this.filletPicks = [];
+    this.filletHover = null;
+    this.filletPreview = null;
+    this.filletTarget = null;
+    this.filletOffer = null;
+    this.filletEditId = null;
     this.trimHover = null;
     this.startHover = null;
     this.relPicks = [];
@@ -710,6 +737,8 @@ export interface Editor
     EditorPaths,
     EditorShapeOps,
     EditorJoints,
+    EditorFillet,
+    EditorFillet,
     EditorHinges,
     EditorPattern,
     EditorCommands,
@@ -749,6 +778,7 @@ const PARTS = [
   EditorPaths,
   EditorShapeOps,
   EditorJoints,
+  EditorFillet,
   EditorHinges,
   EditorPattern,
   EditorCommands,

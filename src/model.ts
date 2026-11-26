@@ -39,8 +39,53 @@ export interface SubPath {
 
 export type RectCorners = [number, number, number, number];
 
+/** Eckenmodus des Runden/Fasen-Werkzeugs (auch interaktives Kanten-Werkzeug) */
+export type CornerMode = 'round' | 'inverse' | 'chamfer';
+
+/** Gerades Segment in lokalen Koordinaten (rekonstruierbar gespeichert, kein Klassenbezug) */
+export interface CornerSeg {
+  a: Pt;
+  c1: Pt;
+  c2: Pt;
+  b: Pt;
+  curve: boolean;
+}
+
+/**
+ * Kantensatz des interaktiven Ecken-Werkzeugs: zwei Kanten, ein Modus, ein Wert.
+ * Pfad: speichert die vollen Original-Segmente und die Bogen-Endpunkte (lokal), damit sich
+ * der Satz einzeln löschen lässt, ohne andere Sets zu berühren. Rechteck: parametrisch
+ * (rectCorner), kein Pfad-Umbau.
+ */
+export interface CornerSet {
+  id: string;
+  mode: CornerMode;
+  /** mm in Welt */
+  r: number;
+  /** Obj.id des Ziels */
+  obj: number;
+  /** Unterpfad-Index (Pfad) */
+  sub: number;
+  /** Bogen-Endpunkte in lokalen Koordinaten (nach dem Anwenden) */
+  p1: Pt;
+  p2: Pt;
+  /** Volle Original-Segmente in lokalen Koordinaten (zum Löschen) */
+  origIn: CornerSeg;
+  origOut: CornerSeg;
+  /** Original-Eckpunkt in lokalen Koordinaten (bzw. Schnittpunkt bei extended) */
+  vertex: Pt;
+  /** Aus Verlängerungs-Schnittpunkt entstanden */
+  extended?: boolean;
+  /** Rechteck: parametrischer Satz an dieser Ecke (TL=0, TR=1, BR=2, BL=3) */
+  rectCorner?: 0 | 1 | 2 | 3;
+  /** Rechteck: vorheriger Einzelwert in lokalen mm (zum Löschen) */
+  prev?: number;
+  /** Rechteck: angewandter lokaler Wert (Welt-r geteilt durch Matrixmaßstab) */
+  lr?: number;
+}
+
 /** Reihenfolge der Einzelradien: [oben-links, oben-rechts, unten-rechts, unten-links] in lokalen mm (y nach unten). */
-export type RectShape = { kind: 'rect'; w: number; h: number; r: number; corners?: RectCorners; chamfer?: boolean };
+export type RectShape = { kind: 'rect'; w: number; h: number; r: number; corners?: RectCorners; chamfer?: boolean; ornerSets?: CornerSet[] };
 
 /** Effektive Einzelradien eines Rechtecks: corners oder viermal der gemeinsame Radius. */
 export function rectCorners(s: Pick<RectShape, 'r' | 'corners'>): RectCorners {
@@ -101,7 +146,7 @@ export type Shape =
   | { kind: 'ellipse'; rx: number; ry: number }
   | { kind: 'polygon'; sides: number; r: number; star: boolean; inner: number }
   /** mark: Gravur eines Generator-Teils („Baugruppe/Teil“), wird mit dem Teil neu berechnet */
-  | { kind: 'path'; subs: SubPath[]; mark?: string }
+  | { kind: 'path'; subs: SubPath[]; mark?: string; cornerSets?: CornerSet[] }
   | TextShape
   | ImageShape
   | BarcodeShape
@@ -525,6 +570,10 @@ export interface CutSettings {
   tabs: TabSettings;
   /** Füllen: 'scan' = Zeile für Zeile, 'offset' = Ringe, die der Kontur nach innen folgen */
   fillStyle: FillStyle;
+  /** Zeilenfüllen: welche Bereiche gemeinsam in einem Durchgang gefüllt werden (nur 'scan'; 'offset' füllt immer Insel für Insel) */
+  fillOrder: FillOrder;
+  /** Zeilenfüllen: Flutfüllung — Pfadplanung über leere Bereiche hinweg statt Zeile für Zeile (nur 'scan', erzwingt Einzel-Reihenfolge) */
+  floodFill: boolean;
   /** Füllen: Zeilenabstand in mm (bei 'offset' Abstand der Ringe) */
   interval: number;
   /** Füllen: Scanwinkel in Grad (0 = waagerecht) */
@@ -535,6 +584,8 @@ export interface CutSettings {
   bidirectional: boolean;
   /** Füllen: Überfahrweg in % der Geschwindigkeit */
   overscan: number;
+  /** Zeilenfüllen: Überfahrweg eingeschaltet (aus = kein An-/Auslauf, Darstellung im Dialog mit mm-Wert) */
+  overscanOn: boolean;
   /** Nur Linie: Perforation (gestrichelt schneiden) */
   perf: PerfSettings;
   /** Nur Linie, geschlossene Formen: Anschnitt (Lead-In), Auslauf (Lead-Out) und Überschnitt */
@@ -560,6 +611,9 @@ export interface CutSettings {
 }
 
 export type FillStyle = 'scan' | 'offset';
+
+/** Reihenfolge der Füllbereiche im Zeilenfüllen: alles zusammen, gruppenweise, einzeln */
+export type FillOrder = 'all' | 'group' | 'shape';
 
 export interface PerfSettings {
   enabled: boolean;
@@ -590,6 +644,10 @@ export interface RampSettings {
   angle: number;
   /** Auch am Anfang und Ende jedes Schnitts */
   ends: boolean;
+  /** Auch im Zeilenfüllen anwenden (nur 'scan'; 'offset' bleibt ohne Rampe) */
+  inFill: boolean;
+  /** Rampe zusätzlich an den Außenkanten der Füllbereiche (sonst nur an Innenkanten/Löchern) */
+  outerEdge: boolean;
 }
 
 /** Nur Linie: Pausen am Anfang/Ende jedes Schnitts (Beruhigung, Absaugung, Anstechen) */
@@ -608,7 +666,7 @@ export interface DwellSettings {
 export type SubLayer = Omit<CutSettings, 'air' | 'look' | 'sub' | 'layerType'> & { output: boolean; name: string };
 
 export const CUT_KEYS: (keyof CutSettings)[] = [
-  'mode', 'speed', 'power', 'minPower', 'passes', 'air', 'kerf', 'tabs', 'fillStyle', 'interval', 'angle', 'crossHatch', 'bidirectional', 'overscan',
+  'mode', 'speed', 'power', 'minPower', 'passes', 'air', 'kerf', 'tabs', 'fillStyle', 'fillOrder', 'floodFill', 'interval', 'angle', 'crossHatch', 'bidirectional', 'overscan', 'overscanOn',
   'perf', 'lead', 'ramp', 'dwell', 'dedup', 'dedupTol', 'zOffset', 'zStep', 'sub', 'look', 'layerType',
 ];
 
@@ -617,7 +675,7 @@ const SUB_KEYS = CUT_KEYS.filter((k) => k !== 'air' && k !== 'look' && k !== 'su
 
 export const defaultPerf = (): PerfSettings => ({ enabled: false, on: 1, off: 1 });
 export const defaultLead = (): LeadSettings => ({ leadIn: false, leadOut: false, length: 2, angle: 90, arc: false, overcut: 0 });
-export const defaultRamp = (): RampSettings => ({ enabled: false, length: 1, angle: 45, ends: false });
+export const defaultRamp = (): RampSettings => ({ enabled: false, length: 1, angle: 45, ends: false, inFill: false, outerEdge: false });
 export const defaultDwell = (): DwellSettings => ({ start: 0, end: 0, cutThrough: false, power: 0 });
 
 export function defaultSubLayer(mode: LayerMode = 'line'): SubLayer {
@@ -629,7 +687,13 @@ export function defaultSubLayer(mode: LayerMode = 'line'): SubLayer {
 /** Fehlende Felder eines Sub-Layers auffüllen (ältere Dateien, Import) */
 function normalizeSub(s: SubLayer): SubLayer {
   const d = defaultSubLayer(s.mode === 'fill' ? 'fill' : 'line');
-  for (const k of SUB_KEYS) if (s[k] === undefined) (s as unknown as Record<string, unknown>)[k] = d[k];
+  const hasOn = (s as unknown as Record<string, unknown>).overscanOn !== undefined;
+  for (const k of SUB_KEYS) if (k !== 'overscanOn' && s[k] === undefined) (s as unknown as Record<string, unknown>)[k] = d[k];
+  if (!hasOn) s.overscanOn = (s.overscan ?? 0) > 0;
+  if ((s as unknown as Record<string, unknown>).fillOrder === undefined) s.fillOrder = 'all';
+  if ((s as unknown as Record<string, unknown>).floodFill === undefined) s.floodFill = false;
+  if (s.ramp && (s.ramp as Partial<RampSettings>).inFill === undefined) s.ramp.inFill = false;
+  if (s.ramp && (s.ramp as Partial<RampSettings>).outerEdge === undefined) s.ramp.outerEdge = false;
   fillNested(s);
   if (s.output === undefined) s.output = true;
   if (s.name === undefined) s.name = '';
@@ -659,11 +723,14 @@ export function defaultCutSettings(mode: LayerMode = 'line'): CutSettings {
     kerf: 0,
     tabs: defaultTabs(),
     fillStyle: 'scan',
+    fillOrder: 'all',
+    floodFill: false,
     interval: 0.1,
     angle: 0,
     crossHatch: false,
     bidirectional: true,
     overscan: 2.5,
+    overscanOn: true,
     perf: defaultPerf(),
     lead: defaultLead(),
     ramp: defaultRamp(),
@@ -717,14 +784,22 @@ export const shapeCutsThrough = (o: Obj, L: Layer) => (o.shape.kind === 'gen' &&
 
 /** Ältere Dateien kennen nicht alle Einstellungen: fehlende mit Standardwerten auffüllen */
 export function normalizeLayer(L: Layer): Layer {
-  if (L.tabs && L.fillStyle !== undefined && L.ramp && L.dwell && L.dedup !== undefined && L.dedupTol !== undefined && L.zStep !== undefined && (!L.sub || L.sub.every((s) => s.ramp && s.dwell && s.dedup !== undefined && s.dedupTol !== undefined && s.output !== undefined && s.name !== undefined))) return L;
+  if (L.tabs && L.fillStyle !== undefined && L.fillOrder !== undefined && L.floodFill !== undefined && L.overscanOn !== undefined && L.ramp && (L.ramp as Partial<RampSettings>).inFill !== undefined && (L.ramp as Partial<RampSettings>).outerEdge !== undefined && L.dwell && L.dedup !== undefined && L.dedupTol !== undefined && L.zStep !== undefined && (!L.sub || L.sub.every((s) => s.ramp && (s.ramp as Partial<RampSettings>).inFill !== undefined && (s.ramp as Partial<RampSettings>).outerEdge !== undefined && s.dwell && s.dedup !== undefined && s.dedupTol !== undefined && s.output !== undefined && s.name !== undefined))) return L;
   return normalizeCut(L);
 }
 
 /** Fehlende Bearbeitungseinstellungen mit Standardwerten auffüllen (ältere Dateien, Material-Bibliotheken, Import) */
 export function normalizeCut<T extends CutSettings>(L: T): T {
   const d = defaultCutSettings(L.mode);
-  for (const k of CUT_KEYS) if (L[k] === undefined && k !== 'sub' && k !== 'look' && k !== 'layerType') (L as unknown as Record<string, unknown>)[k] = d[k];
+  // Überfahrweg-Schalter vorab sichern: alte Dateien kennen nur die Menge (an = Menge > 0).
+  const hasOn = (L as unknown as Record<string, unknown>).overscanOn !== undefined;
+  for (const k of CUT_KEYS) if (k !== 'overscanOn' && L[k] === undefined && k !== 'sub' && k !== 'look' && k !== 'layerType') (L as unknown as Record<string, unknown>)[k] = d[k];
+  if (!hasOn) L.overscanOn = (L.overscan ?? 0) > 0;
+  if ((L as unknown as Record<string, unknown>).fillOrder === undefined) L.fillOrder = 'all';
+  if ((L as unknown as Record<string, unknown>).floodFill === undefined) L.floodFill = false;
+  // Ältere Rampen kennen die Füllmodus-Schalter noch nicht (ganze Objekte aus alter Datei/Mediathek).
+  if (L.ramp && (L.ramp as Partial<RampSettings>).inFill === undefined) L.ramp.inFill = false;
+  if (L.ramp && (L.ramp as Partial<RampSettings>).outerEdge === undefined) L.ramp.outerEdge = false;
   fillNested(L);
   if (L.sub !== undefined) L.sub = Array.isArray(L.sub) && L.sub.length ? L.sub.map(normalizeSub) : undefined;
   return L;

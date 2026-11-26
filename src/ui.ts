@@ -20,6 +20,7 @@ import { openWorkpieceDialog } from './workpieceDialog';
 import { cameraOverlaysVisible, toggleCameraOverlays } from './cameraOverlayVisibility';
 import { openBackgroundDialog } from './bgDialog';
 import { openJointDialog } from './jointDialog';
+import { mountFilletPanel } from './filletPanel';
 import { openHingeDialog } from './hingeDialog';
 import { openPatternDialog } from './patternDialog';
 import { PATTERN_GEN_ID } from './pattern';
@@ -176,6 +177,7 @@ export function buildUI(ed: Editor) {
   ed.on(() => { isolationBadge.hidden = !ed.isolation; });
   installEditorContext(ed, contextCallbacks);
   buildPalette(ed);
+  mountFilletPanel(ed);
   buildStatus(ed);
   startAgentBridge(ed);
   void startRemoteHost(ed);
@@ -713,6 +715,7 @@ function buildBars(ed: Editor) {
       run: () => ed.startRelation(m), on: () => ed.tool === 'relate' && ed.relMode === m,
     })),
     tool('joint', 'joint', t('Verbindung: Fingerzinken, Zapfen, Überblattung, Schnapp-, Haken-, Keil- oder T-Slot-Verbindung auf Kanten anwenden (Fingerzinken und Zapfen auch an Kurven)')),
+    tool('fillet', 'corners', t('Kanten verrunden/fasen: zwei Kanten wählen, Runden/Innenrunden/Fasen mit Vorschau als Kantensätze')),
     {
       id: 'lidhinge', cat: W, icon: 'lidhinge', label: t('Scharnier für Deckel: Oberkante der Rückwand und Hinterkante des Deckels anklicken; erzeugt Knöchel, Schlitze und Stiftlöcher'),
       run: () => ed.startHingeTool(), on: () => ed.tool === 'joint' && ed.jointHingeMode,
