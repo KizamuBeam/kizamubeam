@@ -1,6 +1,7 @@
 // Prüft die Sprachdateien in src/locales gegen die Texte im Code.
 // Aufruf: npm run i18n:check  (mit --write werden fehlende Einträge mit leerem Wert ergänzt
 // und nicht mehr benutzte entfernt, Reihenfolge wie im Code; leere Werte zeigen die App deutsch an)
+// --json <file> also writes the result as JSON (used by scripts/i18n-report.mjs)
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -61,6 +62,9 @@ for (const f of fs.readdirSync(srcDir, { recursive: true }).map((f) => f.split(p
 
 const placeholders = (s) => [...s.matchAll(/\{(\w+)\}/g)].map((x) => x[1]).sort().join(',');
 const write = process.argv.includes('--write');
+const jsonAt = process.argv.indexOf('--json');
+const jsonOut = jsonAt > 0 ? process.argv[jsonAt + 1] : '';
+const report = {}; // language code → { missing: [{ key, where }], unused: [key], wrongVars: [{ key, value }] }
 for (const lf of fs.readdirSync(path.join(srcDir, 'locales')).filter((f) => f.endsWith('.json'))) {
   const lpath = path.join(srcDir, 'locales', lf);
   // The file name is the language code (src/i18n.ts finds the files on its own), so it must be a valid tag
@@ -89,6 +93,13 @@ for (const lf of fs.readdirSync(path.join(srcDir, 'locales')).filter((f) => f.en
   for (const k of unused) console.log(`  unbenutzt  ${JSON.stringify(k)}`);
   for (const k of wrongVars) console.log(`  Platzhalter ${JSON.stringify(k)} → ${JSON.stringify(dict[k])}`);
   bad += missing.length + wrongVars.length;
+  report[code] = {
+    file: `src/locales/${lf}`,
+    keys: keys.size,
+    missing: missing.map((key) => ({ key, where: keys.get(key) })),
+    unused,
+    wrongVars: wrongVars.map((key) => ({ key, value: dict[key] })),
+  };
   if (write) {
     const out = {};
     for (const k of keys.keys()) {
@@ -98,4 +109,5 @@ for (const lf of fs.readdirSync(path.join(srcDir, 'locales')).filter((f) => f.en
     fs.writeFileSync(lpath, JSON.stringify(out, null, 2) + '\n');
   }
 }
+if (jsonOut) fs.writeFileSync(jsonOut, JSON.stringify(report, null, 2) + '\n');
 process.exit(bad && !write ? 1 : 0);

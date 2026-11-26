@@ -46,6 +46,9 @@ jobs:
       - name: Gear and box built as plugins give the same results (#205)
         run: npm run test:core-plugins
 
+      - name: Missing-translation report and issue sync tests
+        run: npm run test:i18n-issues
+
       - name: G-code regression tests
         run: npm run test:gcode
 

@@ -36,6 +36,7 @@ UI texts are written in German in the code inside `t('…')` (placeholders in cu
 
 - `npm run i18n:check` lists missing, unused and misplaced entries (fails if anything is missing).
 - `npm run i18n:check -- --write` adds new texts with an empty value and removes unused ones; afterwards only the empty values need translating.
+- `npm run i18n:report` lists what is missing per language in the app, the website (`website/i18n`) and the manual (`manual/i18n`). The *Missing translations* workflow (`.github/workflows/i18n-issues.yml`) runs it after every push to `main` and daily, keeps one issue per language (label `i18n: missing translations`) up to date and closes it once everything is translated.
 - New language: create `src/locales/fr.json` (e.g. a copy of `en.json` with empty values). Nothing else needs registering: the app finds every file in `src/locales/` on its own, the file name is the language code (`fr`, `pt-BR`), and the name in View → Language, the number and date formats and the decimal separator come from the browser's `Intl`. The system language picks the file automatically. `npm run i18n:check` also checks that the file name is a valid language code.
 - Messages from the Rust side are in German and are translated in `src/i18n.ts` (`tBackend`).
 
