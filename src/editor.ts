@@ -427,6 +427,9 @@ export class Editor {
     });
     new ResizeObserver(([entry]) => this.resize(entry.contentRect)).observe(canvas);
     canvas.addEventListener('pointerdown', (e) => this.onDown(e));
+    // Prevent native middle-button paste/autoscroll without interrupting pointer-based panning.
+    canvas.addEventListener('mousedown', (e) => e.button === 1 && e.preventDefault());
+    canvas.addEventListener('auxclick', (e) => e.button === 1 && e.preventDefault());
     installOverlapPicker(this);
     canvas.addEventListener('pointermove', (e) => this.onMove(e));
     canvas.addEventListener('pointerup', (e) => this.onUp(e));
