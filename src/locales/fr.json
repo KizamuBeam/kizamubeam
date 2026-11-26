@@ -5499,5 +5499,6 @@
   "Der Streifen ist zu kurz: {len} mm, um die Kurve braucht er {need} mm (gemessen auf der Wandmitte).": "La bande est trop courte : {len} mm, alors que suivre la courbe nécessite {need} mm (mesurés au milieu de la paroi).",
   ". Streifen für die ganze Runde: {len} mm (auf der Wandmitte), Anfang am Beginn der gewählten Kurve": ". Bande pour la boucle entière : {len} mm (au milieu de la paroi), à partir du début de la courbe sélectionnée",
   ". Länge der Kurve auf der Wandmitte: {len} mm": ". Longueur de la courbe au milieu de la paroi : {len} mm",
-  ". Streifen länger als die Runde ({len} / {pattern} mm): Muster ab Streifenanfang, der Rest bleibt glatt": ". Bande plus longue que la boucle ({len} / {pattern} mm) : le motif commence au début de la bande et le reste demeure lisse"
+  ". Streifen länger als die Runde ({len} / {pattern} mm): Muster ab Streifenanfang, der Rest bleibt glatt": ". Bande plus longue que la boucle ({len} / {pattern} mm) : le motif commence au début de la bande et le reste demeure lisse",
+  "Fase": "Chanfrein"
 }

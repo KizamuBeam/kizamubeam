@@ -85,7 +85,7 @@ export interface CornerSet {
 }
 
 /** Reihenfolge der Einzelradien: [oben-links, oben-rechts, unten-rechts, unten-links] in lokalen mm (y nach unten). */
-export type RectShape = { kind: 'rect'; w: number; h: number; r: number; corners?: RectCorners; chamfer?: boolean; ornerSets?: CornerSet[] };
+export type RectShape = { kind: 'rect'; w: number; h: number; r: number; corners?: RectCorners; chamfer?: boolean; cornerSets?: CornerSet[] };
 
 /** Effektive Einzelradien eines Rechtecks: corners oder viermal der gemeinsame Radius. */
 export function rectCorners(s: Pick<RectShape, 'r' | 'corners'>): RectCorners {
