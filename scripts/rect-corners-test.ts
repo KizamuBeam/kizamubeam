@@ -23,7 +23,7 @@ const near = (a: number, b: number, eps = 1e-9) => assert.ok(Math.abs(a - b) < e
 function stubEditor(sel: never[] | { shape: { kind: string } }[]): Editor {
   const ed = Object.create(Editor.prototype) as Editor;
   Object.assign(ed, {
-    doc: newDoc(), sel, rectRadius: 0,
+    doc: newDoc(), sel, rectRadius: 0, rectChamfer: false,
     snapshot() {}, touch() {}, emit() {}, saveToolOptions() {},
     selBounds() { return boundsOf((this as unknown as { sel: never[] }).sel as never); },
   });
