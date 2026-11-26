@@ -519,10 +519,12 @@ export interface Mate {
    */
   fit?: { k: number; c: number; v?: number };
   /**
-   * Finger joint between a curve and a straight edge (#513): the straight part is a strip bent round the curve. on:
+   * Finger joint or tenon and slot between a curve and a straight edge (#513): the straight part is a strip bent round
+   * the curve. on:
    * the curved side ('a' = this part, 'b' = the other one); path: where the middle of the strip stands, in local
    * coordinates of the curved part; x0: position along the strip (from the start of its edge line) at the first point
-   * of path; z: height of the strip's edge over the curved plate. The strip's edge line (a or b) gives its direction.
+   * of path; z: height of the strip's line over the curved plate. The strip's line (a or b: its edge, or for slots in
+   * the strip the middle line of the slots) gives its direction.
    */
   bend?: { on: 'a' | 'b'; path: Pt[]; x0: number; z: number };
 }

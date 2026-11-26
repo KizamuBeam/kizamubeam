@@ -391,26 +391,50 @@ const BEND_DEG = 0.75;
 const BEND_STEP = 2;
 
 /**
- * Where a finger joint between a curve and a straight edge puts the strip in the 3D view (#513): the line where the
- * middle of the strip stands (a polyline in world coordinates, thinned to pieces of at most 2 mm and 0.75°), which
- * edge is the curve, the position along the strip at the first point of that line, and the height of the strip's
- * edge over the curved plate (0 for fingers cut in, one thickness for fingers out). The strip runs along the line in
- * the direction of its own edge: both patterns are laid out from the start of their edge. null for anything else
- * (other kinds, two curves, one edge).
+ * Where a joint between a curve and a straight edge puts the strip in the 3D view (#513): the line where the middle of
+ * the strip stands (a polyline in world coordinates, thinned to pieces of at most 2 mm and 0.75°), which edge is the
+ * curve, the position along the strip at the first point of that line, and the height over the curved plate of the
+ * strip's line (its edge, or the middle of its slots). The strip runs along the line in the direction of its own edge.
+ * null for anything else (other kinds, two curves, one edge).
+ *
+ * - Finger joints: both patterns are laid out from the start of their edge (a loop) or in the middle; the strip's edge
+ *   is at 0 (fingers cut in) or one thickness (fingers out).
+ * - Tenon and slot, tenons on the straight strip (A): the strip stands on the middle line of the slots in the curved
+ *   plate, its edge one thickness up (the tenons go through).
+ * - Tenon and slot, tenons on the curve (B): the strip goes round the curve half a thickness out, the middle line of its
+ *   slots at half the height of the plate. Tenons and slots both lie in the middle of their lines.
  */
 export function curveMate<K>(picks: JointEdge<K>[], o: JointOptions): { on: 0 | 1; path: Pt[]; x0: number; z: number } | null {
-  if (o.kind !== 'finger' || picks.length < 2 || !(o.thickness > 0)) return null;
+  if ((o.kind !== 'finger' && o.kind !== 'tenon') || picks.length < 2 || !(o.thickness > 0)) return null;
   const curved = picks.map(isCurvedEdge);
   if (curved[0] === curved[1]) return null;
   const on: 0 | 1 = curved[0] ? 0 : 1;
   const th = o.thickness;
+  // Where the shape changes, a short piece on both sides of the flank: a straight piece of the bent strip has its
+  // flanks square to itself, so a piece centred on the flank keeps it square to the curve, as the curved part's is
+  const half = 0.05 + Math.abs(o.clearance) + Math.abs(o.kerf);
+  const flank = (b: number) => [b - half, b + half];
+  if (o.kind === 'tenon') {
+    const g = sampleEdge(picks[0], th / 2);
+    const vc = (picks[1].subs[picks[1].sub].closed ? -1 : 1) * o.slotOffset;
+    const sc = sampleEdge(picks[1], vc);
+    const n = Math.max(1, Math.round(o.tenonCount));
+    // A tenon at c on edge 1 goes into the slot at c + shift on the slot line
+    const shift = sc.len / 2 - g.len / 2;
+    const ends: number[] = [];
+    for (const c of tenonCenters(g.len, n)) ends.push(...flank(c - o.tenonWidth / 2), ...flank(c + o.tenonWidth / 2));
+    if (on === 1) {
+      // A: position u on the slot line is position u − shift along the strip's edge
+      const { path, x0 } = bendPath(sc, vc, ends.map((u) => u + shift), -shift);
+      return { on, path, x0, z: th };
+    }
+    // B: position u on the curve is position u + shift along the strip's slot line
+    const { path, x0 } = bendPath(g, th / 2, ends, shift);
+    return { on, path, x0, z: th / 2 };
+  }
   const w = o.direction === 'in' ? -th / 2 : th / 2;
   const c = sampleEdge(picks[on], w);
   const s = sampleEdge(picks[1 - on], w);
-  // The pattern of a loop starts at the start of both edges; otherwise both lie in the middle of their edge
-  const x0 = c.loop ? 0 : (s.len - c.len) / 2;
-  // Where the fingers change, a short piece on both sides of the flank: a straight piece of the bent strip has its
-  // flanks square to itself, so a piece centred on the flank keeps it square to the curve, as the curved part's is
   let n: number, margin: number;
   if (c.loop) {
     n = Math.max(4, 2 * Math.round(c.len / Math.max(0.1, o.fingerWidth) / 2));
@@ -420,14 +444,21 @@ export function curveMate<K>(picks: JointEdge<K>[], o: JointOptions): { on: 0 | 
     n = fingerCount(pattern, o.fingerWidth);
     margin = (c.len - pattern) / 2;
   }
-  const half = 0.05 + Math.abs(o.clearance) + Math.abs(o.kerf);
   const keep: number[] = [];
-  for (let k = c.loop ? 0 : 1; k < n; k++) {
-    const b = margin + (k * (c.len - 2 * margin)) / n;
-    for (const u of [b - half, b + half]) if (u > 1e-6 && u < c.len - 1e-6) keep.push(u);
-  }
-  keep.sort((a, b) => a - b);
-  // The line of the strip's middle, with those points added
+  for (let k = c.loop ? 0 : 1; k < n; k++) keep.push(...flank(margin + (k * (c.len - 2 * margin)) / n));
+  // The pattern of a loop starts at the start of both edges; otherwise both lie in the middle of their edge
+  const { path, x0 } = bendPath(c, w, keep, c.loop ? 0 : (s.len - c.len) / 2);
+  return { on, path, x0, z: o.direction === 'in' ? 0 : th };
+}
+
+/**
+ * The line at distance w beside the curve c as the path of a bent strip, with points kept at the positions keep (along
+ * that line) and thinned elsewhere
+ */
+function bendPath(c: CurveEdge, w: number, keep: number[], x0: number): { path: Pt[]; x0: number } {
+  const marks = keep.map((u) => (c.loop ? ((u % c.len) + c.len) % c.len : u)).filter((u) => u > 1e-6 && u < c.len - 1e-6);
+  marks.sort((a, b) => a - b);
+  // The line, with those points added
   const pts: Pt[] = [];
   const forced: boolean[] = [];
   let q = 0;
@@ -435,8 +466,8 @@ export function curveMate<K>(picks: JointEdge<K>[], o: JointOptions): { on: 0 | 
     const at = { x: c.P[i].x + c.N[i].x * w, y: c.P[i].y + c.N[i].y * w };
     if (i > 0) {
       const a = pts[pts.length - 1];
-      while (q < keep.length && keep[q] < c.A[i] - 1e-9) {
-        const f = (keep[q] - c.A[i - 1]) / (c.A[i] - c.A[i - 1] || 1);
+      while (q < marks.length && marks[q] < c.A[i] - 1e-9) {
+        const f = (marks[q] - c.A[i - 1]) / (c.A[i] - c.A[i - 1] || 1);
         if (f > 1e-9) {
           pts.push({ x: a.x + (at.x - a.x) * f, y: a.y + (at.y - a.y) * f });
           forced.push(true);
@@ -467,5 +498,5 @@ export function curveMate<K>(picks: JointEdge<K>[], o: JointOptions): { on: 0 | 
       last = i;
     }
   }
-  return { on, path, x0, z: o.direction === 'in' ? 0 : th };
+  return { path, x0 };
 }
