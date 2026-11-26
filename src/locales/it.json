@@ -5499,6 +5499,7 @@
   ". Streifen für die ganze Runde: {len} mm (auf der Wandmitte), Anfang am Beginn der gewählten Kurve": ". Striscia per il giro completo: {len} mm (al centro della parete), inizia dove inizia la curva scelta",
   ". Länge der Kurve auf der Wandmitte: {len} mm": ". Lunghezza della curva al centro della parete: {len} mm",
   ". Streifen länger als die Runde ({len} / {pattern} mm): Muster ab Streifenanfang, der Rest bleibt glatt": ". Striscia più lunga del giro ({len} / {pattern} mm): motivo dall’inizio della striscia, il resto resta liscio",
+  "Fase": "Smusso",
   "Flutfüllung füllt immer Form für Form": "Il flood fill riempie sempre una forma alla volta",
   "Alles zusammen": "Tutto insieme",
   "Gruppenweise": "Per gruppi",

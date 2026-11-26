@@ -5499,6 +5499,7 @@
   ". Streifen für die ganze Runde: {len} mm (auf der Wandmitte), Anfang am Beginn der gewählten Kurve": ". Tira para la vuelta completa: {len} mm (en el centro de la pared), empieza donde empieza la curva elegida",
   ". Länge der Kurve auf der Wandmitte: {len} mm": ". Longitud de la curva en el centro de la pared: {len} mm",
   ". Streifen länger als die Runde ({len} / {pattern} mm): Muster ab Streifenanfang, der Rest bleibt glatt": ". Tira más larga que la vuelta ({len} / {pattern} mm): patrón desde el inicio de la tira, el resto queda liso",
+  "Fase": "Chaflán",
   "Flutfüllung füllt immer Form für Form": "El relleno por inundación siempre rellena una forma cada vez",
   "Alles zusammen": "Todo junto",
   "Gruppenweise": "Por grupos",

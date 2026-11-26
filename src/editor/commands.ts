@@ -2,6 +2,7 @@
 import { about, clampRectCorners, clone, cloneObjs, homeLayer, Mat, mul, Pt, rectCorners, rotate, scale, translate, visibleLeaves } from '../model';
 import type { Editor } from '../editor';
 import { t } from '../i18n';
+import { bakeRectMatrix, resizeRectWH } from '../geom';
 import { genLeaves } from './generators';
 import { copyMultiLayers, pruneMultiLayers } from '../multilayer';
 import { assignImageContour, expandImageCutSelection, unassignImageContour } from '../imageCut';
@@ -144,6 +145,23 @@ export class EditorCommands {
   /** Formparameter (Eckenradius, Seiten …) der Auswahl ändern */
   updateShapes(this: Editor, kind: 'rect' | 'polygon', patch: Record<string, number | boolean | readonly (number | null | undefined)[]>) {
     if (kind === 'rect') {
+      if (typeof patch.chamfer === 'boolean') {
+        const ch = patch.chamfer;
+        this.rectChamfer = ch;
+        this.saveToolOptions();
+        const objs = this.sel.filter((o) => o.shape.kind === kind);
+        if (!objs.length) return;
+        this.snapshot(ch ? t('Ecken fasen') : t('Ecken runden'));
+        objs.forEach((o) => {
+          if (o.shape.kind !== 'rect') return;
+          if (ch) o.shape.chamfer = true;
+          else delete o.shape.chamfer;
+          this.touch(o.shape);
+        });
+        this.emit('doc');
+        this.emit('sel');
+        return;
+      }
       if (Array.isArray(patch.corners)) {
         const raw = (patch.corners as readonly unknown[]).slice(0, 4);
         // Leereinträge (null/undefined/keine Zahl) behalten den bisherigen Wert je Objekt.
@@ -231,6 +249,29 @@ export class EditorCommands {
       return;
     }
     const A = { x: b.x + ax * b.w, y: b.y + ay * b.h };
+    // Einzelnes, nicht gedrehtes Rechteck: absolute Maße setzen, damit Eckenradius und
+    // Fase in mm stabil bleiben (Matrix-Skalierung würde sie verzerren).
+    if (this.sel.length === 1 && sx > 0 && sy > 0) {
+      const o = this.sel[0];
+      if (o.shape.kind === 'rect') {
+        bakeRectMatrix(o);
+        const wNew = o.shape.w * sx, hNew = o.shape.h * sy;
+        if (Number.isFinite(wNew) && Number.isFinite(hNew) && wNew > 0 && hNew > 0) {
+          const snap = t('Position/Größe');
+          this.snapshot(snap);
+          if (resizeRectWH(o, wNew, hNew, ax, ay)) {
+            const tx = next.x !== undefined ? next.x - A.x : 0;
+            const ty = next.y !== undefined ? next.y - A.y : 0;
+            if (tx || ty) o.m = mul(translate(tx, ty), o.m);
+            this.touch(o.shape);
+            this.emit('doc');
+            this.emit('sel');
+            return;
+          }
+          this.dropSnapshot();
+        }
+      }
+    }
     let D = about(scale(sx, sy), A.x, A.y);
     const tx = next.x !== undefined ? next.x - A.x : 0;
     const ty = next.y !== undefined ? next.y - A.y : 0;

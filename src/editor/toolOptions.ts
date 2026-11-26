@@ -44,6 +44,7 @@ export class EditorToolOptions {
       this.polySides = Math.round(num(st.polySides, 3, 64, this.polySides));
       this.polyStar = bool(st.polyStar, this.polyStar);
       this.rectRadius = num(st.rectRadius, 0, 10000, this.rectRadius);
+      this.rectChamfer = bool(st.rectChamfer, this.rectChamfer);
       this.pencilTolerance = num(st.pencilTolerance, 0.001, 100, this.pencilTolerance);
       this.pencilClosed = bool(st.pencilClosed, this.pencilClosed);
       if (st.arcMode === 'center' || st.arcMode === '3point') this.arcMode = st.arcMode as ArcMode;
@@ -66,6 +67,7 @@ export class EditorToolOptions {
           polySides: this.polySides,
           polyStar: this.polyStar,
           rectRadius: this.rectRadius,
+          rectChamfer: this.rectChamfer,
           pencilTolerance: this.pencilTolerance,
           pencilClosed: this.pencilClosed,
           arcMode: this.arcMode,

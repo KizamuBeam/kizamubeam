@@ -85,7 +85,7 @@ export interface CornerSet {
 }
 
 /** Reihenfolge der Einzelradien: [oben-links, oben-rechts, unten-rechts, unten-links] in lokalen mm (y nach unten). */
-export type RectShape = { kind: 'rect'; w: number; h: number; r: number; corners?: RectCorners; cornerSets?: CornerSet[] };
+export type RectShape = { kind: 'rect'; w: number; h: number; r: number; corners?: RectCorners; chamfer?: boolean; cornerSets?: CornerSet[] };
 
 /** Effektive Einzelradien eines Rechtecks: corners oder viermal der gemeinsame Radius. */
 export function rectCorners(s: Pick<RectShape, 'r' | 'corners'>): RectCorners {
@@ -110,8 +110,9 @@ export function clampRectCorners(corners: readonly number[], w: number, h: numbe
   return [cl(corners[0]), cl(corners[1]), cl(corners[2]), cl(corners[3])];
 }
 
-/** Rechteck normalisieren: r und corners endlich/clampen; einheitliche corners fallen weg (r trägt sie). */
+/** Rechteck normalisieren: r und corners endlich/clampen; einheitliche corners fallen weg (r trägt sie). chamfer nur als echtes true behalten. */
 export function normalizeRect(s: RectShape): void {
+  if (s.chamfer !== true) delete s.chamfer;
   const w = s.w, h = s.h;
   const r = typeof s.r === 'number' && Number.isFinite(s.r) && s.r >= 0 ? s.r : 0;
   if (s.corners !== undefined) {
