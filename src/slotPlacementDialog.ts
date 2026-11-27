@@ -2,7 +2,9 @@ import type { Editor } from './editor';
 import { h } from './dom';
 import { Obj, Pt } from './model';
 import { shapeSubs, subsToPath2D } from './geom';
-import { PlacedSlot, SlotRecipe, SlotGroup, adoptSlotFeatureRecipe, projectionFrame, readSlotRecipe, isSlotGenerator } from './slotPlacement';
+import { PlacedSlot, SlotRecipe, SlotGroup, adoptSlotFeatureRecipe, projectionFrame, readSlotRecipe, isSlotGenerator, DEFAULT_NUBS, nubsOf } from './slotPlacement';
+import type { SlotNubs } from './slotPlacement';
+import { NUB_BOUNDS, validNubField } from './slotNubs';
 import { SlotOrigin, SlotReference, curveCorner, dot, sub } from './straightSlots';
 import type { ResolvedConstructionLine } from './slotConstruction';
 import { createSlotPreviewClient, SlotPreviewResult } from './slotPreviewClient';
@@ -135,10 +137,36 @@ export function openSlotPlacementDialog(ed: Editor, target?: Obj): void {
       }
       selected = source; refreshTree(); showProperties(); request();
     }, { onToggleVisibility: selection => { const key = `${selection.kind}:${selection.id}`; if (hidden.has(key)) hidden.delete(key); else hidden.add(key); refreshTree(); request(); } });
-    const numberField = (parent: HTMLElement, id: string, label: string, value: number, set: (v: number) => void, step = '0.1') => {
-      const input = h('input', { id, type: 'number', step, value: String(value) });
-      input.addEventListener('input', () => { set(input.valueAsNumber); request(); }); parent.append(h('label', { for: id }, label), input);
+    const nubFieldError = (key: keyof SlotNubs, field: string): string => {
+      const [min, max] = NUB_BOUNDS[key], vars = { field, min, max };
+      return key === 'count'
+        ? t('{field}: Eine ganze Zahl von {min} bis {max} eingeben.', vars)
+        : t('{field}: Einen Wert von {min} bis {max} eingeben.', vars);
     };
+    const numberField = (parent: HTMLElement, id: string, label: string, value: number, set: (v: number) => void, step = '0.1', nubKey?: keyof SlotNubs) => {
+      const input = h('input', { id, type: 'number', step, value: String(value) });
+      const description = nubKey ? h('span', { id: `${id}-error`, hidden: true }, nubFieldError(nubKey, label)) : undefined;
+      const updateValidity = (v: number) => {
+        if (!nubKey || !description) return undefined;
+        const invalid = !validNubField(nubKey, v);
+        input.setAttribute('aria-invalid', String(invalid));
+        if (invalid) input.setAttribute('aria-describedby', description.id);
+        else input.removeAttribute('aria-describedby');
+        return invalid ? description.textContent ?? undefined : undefined;
+      };
+      updateValidity(value);
+      input.addEventListener('input', () => {
+        const v = input.valueAsNumber;
+        set(v); request(updateValidity(v));
+      });
+      parent.append(h('label', { for: id }, label), input);
+      if (description) parent.append(description);
+      return input;
+    };
+    const nubDefs = [
+      ['height', t('Rastnasenhöhe (mm)'), '0.05'], ['width', t('Rastnasenbreite (mm)'), '0.1'],
+      ['count', t('Rastnasenanzahl je Flanke'), '1'], ['inset', t('Rastnasenabstand (mm)'), '0.5'],
+    ] as const;
     const describe = (ref: SlotOrigin | null) => ref ? points().find(p => originKey(p.ref) === originKey(ref))?.label ?? originKey(ref) : t('Noch nicht gewählt');
     const choose = (parent: HTMLElement, label: string, mode: Pick, value: string) => {
       parent.append(iconButton(`slot-choose-${mode}`, label, mode === 'edge' || mode === 'helperEdge' ? 'line' : mode === 'mirrorAxis' ? 'mirrorh' : 'origin', () => { pick = mode; mirrorParentId = null; setInfo(label); showProperties(); updateToolbar(); properties.querySelector<HTMLSelectElement>('#slot-pick-list')?.focus(); }), h('output', {}, value));
@@ -189,6 +217,22 @@ export function openSlotPlacementDialog(ed: Editor, target?: Obj): void {
         const style = h('select', { id: 'slot-group-corners' }, ...(['corner', 'loop', 'backarc', 'diagonal'] as const).map(value => h('option', { value, selected: group.cornerStyle === value }, value === 'diagonal' ? t('Diagonale Eckentlastung') : value)));
         style.addEventListener('change', () => { group.cornerStyle = style.value as SlotGroup['cornerStyle']; request(); });
         form.append(h('label', { for: style.id }, t('Inneneckenstil')), style);
+        const nubsOn = (group.nubs?.height ?? 0) > 0;
+        const nubToggle = h('input', { id: 'slot-group-nubs-on', type: 'checkbox' });
+        nubToggle.checked = nubsOn;
+        nubToggle.addEventListener('change', () => {
+          const cur = nubsOf(group, undefined);
+          cur.height = nubToggle.checked ? (cur.height > 0 ? cur.height : 0.15) : 0;
+          group.nubs = cur; showProperties(); refreshTree(); request();
+          properties.querySelector<HTMLInputElement>('#slot-group-nubs-on')?.focus();
+        });
+        form.append(h('label', { for: nubToggle.id }, t('Rastnasen aktivieren')), nubToggle);
+        for (const [key, label, step] of nubDefs) {
+          const input = numberField(form, `slot-group-nub-${key}`, label, nubsOf(group, undefined)[key],
+            v => { group.nubs = { ...nubsOf(group, undefined), [key]: v }; }, step, key);
+          input.disabled = !nubsOn && validNubField(key, nubsOf(group, undefined)[key]);
+        }
+        properties.append(h('p', { class: 'note' }, t('Rastnasen klemmen das Gegenstück; Höhe 0 = aus. Nasen liegen symmetrisch auf beiden Flanken, mit Abstand zu Mund und Boden.')));
         properties.append(h('p', { class: 'note' }, t('corner: scharfe Ecke ohne Entlastung. backarc: Rückbogen mit Radius Burn; bei Burn 0 wie corner.')));
         properties.append(h('p', { class: 'note' }, t('Diagonale Eckentlastung: gerader Freischnitt auf der Winkelhalbierenden, Breite 2 × Burn. Bei Burn 0 ohne Entlastung.')));
         properties.append(h('p', { class: 'note' }, t('Gruppenmaße gelten für alle Mitglieder. Lokale Burn-Korrektur erfordert Layer-Kerf 0.')));
@@ -205,6 +249,19 @@ export function openSlotPlacementDialog(ed: Editor, target?: Obj): void {
           target.groupId = group.id; showProperties(); refreshTree(); request();
         });
         form.append(h('label', { for: groupSelect.id }, t('Gruppe')), groupSelect);
+        if (!slot.mirror) {
+          const slotNubToggle = h('input', { id: 'slot-nubs-on', type: 'checkbox' });
+          slotNubToggle.checked = slot.nubs !== undefined;
+          slotNubToggle.addEventListener('change', () => {
+            if (slotNubToggle.checked) slot.nubs = { ...nubsOf(currentGroup(), undefined) };
+            else delete slot.nubs;
+            showProperties(); refreshTree(); request();
+            properties.querySelector<HTMLInputElement>('#slot-nubs-on')?.focus();
+          });
+          form.append(h('label', { for: slotNubToggle.id }, t('Eigene Rastnasen (Gruppe überschreiben)')), slotNubToggle);
+          if (slot.nubs) for (const [key, label, step] of nubDefs)
+            numberField(form, `slot-nub-${key}`, label, slot.nubs[key], v => { slot.nubs = { ...(slot.nubs ?? DEFAULT_NUBS), [key]: v }; }, step, key);
+        }
         if (slot.mirror) {
           properties.append(h('p', { class: 'note' }, t('Parametrische Spiegelung von {id}. Maße und Gruppe werden geerbt.', { id: slot.mirror.slotId })));
           choose(form, t('Spiegelachse wählen: Hilfslinie oder Körperkante'), 'mirrorAxis', slot.mirror.axis.kind === 'helper' ? slot.mirror.axis.helperId : slot.mirror.axis.edge);
@@ -238,17 +295,20 @@ export function openSlotPlacementDialog(ed: Editor, target?: Obj): void {
       const slots = [...recipe.slots, ...[...drafts.values()].filter(completeSlot)];
       return { ...recipe, slots, order: recipe.order?.filter(item => (item.kind === 'slot' ? slots : item.kind === 'helper' ? recipe.helpers : recipe.groups)?.some(f => f.id === item.id)) };
     };
-    function request(): void {
+    function request(editedNubError?: string): void {
       if (closed || stale) return;
+      const invalidNub = nubDefs.find(([key]) => [...(recipe.groups ?? []), ...recipe.slots, ...drafts.values()]
+        .some(({ nubs }) => nubs && !validNubField(key, nubs[key])));
       pending = true; valid = false; apply.disabled = true; canvas.setAttribute('aria-busy', 'true'); setInfo(t('Vorschau wird berechnet …'));
       updateToolbar();
       const proposed = prepareTrial(), snapshot = structuredClone(recipe), draftSnapshot = structuredClone(drafts), helperSnapshot = structuredClone(helperDrafts), resetSnapshot = resetToSource;
       client.request(proposed, recipe.settings!.cornerAngle, reply => {
         if (closed || stale) return;
         pending = false; canvas.setAttribute('aria-busy', 'false');
-        if (reply.error || !reply.result) {
+        if (invalidNub || reply.error || !reply.result) {
           valid = false; apply.disabled = true;
-          setInfo(`${reply.error ?? t('Vorschau fehlgeschlagen.')} ${t('Letzte gültige Vorschau bleibt erhalten. Richtung und Abstand prüfen oder Änderung verwerfen.')}`, true);
+          if (invalidNub) setInfo(editedNubError ?? nubFieldError(invalidNub[0], invalidNub[1]), true);
+          else setInfo(`${reply.error ?? t('Vorschau fehlgeschlagen.')} ${t('Letzte gültige Vorschau bleibt erhalten. Richtung und Abstand prüfen oder Änderung verwerfen.')}`, true);
           // Keep the last valid geometry, point inventory and staged recipe visible.
           refreshTree(); updateToolbar(); scheduleDraw(); return;
         }
@@ -434,7 +494,9 @@ export function openSlotPlacementDialog(ed: Editor, target?: Obj): void {
       if (visible('source', 'source')) {
         const p = subsToPath2D(result?.subs ?? recipe.base); ctx.fill(p, 'evenodd'); ctx.stroke(p);
         ctx.strokeStyle = '#7d8896'; ctx.setLineDash([3 / scale, 3 / scale]); ctx.stroke(subsToPath2D(recipe.base)); ctx.setLineDash([]);
-      } else for (const slot of result?.slots ?? []) if (slot.projection && visible('slot', slot.id!)) ctx.stroke(subsToPath2D([previewFrame(slot).outline]));
+      } else for (const { id, frame, cutter } of result?.frames ?? []) {
+        if (visible('slot', id)) ctx.stroke(subsToPath2D(cutter ?? [frame.outline]));
+      }
       for (const helper of result?.helpers ?? []) { if (!visible('helper', helper.id)) continue; ctx.strokeStyle = selected?.kind === 'helper' && helper.id === selected.id ? '#ff9c38' : '#65d6df'; ctx.setLineDash([6 / scale, 4 / scale]); infiniteLine(ctx, helper); ctx.setLineDash([]); }
       const selectedEdge = result?.edges.find(edge => edge.key === activeEdge());
       if (selectedEdge && visible('source', 'source') && showSelection) {

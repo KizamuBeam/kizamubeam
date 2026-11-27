@@ -5,7 +5,7 @@ import type { SlotReference, SlotVertex, StraightEdge, ProjectionFrame } from '.
 import type { ResolvedConstructionLine } from './slotConstruction';
 
 export interface SlotPreviewRequest { id: number; recipe: SlotRecipe; cornerAngle: number; lang: string; visibleSlotIds?: string[] }
-export interface SlotPreviewResult { subs: SubPath[]; slots: PlacedSlot[]; frames: { id: string; frame: ProjectionFrame }[]; helpers: ResolvedConstructionLine[]; edges: StraightEdge[]; vertices: SlotVertex[]; references: SlotReference[] }
+export interface SlotPreviewResult { subs: SubPath[]; slots: PlacedSlot[]; frames: { id: string; frame: ProjectionFrame; cutter?: SubPath[] }[]; helpers: ResolvedConstructionLine[]; edges: StraightEdge[]; vertices: SlotVertex[]; references: SlotReference[] }
 export interface SlotPreviewReply { id: number; result?: SlotPreviewResult; error?: string }
 export interface SlotPreviewClient {
   request(recipe: SlotRecipe, cornerAngle: number, onResult: (reply: SlotPreviewReply) => void, visibleSlotIds?: string[]): void;

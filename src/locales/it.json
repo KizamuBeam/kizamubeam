@@ -5886,5 +5886,14 @@
   "Orte": "Risorse",
   "Datenträger": "Dispositivi",
   "Zu Favoriten hinzufügen": "Aggiungi ai preferiti",
-  "Versteckte Dateien und Ordner anzeigen": "Mostra file e cartelle nascosti"
+  "Versteckte Dateien und Ordner anzeigen": "Mostra file e cartelle nascosti",
+  "Rastnasen aktivieren": "Attiva alette di ritegno",
+  "Rastnasenhöhe (mm)": "Altezza aletta (mm)",
+  "{field}: Eine ganze Zahl von {min} bis {max} eingeben.": "{field}: inserisci un numero intero tra {min} e {max}.",
+  "{field}: Einen Wert von {min} bis {max} eingeben.": "{field}: inserisci un valore tra {min} e {max}.",
+  "Rastnasenbreite (mm)": "Larghezza aletta (mm)",
+  "Rastnasenanzahl je Flanke": "Alette per fianco",
+  "Rastnasenabstand (mm)": "Distanza alette (mm)",
+  "Rastnasen klemmen das Gegenstück; Höhe 0 = aus. Nasen liegen symmetrisch auf beiden Flanken, mit Abstand zu Mund und Boden.": "Le alette trattengono la controparte; altezza 0 = spento. Le alette sono simmetriche su entrambi i fianchi, distanti da bocca e fondo.",
+  "Eigene Rastnasen (Gruppe überschreiben)": "Alette proprie (sostituisci gruppo)"
 }

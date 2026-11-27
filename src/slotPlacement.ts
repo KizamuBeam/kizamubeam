@@ -8,10 +8,24 @@ import { guidedSlot, SlotAnchor, slotAnchorFromReference, slotContourPosition } 
 import { curveCorner, projectedSlot, SlotProjection, SlotOrigin, straightGeometry, ProjectionFrame } from './straightSlots';
 import { SlotConstructionLine, ResolvedConstructionLine, resolveConstructionLine, resolveConstructionIntersection } from './slotConstruction';
 import { manufacturedSlotPaths } from './slotManufacturing';
+import { nubLayout, sameNubs, validNubValues } from './slotNubs';
+import type { NubLayout } from './slotNubs';
 
-export interface SlotGroup { id: string; name: string; width: number; depth: number; clearance: number; factor: number; burn: number; cornerStyle: 'corner' | 'loop' | 'backarc' | 'diagonal' }
+/** Optionale Material-Nasen (Rastnasen) an den Schlitzflanken: verdrängbare
+ *  Auslage, die sich beim Fügen in den Gegenstand eingraben und Toleranzen ausgleichen. */
+export interface SlotNubs {
+  /** Radiale Höhe der Nase an der Wand, mm. 0 = Nasen aus. */
+  height: number;
+  /** Längenausdehnung der Nase entlang der Wand, mm. */
+  width: number;
+  /** Anzahl der Nasen pro Wandseite, beide Seiten symmetrisch. */
+  count: number;
+  /** Mindestabstand von Mund und Boden, mm. */
+  inset: number;
+}
+export interface SlotGroup { id: string; name: string; width: number; depth: number; clearance: number; factor: number; burn: number; cornerStyle: 'corner' | 'loop' | 'backarc' | 'diagonal'; nubs?: SlotNubs }
 export interface SlotMirror { slotId: string; axis: { kind: 'helper'; helperId: string } | { kind: 'edge'; edge: string } }
-export interface PlacedSlot { x: number; y: number; angle: number; width: number; depth: number; clearance: number; factor: number; anchor?: SlotAnchor; projection?: SlotProjection; mirror?: SlotMirror; id?: string; groupId?: string; burn?: number; cornerStyle?: SlotGroup['cornerStyle'] }
+export interface PlacedSlot { x: number; y: number; angle: number; width: number; depth: number; clearance: number; factor: number; anchor?: SlotAnchor; projection?: SlotProjection; mirror?: SlotMirror; id?: string; groupId?: string; burn?: number; cornerStyle?: SlotGroup['cornerStyle']; nubs?: SlotNubs }
 export interface SlotRecipe { source: Shape; base: SubPath[]; slots: PlacedSlot[]; settings?: { cornerAngle: number }; groups?: SlotGroup[]; helpers?: SlotConstructionLine[]; order?: { kind: 'group' | 'slot' | 'helper'; id: string }[] }
 export const LEGACY_SLOT_GENERATOR = 'slot-placement';
 // A new identity prevents the earlier local build from regenerating guided recipes as free rectangles.
@@ -51,10 +65,10 @@ export function effectiveSlot(recipe: SlotRecipe, slot: PlacedSlot): PlacedSlot 
   if (slot.mirror) {
     const parent = effectiveSlot(recipe, dimensionSource(recipe, slot));
     return { ...slot, x: parent.x, y: parent.y, angle: parent.angle, width: parent.width, depth: parent.depth,
-      clearance: parent.clearance, factor: parent.factor, burn: parent.burn, cornerStyle: parent.cornerStyle };
+      clearance: parent.clearance, factor: parent.factor, burn: parent.burn, cornerStyle: parent.cornerStyle, nubs: parent.nubs };
   }
   const group = effectiveSlotGroup(recipe, slot);
-  const result = group ? { ...slot, width: group.width, depth: group.depth, clearance: group.clearance, factor: group.factor, burn: group.burn, cornerStyle: group.cornerStyle } : { ...slot };
+  const result = group ? { ...slot, width: group.width, depth: group.depth, clearance: group.clearance, factor: group.factor, burn: group.burn, cornerStyle: group.cornerStyle, nubs: slot.nubs ?? group.nubs } : { ...slot };
   if (slot.projection && recipe.settings) result.projection = { ...slot.projection, cornerAngle: recipe.settings.cornerAngle };
   return result;
 }
@@ -71,11 +85,11 @@ export function adoptSlotFeatureRecipe(recipe: SlotRecipe, angle?: number): Slot
       slot.id = `slot-${n}`;
     }
     if (slot.groupId !== undefined || slot.mirror) continue;
-    const same = result.groups.find(g => g.width === slot.width && g.depth === slot.depth && g.clearance === slot.clearance && g.factor === slot.factor && g.burn === 0 && g.cornerStyle === 'corner');
+    const same = result.groups.find(g => g.width === slot.width && g.depth === slot.depth && g.clearance === slot.clearance && g.factor === slot.factor && g.burn === 0 && g.cornerStyle === 'corner' && sameNubs(g.nubs, slot.nubs));
     let group = same;
     if (!group) {
       let n = 1; while (result.groups.some(g => g.id === `group-${n}`)) n++;
-      group = { id: `group-${n}`, name: t('Gruppe {n}', { n }), width: slot.width, depth: slot.depth, clearance: slot.clearance, factor: slot.factor, burn: 0, cornerStyle: 'corner' };
+      group = { id: `group-${n}`, name: t('Gruppe {n}', { n }), width: slot.width, depth: slot.depth, clearance: slot.clearance, factor: slot.factor, burn: 0, cornerStyle: 'corner', ...(slot.nubs !== undefined ? { nubs: slot.nubs } : {}) };
       result.groups.push(group);
     }
     slot.groupId = group.id;
@@ -84,6 +98,11 @@ export function adoptSlotFeatureRecipe(recipe: SlotRecipe, angle?: number): Slot
   return result;
 }
 const { ClipType: C, PolyFillType: F, Clipper } = ClipperLib;
+export const DEFAULT_NUBS: SlotNubs = { height: 0, width: 1.2, count: 2, inset: 3 };
+export function nubsOf(group: SlotGroup | undefined, slot: PlacedSlot | undefined): SlotNubs {
+  // Preserve unfinished edits; recipe validation keeps them out of the preview and output.
+  return { ...(slot?.nubs ?? group?.nubs ?? DEFAULT_NUBS) };
+}
 export function slotOutline(s: PlacedSlot): SubPath {
   if (![s.x,s.y,s.angle,s.width,s.depth,s.clearance,s.factor].every(Number.isFinite) ||
     s.width <= 0 || s.depth <= 0 || s.factor <= 0 || s.width * s.factor + s.clearance < 0.05 ||
@@ -91,7 +110,28 @@ export function slotOutline(s: PlacedSlot): SubPath {
     throw new Error(t('Ungültige Schlitzmaße oder Korrekturwerte.'));
   const w = (s.width * s.factor + s.clearance) / 2, d = s.depth / 2;
   const a = s.angle * Math.PI / 180, c = Math.cos(a), sn = Math.sin(a);
-  return { closed: true, nodes: [[-w,-d],[w,-d],[w,d],[-w,d]].map(([x,y]) => ({ x:s.x+c*x-sn*y, y:s.y+sn*x+c*y })) };
+  const quad: Array<[number, number]> = [[-w,-d],[w,-d],[w,d],[-w,d]];
+  const layout = nubLayout(2 * d, s.nubs, w / 2);
+  const local = layout ? nubbedRectQuad(w, d, layout) : quad;
+  return { closed: true, nodes: local.map(([x,y]) => ({ x:s.x+c*x-sn*y, y:s.y+sn*x+c*y })) };
+}
+/** Free-rectangle quad with symmetric nub bays baked into both long walls
+ * (x = ±w, inward ∓x). Nub centers are measured from the mouth (y = -d).
+ * Winding matches slotOutline (CCW); bays dent inward, staying simple. */
+function nubbedRectQuad(w: number, d: number, layout: NubLayout): Array<[number, number]> {
+  const { centers, base, inner, depth } = layout;
+  const half = base / 2, nodes: Array<[number, number]> = [[-w, -d], [w, -d]];
+  const ascending = [...centers].sort((p, q) => p - q);
+  for (const fromMouth of ascending) {
+    const cy = -d + fromMouth;
+    nodes.push([w, cy - half], [w - depth, cy - inner], [w - depth, cy + inner], [w, cy + half]);
+  }
+  nodes.push([w, d], [-w, d]);
+  for (const fromMouth of ascending.reverse()) {
+    const cy = -d + fromMouth;
+    nodes.push([-w, cy + half], [-w + depth, cy + inner], [-w + depth, cy - inner], [-w, cy - half]);
+  }
+  return nodes;
 }
 export function readSlotRecipe(p: Params): SlotRecipe {
   if (typeof p.recipe !== 'string' || p.recipe.length > 4000000) throw new Error(t('Ungültige Schlitzdefinition.'));
@@ -116,10 +156,12 @@ export function readSlotRecipe(p: Params): SlotRecipe {
   if (r.settings) straightGeometry(r.base, r.settings.cornerAngle);
   for (const group of r.groups ?? []) {
     if (typeof group.name !== 'string' || group.name.length > 200 || !Number.isFinite(group.burn) || group.burn < 0 || group.burn > 100 || !['corner','loop','backarc','diagonal'].includes(group.cornerStyle)) throw new Error(t('Ungültige Schlitzmaße oder Korrekturwerte.'));
+    if (group.nubs !== undefined && !validNubValues(group.nubs)) throw new Error(t('Ungültige Schlitzmaße oder Korrekturwerte.'));
     slotOutline({ ...group, x: 0, y: 0, angle: 0 });
   }
   r.slots.forEach(s => {
     if (s.mirror !== undefined) mirrorParent(r, s);
+    if (s.nubs !== undefined && !validNubValues(s.nubs)) throw new Error(t('Ungültige Schlitzmaße oder Korrekturwerte.'));
     slotOutline(effectiveSlot(r, s));
   });
   const ids=r.slots.map(s=>s.id).filter(id=>id!==undefined);
@@ -212,7 +254,7 @@ export function resolvedFeatureGeometry(r: SlotRecipe): { slots: PlacedSlot[]; h
       if (edges.length !== 1) throw new Error(t('Die gespiegelte Ausklinkung liegt nicht eindeutig und vollständig auf einer passenden geraden Körperkante.'));
       const edge = edges[0], center = reflect(frame.center);
       result = { ...slot, width: parent.width, depth: parent.depth, clearance: parent.clearance, factor: parent.factor,
-        burn: parent.burn, cornerStyle: parent.cornerStyle, groupId: parent.groupId,
+        burn: parent.burn, cornerStyle: parent.cornerStyle, nubs: parent.nubs, groupId: parent.groupId,
         x: center.x, y: center.y, angle: Math.atan2(edge.tangent.y, edge.tangent.x) * 180 / Math.PI,
         projection: { edge: edge.key, cornerAngle: angle, origin: { kind: 'slot', slotId: slot.mirror.slotId, point: 'center' }, target: 'center', distance: 0, direction: 1 } };
       if ((b.x - a.x) * edge.tangent.x + (b.y - a.y) * edge.tangent.y < 0) reversedMirrorFrames.add(result);
@@ -260,11 +302,13 @@ export function cutSlots(r: SlotRecipe, visibleSlotIds?: ReadonlySet<string>): S
           Math.hypot(a.edge.normal.x - b.edge.normal.x, a.edge.normal.y - b.edge.normal.y) < 1e-7;
       })())) throw new Error(t('Gespiegelter Schnitt erzeugt einen doppelten Ausschnitt.'));
     if (visibleSlotIds && (slot.id === undefined || !visibleSlotIds.has(slot.id))) continue;
-    const paths = slot.projection && slot.groupId !== undefined
-      ? manufacturedSlotPaths(projectionFrame(r.base, slot), { burn: slot.burn ?? 0, cornerStyle: slot.cornerStyle ?? 'corner' })
+    const grouped = slot.groupId !== undefined;
+    const manufacture = slot.projection && (grouped || !sameNubs(slot.nubs, undefined));
+    const paths = manufacture
+      ? manufacturedProjectionPaths(projectionFrame(r.base, slot), slot)
       : [slot.projection ? projectionFrame(r.base,slot).outline : slot.anchor ? guidedSlot(r.base, slot).outline : slotOutline(slot)];
     const flattened = paths.map(path => flattenSub(path, IDENT));
-    const cutter=slot.projection && slot.groupId !== undefined ? execute(C.ctUnion, flattened, [], F.pftNonZero) : flattened;
+    const cutter=manufacture ? execute(C.ctUnion, flattened, [], F.pftNonZero) : flattened;
     if (!execute(C.ctIntersection, material, cutter, F.pftNonZero).length)
       throw new Error(t('Der Ausschnitt trifft kein verbleibendes Material.'));
     material = execute(C.ctDifference, material, cutter, F.pftNonZero);
@@ -273,6 +317,13 @@ export function cutSlots(r: SlotRecipe, visibleSlotIds?: ReadonlySet<string>): S
     throw new Error(t('Die Ausschnitte entfernen das gesamte Material.'));
   return material.map(p=>({ closed:true, nodes:p.map(q=>({x:q.X/SCALE,y:q.Y/SCALE})) }));
 }
+export function manufacturedProjectionPaths(frame: ProjectionFrame, slot: PlacedSlot): SubPath[] {
+  const grouped = slot.groupId !== undefined;
+  return manufacturedSlotPaths(frame, {
+    burn: grouped ? slot.burn ?? 0 : 0, cornerStyle: grouped ? slot.cornerStyle ?? 'corner' : 'corner', nubs: slot.nubs,
+  });
+}
+
 /** Resolved projection slots store the reference point in x/y, never in document data. */
 export function projectionFrame(base: SubPath[], slot: PlacedSlot): ProjectionFrame {
   if(!slot.projection)throw new Error(t('Ungültige Schnittreferenz.'));

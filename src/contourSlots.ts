@@ -3,6 +3,7 @@ import ClipperLib from 'clipper-lib';
 import { execute, flattenSub, SCALE } from './clip';
 import { IDENT, Pt, SubPath } from './model';
 import type { PlacedSlot } from './slotPlacement';
+import { nubLayout } from './slotNubs';
 import { t } from './i18n';
 
 export interface SlotAnchor {
@@ -122,7 +123,12 @@ export function guidedSlot(base: SubPath[], slot: PlacedSlot): { outline: SubPat
     last = along; const inward = dot(relative, normal); low = Math.min(low, inward); high = Math.max(high, inward);
   }
   const hits: number[] = [];
+  let nubMouth = 0;
   boundary.points.forEach((p, i) => {
+    // A linearized lip reaches its maximum at a vertex or at a chord end.
+    const arcDistance = Math.abs(boundary.lengths[i] - at);
+    if (Math.min(arcDistance, boundary.length - arcDistance) <= hi)
+      nubMouth = Math.max(nubMouth, dot(minus(p, center), normal));
     const edge = minus(boundary.points[(i + 1) % boundary.points.length], p), den = cross(normal, edge);
     if (Math.abs(den) < 1e-10) return;
     const rel = minus(p, center), u = cross(rel, edge) / den, v = cross(rel, normal) / den;
@@ -133,5 +139,25 @@ export function guidedSlot(base: SubPath[], slot: PlacedSlot): { outline: SubPat
   if (bottom <= high + 0.002) throw new Error(t('Die Tiefe reicht an dieser Krümmung nicht bis hinter die Öffnung.'));
   // Continue outside past the curved lip so subtraction cannot leave a thin cap.
   const outside = Math.min(low, curveOffset, 0) - Math.max(0.05, width * 0.02);
-  return { a, b, center, normal, curveOffset, outline: { closed: true, nodes: [add(a, normal, outside), add(b, normal, outside), add(b, normal, bottom), add(a, normal, bottom)] } };
+  // Start behind the whole lip so it cannot trim the first pair of nubs.
+  const layout = nubLayout(bottom - nubMouth, slot.nubs, width / 4);
+  const outline = layout ? nubbedContourQuad(a, b, tangent, normal, outside, bottom, nubMouth, layout)
+    : { closed: true, nodes: [add(a, normal, outside), add(b, normal, outside), add(b, normal, bottom), add(a, normal, bottom)] };
+  return { a, b, center, normal, curveOffset, outline };
+}
+/** Contour quad with symmetric nub bays on the a-side and b-side walls. */
+function nubbedContourQuad(a: Pt, b: Pt, tangent: Pt, normal: Pt, outside: number, bottom: number, nubMouth: number,
+  layout: { centers: number[]; base: number; inner: number; depth: number }): SubPath {
+  const { centers, base, inner, depth } = layout;
+  const half = base / 2;
+  const A = (y: number): Pt => add(a, normal, y);
+  const B = (y: number): Pt => add(b, normal, y);
+  const inA = (y: number): Pt => ({ x: A(y).x + tangent.x * depth, y: A(y).y + tangent.y * depth });
+  const inB = (y: number): Pt => ({ x: B(y).x - tangent.x * depth, y: B(y).y - tangent.y * depth });
+  const nodes: Pt[] = [A(outside), B(outside)];
+  const ascending = centers.map(y => y + nubMouth);
+  for (const cy of ascending) nodes.push(B(cy - half), inB(cy - inner), inB(cy + inner), B(cy + half));
+  nodes.push(B(bottom), A(bottom));
+  for (const cy of ascending.reverse()) nodes.push(A(cy + half), inA(cy + inner), inA(cy - inner), A(cy - half));
+  return { closed: true, nodes };
 }

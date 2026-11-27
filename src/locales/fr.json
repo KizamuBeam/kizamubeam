@@ -5544,5 +5544,14 @@
   "Orte": "Emplacements",
   "Datenträger": "Périphériques",
   "Zu Favoriten hinzufügen": "Ajouter aux favoris",
-  "Versteckte Dateien und Ordner anzeigen": "Afficher les fichiers et dossiers masqués"
+  "Versteckte Dateien und Ordner anzeigen": "Afficher les fichiers et dossiers masqués",
+  "Rastnasen aktivieren": "Activer les ergots de retenue",
+  "Rastnasenhöhe (mm)": "Hauteur d’ergot (mm)",
+  "{field}: Eine ganze Zahl von {min} bis {max} eingeben.": "{field} : saisissez un nombre entier entre {min} et {max}.",
+  "{field}: Einen Wert von {min} bis {max} eingeben.": "{field} : saisissez une valeur entre {min} et {max}.",
+  "Rastnasenbreite (mm)": "Largeur d’ergot (mm)",
+  "Rastnasenanzahl je Flanke": "Ergots par flanc",
+  "Rastnasenabstand (mm)": "Distance des ergots (mm)",
+  "Rastnasen klemmen das Gegenstück; Höhe 0 = aus. Nasen liegen symmetrisch auf beiden Flanken, mit Abstand zu Mund und Boden.": "Les ergots retiennent la contrepartie ; hauteur 0 = désactivé. Les ergots sont symétriques sur les deux flancs, à l’écart de l’embouchure et du fond.",
+  "Eigene Rastnasen (Gruppe überschreiben)": "Ergots propres (remplacer le groupe)"
 }

@@ -48,7 +48,7 @@
     "test:contour-slots": "node scripts/vector-offline-test.mjs scripts/contour-slot-test.ts",
     "test:straight-slots": "node scripts/vector-offline-test.mjs scripts/straight-slot-test.ts",
     "test:slot-worker": "node scripts/slot-preview-client-test.mjs",
-    "test:slot-features": "node scripts/vector-offline-test.mjs scripts/slot-feature-engine-test.ts && node scripts/vector-offline-test.mjs scripts/slot-construction-test.ts && node scripts/vector-offline-test.mjs scripts/slot-manufacturing-test.ts && node scripts/run-ts.mjs scripts/slot-viewport-test.ts && node scripts/vector-offline-test.mjs scripts/slot-mirror-test.ts",
+    "test:slot-features": "node scripts/vector-offline-test.mjs scripts/slot-feature-engine-test.ts && node scripts/vector-offline-test.mjs scripts/slot-construction-test.ts && node scripts/vector-offline-test.mjs scripts/slot-manufacturing-test.ts && node scripts/run-ts.mjs scripts/slot-viewport-test.ts && node scripts/vector-offline-test.mjs scripts/slot-mirror-test.ts && node scripts/run-ts.mjs scripts/slot-nubs-test.ts",
     "test:camera-overlay": "node scripts/camera-overlay-toggle-test.mjs",
     "test:corners": "node scripts/run-ts.mjs scripts/corners-test.ts",
     "test:dirs": "node scripts/run-ts.mjs scripts/dirs-test.ts",

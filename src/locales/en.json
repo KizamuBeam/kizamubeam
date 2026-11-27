@@ -5886,5 +5886,14 @@
   "Orte": "Places",
   "Datenträger": "Devices",
   "Zu Favoriten hinzufügen": "Add to favorites",
-  "Versteckte Dateien und Ordner anzeigen": "Show hidden files and folders"
+  "Versteckte Dateien und Ordner anzeigen": "Show hidden files and folders",
+  "Rastnasen aktivieren": "Enable latching nubs",
+  "Rastnasenhöhe (mm)": "Nub height (mm)",
+  "{field}: Eine ganze Zahl von {min} bis {max} eingeben.": "{field}: Enter a whole number from {min} to {max}.",
+  "{field}: Einen Wert von {min} bis {max} eingeben.": "{field}: Enter a value from {min} to {max}.",
+  "Rastnasenbreite (mm)": "Nub width (mm)",
+  "Rastnasenanzahl je Flanke": "Nub count per flange",
+  "Rastnasenabstand (mm)": "Nub inset (mm)",
+  "Rastnasen klemmen das Gegenstück; Höhe 0 = aus. Nasen liegen symmetrisch auf beiden Flanken, mit Abstand zu Mund und Boden.": "Latching nubs grip the mating part; height 0 = off. Nubs sit symmetrically on both flanges, clear of mouth and bottom.",
+  "Eigene Rastnasen (Gruppe überschreiben)": "Own latching nubs (override group)"
 }
