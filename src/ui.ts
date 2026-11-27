@@ -808,7 +808,7 @@ function buildBars(ed: Editor) {
     { id: 'grp:gen', cat: W, label: t('Generatoren (Gruppe)'), items: GENERATORS.filter((g) => g.tile).map((g) => g.id), run: () => {} },
     { id: 'grp:array', cat: M, label: t('Arrays (Gruppe)'), items: ['gridarray', 'circarray'], run: () => {} },
     { id: 'grp:relate', cat: A, label: t('Beziehungen (Gruppe)'), items: REL_MODES.map((m) => `rel:${m}`), run: () => {} },
-    { id: 'grp:path', cat: M, label: t('Pfad-Werkzeuge (Gruppe)'), items: ['tool:trim', 'tool:start', 'closepath', 'join', 'breakapart', 'reverse', 'corners', 'vectorfit'], run: () => {} },
+    { id: 'grp:path', cat: M, label: t('Pfad-Werkzeuge (Gruppe)'), items: ['tool:trim', 'tool:start', 'closepath', 'join', 'breakapart', 'reverse', 'tool:fillet', 'vectorfit'], run: () => {} },
     { id: 'grp:contour', cat: M, label: t('Kontur (Gruppe)'), items: ['offset', 'outline', 'contouroffset'], run: () => {} },
   ];
   for (const a of list) a.shortcut = () => commandKey(a.id);
