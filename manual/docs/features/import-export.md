@@ -8,7 +8,7 @@ description: Bring in SVG, DXF, PDF, Illustrator and LightBurn files, and export
 
 ## Opening projects
 
-In the desktop app, **File → Open with preview …** (Ctrl+O) is the default: it browses any accessible folder — with places, a folder tree and favourites on the left, a searchable file list in the middle — and shows a preview of the selected project on the right, including multi-page KizamuBeam projects and LightBurn files. SVG files show a preview as well and are inserted through the regular vector import. Selecting a file never touches the editor; only **Open** loads the project. The classic system dialog is still available as **File → Open …**.
+In the desktop app, **File → Open with preview …** (Ctrl+O) is the default: it browses any accessible folder — with places, a folder tree and favourites on the left, a searchable file list in the middle — and shows a preview of the selected project on the right, including multi-page KizamuBeam projects and LightBurn files. SVG files show a preview as well and are inserted through the regular vector import. Selecting a file never touches the editor; only **Open** loads the project. Subfolders appear at the top of the file list and open with a double click or Enter; Backspace or Alt+↑ goes to the parent folder and Ctrl+F jumps to the search. Hidden files and folders (such as `.config` or `~/Library`) stay out of the way until you tick **Show hidden files and folders**. In narrow windows the preview moves below the file list. The classic system dialog is still available as **File → Open …**.
 
 Both open dialogs remember the last used folder for the session. Under **Edit → Settings → Files** you can set default folders for opening and saving, with an option to always use them.
 

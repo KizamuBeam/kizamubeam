@@ -112,6 +112,40 @@ struct ProjectDirEntry {
     path: String,
     size: Option<u64>,
     modified_ms: Option<i64>,
+    /// Hidden by convention (leading dot) or by the system flag (macOS UF_HIDDEN, Windows attribute);
+    /// the dialog hides these by default and shows them on request.
+    hidden: bool,
+}
+
+/// Whether a directory entry counts as hidden: a leading dot everywhere, plus the macOS
+/// UF_HIDDEN flag (e.g. ~/Library) and the Windows hidden attribute.
+fn is_hidden_entry(name: &str, path: &std::path::Path) -> bool {
+    if name.starts_with('.') {
+        return true;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        use std::os::macos::fs::MetadataExt;
+        const UF_HIDDEN: u32 = 0x0000_8000;
+        if let Ok(md) = std::fs::symlink_metadata(path) {
+            if md.st_flags() & UF_HIDDEN != 0 {
+                return true;
+            }
+        }
+    }
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::fs::MetadataExt;
+        const FILE_ATTRIBUTE_HIDDEN: u32 = 0x2;
+        if let Ok(md) = std::fs::symlink_metadata(path) {
+            if md.file_attributes() & FILE_ATTRIBUTE_HIDDEN != 0 {
+                return true;
+            }
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    let _ = path;
+    false
 }
 
 /// Einstiegspunkt des Ordnerbaums: Benutzerordner, Dateisystemwurzel oder Laufwerk.
@@ -205,7 +239,7 @@ fn project_list_dir(path: Option<String>) -> Result<ProjectDirListing, String> {
             // Dateinamen, die sich nicht verlustfrei darstellen lassen, nicht stillschweigend umbenennen
             None => continue,
         };
-        // Versteckte Dateien bleiben sichtbar, damit nichts unbemerkt fehlt; sortiert wird weiter unten
+        // Hidden entries are still listed (flagged via `hidden`); the dialog decides whether to show them
         let is_dir = ft.is_dir() || (ft.is_symlink() && p.is_dir());
         if !is_dir && !is_project_file(&name) {
             continue;
@@ -234,11 +268,13 @@ fn project_list_dir(path: Option<String>) -> Result<ProjectDirListing, String> {
                 Err(_) => (None, None),
             }
         };
+        let hidden = is_hidden_entry(&name, &p);
         let e = ProjectDirEntry {
             name,
             path: p.display().to_string(),
             size,
             modified_ms,
+            hidden,
         };
         if is_dir {
             dirs.push(e);
