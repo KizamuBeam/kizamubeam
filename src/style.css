@@ -6348,11 +6348,107 @@ dialog h3[tabindex]:focus-visible { outline: 2px solid var(--accent, #6bafff); o
 .fillet-foot {
   color: var(--muted);
 }
+/* Öffnen mit Vorschau (src/projectOpenDialog.ts): Pfadleiste oben, darunter drei Spalten
+   Ordnerbaum | Dateien | Vorschau, die jeweils für sich scrollen; die Knöpfe bleiben unten sichtbar. */
+.project-open-dialog[open] {
+  box-sizing: border-box;
+  width: min(1100px, calc(100vw - 32px));
+  height: min(720px, calc(100vh - 32px));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.project-open-dialog > .dialog-buttons {
+  flex: none;
+}
+.project-open-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  margin-bottom: 8px;
+}
+.project-open-path {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+}
+.project-open-fav {
+  min-width: 28px;
+}
+.project-open-main {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(170px, 240px) minmax(220px, 1fr) minmax(260px, 1.3fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: 10px;
+}
+.project-open-left {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.project-open-tree {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 4px;
+}
+.project-open-tree-head {
+  margin: 8px 4px 2px;
+  font-size: 0.85em;
+  font-weight: 600;
+  color: var(--muted);
+}
+.project-open-tree-head:first-child {
+  margin-top: 2px;
+}
+.project-open-tree-sep {
+  margin: 6px 2px;
+  border-top: 1px solid var(--line);
+}
+.project-open-tree-row {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  border-radius: 3px;
+}
+.project-open-tree-row:hover {
+  background: var(--surface-2);
+}
+.project-open-tree-row[aria-selected="true"] {
+  background: var(--accent-soft);
+}
+.project-open-twisty,
+.project-open-twisty-leaf {
+  flex: none;
+  width: 16px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.8em;
+  text-align: center;
+}
+.project-open-twisty {
+  cursor: pointer;
+}
+.project-open-tree-label {
+  font: inherit;
+  text-align: left;
+  border: 0;
   background: none;
   color: var(--text);
-  padding: 4px 4px;
+  padding: 3px 4px;
   cursor: pointer;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   flex: 1;
   min-width: 0;
 }
@@ -6413,7 +6509,7 @@ dialog h3[tabindex]:focus-visible { outline: 2px solid var(--accent, #6bafff); o
 }
 .project-open-file-meta {
   font-size: 0.85em;
-  color: var(--text-dim);
+  color: var(--muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -6454,6 +6550,29 @@ dialog h3[tabindex]:focus-visible { outline: 2px solid var(--accent, #6bafff); o
   text-align: center;
   overflow-wrap: anywhere;
 }
+.project-open-status {
+  flex: none;
+  margin-top: 6px;
+}
 .project-open-status:empty {
   display: none;
+}
+/* Schmale Fenster: Vorschau unter die Dateiliste, ganz schmal alles untereinander */
+@media (max-width: 860px) {
+  .project-open-main {
+    grid-template-columns: minmax(150px, 200px) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .project-open-left {
+    grid-row: 1 / span 2;
+  }
+}
+@media (max-width: 560px) {
+  .project-open-main {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 0.8fr) minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .project-open-left {
+    grid-row: auto;
+  }
 }
