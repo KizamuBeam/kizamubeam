@@ -5886,5 +5886,14 @@
   "Orte": "Lugares",
   "Datenträger": "Dispositivos",
   "Zu Favoriten hinzufügen": "Añadir a favoritos",
-  "Versteckte Dateien und Ordner anzeigen": "Mostrar archivos y carpetas ocultos"
+  "Versteckte Dateien und Ordner anzeigen": "Mostrar archivos y carpetas ocultos",
+  "Rastnasen aktivieren": "Activar lengüetas de retención",
+  "Rastnasenhöhe (mm)": "Altura de lengüeta (mm)",
+  "{field}: Eine ganze Zahl von {min} bis {max} eingeben.": "{field}: Introduce un número entero entre {min} y {max}.",
+  "{field}: Einen Wert von {min} bis {max} eingeben.": "{field}: Introduce un valor entre {min} y {max}.",
+  "Rastnasenbreite (mm)": "Ancho de lengüeta (mm)",
+  "Rastnasenanzahl je Flanke": "Lengüetas por flanco",
+  "Rastnasenabstand (mm)": "Distancia de lengüeta (mm)",
+  "Rastnasen klemmen das Gegenstück; Höhe 0 = aus. Nasen liegen symmetrisch auf beiden Flanken, mit Abstand zu Mund und Boden.": "Las lengüetas sujetan la contraparte; altura 0 = desactivado. Las lengüetas quedan simétricas en ambos flancos, separadas de la boca y del fondo.",
+  "Eigene Rastnasen (Gruppe überschreiben)": "Lengüetas propias (sustituir grupo)"
 }

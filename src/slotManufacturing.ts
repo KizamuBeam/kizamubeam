@@ -4,8 +4,10 @@ import { execute, SCALE } from './clip';
 import { t } from './i18n';
 import type { Pt, SubPath } from './model';
 import type { ProjectionFrame } from './straightSlots';
+import type { SlotNubs } from './slotPlacement';
+import { nubLayout, validNubValues } from './slotNubs';
 
-export interface SlotManufacturing { burn: number; cornerStyle: 'corner' | 'loop' | 'backarc' | 'diagonal' }
+export interface SlotManufacturing { burn: number; cornerStyle: 'corner' | 'loop' | 'backarc' | 'diagonal'; nubs?: SlotNubs }
 
 /**
  * Positive burn is approximately half the kerf: move both walls inward by burn
@@ -29,7 +31,7 @@ export interface SlotManufacturing { burn: number; cornerStyle: 'corner' | 'loop
  */
 export function manufacturedSlotPaths(frame: ProjectionFrame, options: SlotManufacturing): SubPath[] {
   const invalid = () => new Error(t('Ungültige Schlitzmaße oder Korrekturwerte.'));
-  const { burn, cornerStyle } = options;
+  const { burn, cornerStyle, nubs } = options;
   const { tangent: u, normal: v } = frame.edge;
   const finite = (p: Pt) => Number.isFinite(p.x) && Number.isFinite(p.y);
   if (!Number.isFinite(burn) || burn < 0 || !['corner', 'loop', 'backarc', 'diagonal'].includes(cornerStyle)
@@ -50,7 +52,7 @@ export function manufacturedSlotPaths(frame: ProjectionFrame, options: SlotManuf
   const validate = (subs: SubPath[]) => {
     if (!subs.length || subs.length > 3) throw invalid();
     for (const sp of subs) {
-      if (!sp.closed || sp.nodes.length < 3 || sp.nodes.length > 128) throw invalid();
+      if (!sp.closed || sp.nodes.length < 3 || sp.nodes.length > 128 + 4 * notchQuads.length) throw invalid();
       sp.nodes.forEach((p, i) => {
         const q = sp.nodes[(i + 1) % sp.nodes.length];
         if (!finite(p) || (p.x === q.x && p.y === q.y)) throw invalid();
@@ -58,19 +60,54 @@ export function manufacturedSlotPaths(frame: ProjectionFrame, options: SlotManuf
     }
     return subs;
   };
-  if (burn === 0 && cornerStyle === 'corner')
+  // Material nubs (Rastnasen): trapezoid notches removed from the cutter on both
+  // long walls, inset from the material edge and burn-corrected bottom.
+  const toInt = (pts: Pt[]) => pts.map(p => ({ X: Math.round(p.x * SCALE), Y: Math.round(p.y * SCALE) }));
+  const intOk = (polys: { X: number; Y: number }[][]) =>
+    !polys.some(p => p.some(q => !Number.isSafeInteger(q.X) || !Number.isSafeInteger(q.Y) || Math.abs(q.X) > 1e12 || Math.abs(q.Y) > 1e12));
+  if (nubs !== undefined && !validNubValues(nubs)) throw invalid();
+  const diagonalHalfSpan = burn * Math.SQRT1_2;
+  const loopRadius = 1.5 * burn + Math.min(0.05, width / 8, depth / 8);
+  // Keep the nub bases clear of relief, including after integer rounding.
+  const reliefReach = cornerStyle === 'loop' ? loopRadius - burn
+    : cornerStyle === 'diagonal' ? 2 * diagonalHalfSpan : 0;
+  const reserved = reliefReach > 0 ? Math.max(0, reliefReach + 2 / SCALE - (nubs?.inset ?? 0)) : 0;
+  const layout = nubLayout(depth - burn - reserved, nubs, (width - 2 * burn) / 4);
+  const notchQuads = ((): Pt[][] => {
+    if (!layout) return [];
+    const quads: Pt[][] = [];
+    for (const cy of layout.centers) {
+      const y0 = cy - layout.base / 2, y1 = cy + layout.base / 2;
+      const iy0 = cy - layout.inner, iy1 = cy + layout.inner;
+      quads.push(
+        [{ x: burn, y: y0 }, { x: burn + layout.depth, y: iy0 }, { x: burn + layout.depth, y: iy1 }, { x: burn, y: y1 }],
+        [{ x: width - burn, y: y0 }, { x: width - burn - layout.depth, y: iy0 }, { x: width - burn - layout.depth, y: iy1 }, { x: width - burn, y: y1 }],
+      );
+    }
+    return quads;
+  })();
+  // The cutter hole with nub notches subtracted; relief lobes union on top.
+  const hole: Pt[][] = (() => {
+    const rectangle: Pt[] = [{ x: burn, y: -outside - burn }, { x: width - burn, y: -outside - burn },
+      { x: width - burn, y: depth - burn }, { x: burn, y: depth - burn }];
+    if (!notchQuads.length) return [rectangle];
+    const subject = [toInt(rectangle)], clips = notchQuads.map(toInt);
+    if (!intOk(subject) || !intOk(clips)) throw invalid();
+    const diffed = execute(ClipperLib.ClipType.ctDifference, subject, clips, ClipperLib.PolyFillType.pftNonZero);
+    if (!diffed.length) throw invalid();
+    return diffed.map(path => path.map(p => ({ x: p.X / SCALE, y: p.Y / SCALE })));
+  })();
+  if (burn === 0 && cornerStyle === 'corner' && !notchQuads.length)
     return validate([{ ...frame.outline, nodes: frame.outline.nodes.map(p => ({ ...p })) }]);
-  const rectangle: Pt[] = [{ x: burn, y: -outside - burn }, { x: width - burn, y: -outside - burn },
-    { x: width - burn, y: depth - burn }, { x: burn, y: depth - burn }];
-  if (cornerStyle === 'corner') return validate([{ closed: true, nodes: rectangle.map(world) }]);
-  if ((cornerStyle === 'backarc' || cornerStyle === 'diagonal') && burn === 0)
+  if (cornerStyle === 'corner') return validate(hole.map(poly => ({ closed: true, nodes: poly.map(world) })));
+  if ((cornerStyle === 'backarc' || cornerStyle === 'diagonal') && burn === 0 && !notchQuads.length)
     return validate([{ ...frame.outline, nodes: frame.outline.nodes.map(p => ({ ...p })) }]);
   if (cornerStyle === 'backarc') {
     // Inverted arcs per Boxes.py corner(): each inset wall is extended by burn
     // past the inset corner and rounded back to the inset bottom edge with a
     // quarter arc of radius burn. Keep the exact orthogonal wall extensions:
     // adding an overlap tab would introduce artificial diagonal cut edges.
-    if (burn * SCALE < 2) return validate([{ closed: true, nodes: rectangle.map(world) }]);
+    if (burn * SCALE < 2) return validate(hole.map(poly => ({ closed: true, nodes: poly.map(world) })));
     const nub = (outerX: number, dir: 1 | -1): Pt[] => {
       const start = dir === 1 ? 0 : Math.PI, segments = 64;
       const pts: Pt[] = [{ x: outerX + dir * burn, y: depth - burn },
@@ -82,7 +119,7 @@ export function manufacturedSlotPaths(frame: ProjectionFrame, options: SlotManuf
       pts.push({ x: outerX, y: depth - burn });
       return pts;
     };
-    const polygons = [rectangle, nub(0, 1), nub(width, -1)].map(points =>
+    const polygons = [...hole, nub(0, 1), nub(width, -1)].map(points =>
       points.map(p => ({ X: Math.round(p.x * SCALE), Y: Math.round(p.y * SCALE) })));
     // Avoid Clipper's integer range limit before invoking its implementation.
     if (polygons.some(p => p.some(q => !Number.isSafeInteger(q.X) || !Number.isSafeInteger(q.Y) || Math.abs(q.X) > 1e12 || Math.abs(q.Y) > 1e12))) throw invalid();
@@ -93,7 +130,8 @@ export function manufacturedSlotPaths(frame: ProjectionFrame, options: SlotManuf
     // A flat-ended channel along each corner's outward bisector, width 2*burn.
     // Its end centre is the nominal corner; the inner end overlaps the cutter
     // by burn so there are no point contacts or disconnected sliver contours.
-    const h = burn * Math.SQRT1_2;
+    // Degenerate (zero-width) channels would collapse to lines; keep the hole.
+    const h = diagonalHalfSpan;
     const channels = [0, width].map((x, i) => {
       const dir = i === 0 ? 1 : -1;
       const end = { x, y: depth };
@@ -102,18 +140,15 @@ export function manufacturedSlotPaths(frame: ProjectionFrame, options: SlotManuf
         { x: end.x + dir * h, y: end.y + h }, { x: start.x + dir * h, y: start.y + h }];
       return i === 0 ? points.reverse() : points;
     });
-    const polygons = [rectangle, ...channels].map(points => points.map(p =>
+    const polygons = [...hole, ...channels].map(points => points.map(p =>
       ({ X: Math.round(p.x * SCALE), Y: Math.round(p.y * SCALE) })));
     if (polygons.some(p => p.some(q => !Number.isSafeInteger(q.X) || !Number.isSafeInteger(q.Y) || Math.abs(q.X) > 1e12 || Math.abs(q.Y) > 1e12))) throw invalid();
     return validate(execute(ClipperLib.ClipType.ctUnion, polygons, [], ClipperLib.PolyFillType.pftNonZero)
       .map(path => ({ closed: true, nodes: path.map(p => world({ x: p.X / SCALE, y: p.Y / SCALE })) })));
   }
-  const extra = Math.min(0.05, width / 8, depth / 8);
-  const rx = 1.5 * burn + extra;
-  const ry = 1.5 * burn + extra;
-  const polygons = [rectangle, ...[0, width].map(x => Array.from({ length: 48 }, (_, i) => {
+  const polygons = [...hole, ...[0, width].map(x => Array.from({ length: 48 }, (_, i) => {
     const angle = 2 * Math.PI * i / 48;
-    return { x: x + rx * Math.cos(angle), y: depth + ry * Math.sin(angle) };
+    return { x: x + loopRadius * Math.cos(angle), y: depth + loopRadius * Math.sin(angle) };
   }))].map(points => points.map(p => ({ X: Math.round(p.x * SCALE), Y: Math.round(p.y * SCALE) })));
   // Avoid Clipper's integer range limit before invoking its implementation.
   if (polygons.some(p => p.some(q => !Number.isSafeInteger(q.X) || !Number.isSafeInteger(q.Y) || Math.abs(q.X) > 1e12 || Math.abs(q.Y) > 1e12))) throw invalid();

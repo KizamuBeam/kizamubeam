@@ -77,6 +77,8 @@ Der Dialog schlägt die häufigste Schlitzbreite vor (oder die Dicke des Layer-M
 
 Du kannst mehrere Schnitte an verschiedenen Kanten vorbereiten, bevor du sie anwendest. **Übernehmen** ist ein Rückgängig-Schritt, **Abbrechen** verwirft alles, und ein Doppelklick auf das Teil öffnet das Werkzeug wieder.
 
+**Rastnasen:** Jede Gruppe kann kleine Materialnasen an beiden Schlitzflanken behalten, die das Gegenstück klemmen und Toleranzen ausgleichen. Höhe 0 bedeutet aus; sonst liegen die Nasen symmetrisch auf beiden Flanken, mit Abstand zu Mund und Boden. Ein Schnitt kann die Nasen seiner Gruppe überschreiben; Spiegelungen erben sie.
+
 ## 3D-Ansicht {#3d-view}
 
 **Fenster → 3D-Ansicht** (oder die 3D-Schaltfläche in der Hauptleiste) zeigt deine Teile zusammengebaut, so wie sie nach dem Schneiden sind:

@@ -77,6 +77,8 @@ La finestra propone la larghezza di asola più frequente (o lo spessore del mate
 
 Puoi preparare più tagli su bordi diversi prima di applicarli. **Applica** è un passo di annullamento, **Annulla** scarta tutto, e un doppio clic sul pezzo riapre lo strumento.
 
+**Alette di ritegno:** ogni gruppo può conservare piccole alette di materiale su entrambi i fianchi della scanalatura, che trattengono la controparte e compensano le tolleranze. Altezza 0 significa spento; altrimenti le alette sono simmetriche su entrambi i fianchi, distanti da bocca e fondo. Una scanalatura può sostituire le alette del suo gruppo; le riflessioni le ereditano.
+
 ## Vista 3D {#3d-view}
 
 **Finestra → Vista 3D** (o il pulsante 3D nella barra principale) mostra i pezzi montati, come saranno dopo il taglio:

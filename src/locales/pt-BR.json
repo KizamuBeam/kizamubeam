@@ -5886,5 +5886,14 @@
   "Orte": "Locais",
   "Datenträger": "Dispositivos",
   "Zu Favoriten hinzufügen": "Adicionar aos favoritos",
-  "Versteckte Dateien und Ordner anzeigen": "Mostrar arquivos e pastas ocultos"
+  "Versteckte Dateien und Ordner anzeigen": "Mostrar arquivos e pastas ocultos",
+  "Rastnasen aktivieren": "Ativar travas de retenção",
+  "Rastnasenhöhe (mm)": "Altura da trava (mm)",
+  "{field}: Eine ganze Zahl von {min} bis {max} eingeben.": "{field}: insira um número inteiro entre {min} e {max}.",
+  "{field}: Einen Wert von {min} bis {max} eingeben.": "{field}: insira um valor entre {min} e {max}.",
+  "Rastnasenbreite (mm)": "Largura da trava (mm)",
+  "Rastnasenanzahl je Flanke": "Travas por flange",
+  "Rastnasenabstand (mm)": "Distância das travas (mm)",
+  "Rastnasen klemmen das Gegenstück; Höhe 0 = aus. Nasen liegen symmetrisch auf beiden Flanken, mit Abstand zu Mund und Boden.": "As travas prendem a contraparte; altura 0 = desligado. As travas ficam simétricas nos dois flanges, afastadas da boca e do fundo.",
+  "Eigene Rastnasen (Gruppe überschreiben)": "Travas próprias (substituir grupo)"
 }

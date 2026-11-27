@@ -77,6 +77,8 @@ The dialog suggests the most common slot width (or the thickness of the layer's 
 
 You can stage several cuts across different edges before you apply them. **Apply** is one undo step, **Cancel** discards everything, and a double-click on the part reopens the tool.
 
+**Latching nubs:** each group can keep small material nubs on both slot flanks that grip the mating part and average out tolerances. Height 0 means off; otherwise the nubs sit symmetrically on both flanks, clear of the mouth and the bottom. A slot can override its group's nubs; mirrors inherit them.
+
 ## 3D view
 
 **Window → 3D View** (or the 3D button in the main toolbar) shows your parts assembled, as they will be after cutting:

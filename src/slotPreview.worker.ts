@@ -35,7 +35,13 @@ globalThis.onmessage = async (event: MessageEvent<SlotPreviewRequest>) => {
       // cannot conceal invalid dependencies, collisions or unsafe geometry.
       const complete = placement.cutSlots(recipe), { slots, helpers } = placement.resolvedFeatureGeometry(recipe);
       const subs = visibleSlotIds ? placement.cutSlots(recipe, new Set(visibleSlotIds)) : complete;
-      const frames = slots.flatMap(slot => slot.projection ? [{ id: slot.id!, frame: placement.projectionFrame(recipe.base, slot) }] : []);
+      const frames = slots.flatMap(slot => {
+        if (!slot.projection) return [];
+        const frame = placement.projectionFrame(recipe.base, slot);
+        const cutter = slot.nubs && slot.nubs.height > 0 && slot.nubs.count > 0
+          ? placement.manufacturedProjectionPaths(frame, slot) : undefined;
+        return [{ id: slot.id!, frame, cutter }];
+      });
       reply = { id, result: { subs, slots, frames, helpers, edges, vertices, references } };
     } catch (error) {
       reply = { id, error: error instanceof Error ? error.message : String(error), result: { subs: recipe.base, slots: [], frames: [], helpers: [], edges, vertices, references } };
