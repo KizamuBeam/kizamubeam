@@ -165,6 +165,7 @@ export class EditorPointer {
             return;
           }
           this.snapshot(t('Größe ändern'));
+          this.filletRebakeFailed = false;
           // Einzelnes Rechteck: Ausgangsmaße merken, damit der Drag absolute w/h setzt
           // (Eckenradius/Fase bleiben mm-stabil) statt die Matrix zu skalieren.
           const single = this.sel.length === 1 ? this.sel[0].shape : null;
@@ -709,6 +710,15 @@ export class EditorPointer {
         }
         const D = about(scale(clampS(fx), clampS(fy)), A.x, A.y);
         this.sel.forEach((o, i) => (o.m = mul(D, d.orig[i])));
+        // Kantensätze kreisförmig halten: nach nicht-uniformer Verformung neu einbrennen
+        let rebakeOk = true;
+        for (const o of this.sel) {
+          const sh = o.shape;
+          if ((sh.kind === 'path' || sh.kind === 'rect') && sh.cornerSets?.length) {
+            if (!this.rebakeFilletSets(o)) rebakeOk = false;
+          }
+        }
+        this.filletRebakeFailed = !rebakeOk;
         this.emit('doc');
         return;
       }
@@ -1016,6 +1026,11 @@ export class EditorPointer {
       case 'rotate':
         if (this.sel.every((o, i) => o.m === d.orig[i])) this.dropSnapshot();
         this.hint = '';
+        if (this.filletRebakeFailed) {
+          this.filletRebakeFailed = false;
+          this.hint = t('Kanten: Verformung übernommen — ein Satz ließ sich nicht kreisförmig halten (Kanten zu kurz).');
+          this.emit('tool');
+        }
         this.emit('sel');
         return;
       case 'rect-radius': {
@@ -1109,6 +1124,18 @@ export class EditorPointer {
       case 'node':
         if (d.moved && d.shapes.every((s) => JSON.stringify(s.obj.shape) === JSON.stringify(s.shape))) {
           this.dropSnapshot(); this.history.restoreRedo(d.redo);
+        } else if (d.moved) {
+          // Knoten-Drag verformt eingebackene Geometrie direkt: Sätze auflösen statt verfälschen
+          let baked = false;
+          const seen = new Set<Obj>();
+          for (const s of d.shapes) seen.add(s.obj);
+          for (const g of d.group) seen.add(g.obj);
+          for (const h of d.handles) seen.add(h.obj);
+          for (const o of seen) baked = this.bakeFilletSetsOf(o) || baked;
+          if (baked) {
+            this.hint = t('Kanten: Knotenbearbeitung — Kantensätze eingebrannt (Geometrie bleibt).');
+            this.emit('tool');
+          }
         }
         this.emit('doc');
         return;

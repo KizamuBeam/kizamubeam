@@ -5553,5 +5553,17 @@
   "Rastnasenanzahl je Flanke": "Ergots par flanc",
   "Rastnasenabstand (mm)": "Distance des ergots (mm)",
   "Rastnasen klemmen das Gegenstück; Höhe 0 = aus. Nasen liegen symmetrisch auf beiden Flanken, mit Abstand zu Mund und Boden.": "Les ergots retiennent la contrepartie ; hauteur 0 = désactivé. Les ergots sont symétriques sur les deux flancs, à l’écart de l’embouchure et du fond.",
-  "Eigene Rastnasen (Gruppe überschreiben)": "Ergots propres (remplacer le groupe)"
+  "Eigene Rastnasen (Gruppe überschreiben)": "Ergots propres (remplacer le groupe)",
+  "Kanten: Satz wird geändert — Wert/Modus anpassen, Enter ersetzt den Satz. Kantenpaar neu wählen möglich.": "Arêtes : jeu en cours de modification — ajustez valeur/mode, Entrée le remplace. Il est possible de resélectionner la paire d'arêtes.",
+  "Kantensatz einbrennen": "Figer le jeu d'arêtes",
+  "Kanten: Satz eingebrannt — Geometrie bleibt, ist aber nicht mehr änderbar.": "Arêtes : jeu figé — la géométrie reste mais n'est plus modifiable.",
+  "Modus wählen": "Choisir le mode",
+  "Destruktiv anwenden": "Appliquer de façon destructive",
+  "Satz wird geändert: Wert/Modus anpassen, Enter ersetzt den Satz. Kantenpaar neu wählen möglich.": "Jeu en cours de modification : ajustez valeur/mode, Entrée le remplace. Il est possible de resélectionner la paire d'arêtes.",
+  "Satz ändern (Wert/Modus anpassen, Enter ersetzt)": "Modifier le jeu (ajuster valeur/mode, Entrée remplace)",
+  "Satz einbrennen (Geometrie behalten, nicht mehr änderbar)": "Figer le jeu (garder la géométrie, non modifiable)",
+  "Einbrennen": "Figer",
+  "Kanten: Verformung übernommen — ein Satz ließ sich nicht kreisförmig halten (Kanten zu kurz).": "Arêtes : déformation appliquée — un jeu n'a pas pu rester circulaire (arêtes trop courtes).",
+  "Kanten: Satz-Geometrie verändert — Kantenpaar erneut wählen.": "Arêtes : géométrie du jeu modifiée — resélectionnez la paire d'arêtes.",
+  "Kanten: Knotenbearbeitung — Kantensätze eingebrannt (Geometrie bleibt).": "Arêtes : édition de nœuds — jeux figés (géométrie conservée)."
 }

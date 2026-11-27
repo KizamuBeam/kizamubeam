@@ -6282,37 +6282,21 @@ label.settings-label input {
 /* Tool-window drag handles (toolWindow.ts): keyboard-focusable via tabindex. */
 dialog h3[tabindex]:focus-visible { outline: 2px solid var(--accent, #6bafff); outline-offset: 2px; }
 /* Interaktives Kanten-Werkzeug: modelles Panel (Modus, Wert, Angebot, Kantensätze) */
-.fillet-panel {
-  position: fixed;
-  right: 12px;
-  top: 120px;
-  z-index: 75;
-  width: 264px;
+.fillet-dialog {
   max-height: calc(100vh - 160px);
   overflow-y: auto;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  box-shadow: 0 8px 24px rgb(0 0 0 / 0.25);
   padding: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
 }
-.fillet-head {
+.fillet-dialog > * + * {
+  margin-top: 8px;
+}
+.fillet-head-row {
   display: flex;
   align-items: center;
   gap: 8px;
+  justify-content: flex-end;
 }
-.fillet-head strong {
-  flex: 1;
-}
-.fillet-modes {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.fillet-panel .form {
+.fillet-dialog .form {
   grid-template-columns: 1fr 76px;
 }
 .fillet-status {

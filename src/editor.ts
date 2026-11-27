@@ -313,6 +313,8 @@ export class Editor {
   /** Modus und Wert des Kanten-Werkzeugs */
   filletMode: CornerMode = 'round';
   filletR = 3;
+  /** Destruktiv anwenden: Geometrie einbrennen, keinen änderbaren Satz speichern */
+  filletDestructive = false;
   /** Angebot bei nicht benachbarten Kanten: Schnittpunkt der Verlängerungen (lokal) + beteiligte Stücke */
   filletOffer: { obj: Obj; m: Mat; sub: number; segA: number; segB: number; x: Pt } | null = null;
   /** Satz, der gerade geändert wird (null = neuer Satz) */
@@ -321,6 +323,8 @@ export class Editor {
   filletTarget: FilletTarget | null = null;
   /** Objekt, dessen Sätze das Panel zeigt (null = alle) */
   filletListObj: Obj | null = null;
+  /** Re-Bake nach Verformung ist fehlgeschlagen (Hinweis am Drag-Ende) */
+  filletRebakeFailed = false;
   /** Panel-Callback (filletPanel.ts, gesetzt von ui.ts) */
   onFilletPanel: (() => void) | null = null;
 
