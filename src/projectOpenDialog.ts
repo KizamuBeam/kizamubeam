@@ -11,10 +11,13 @@ import {
   filterFiles,
   formatModified,
   formatSize,
+  isHiddenEntry,
   normalizeFavorites,
   sortFiles,
   toggleFavorite,
+  visibleEntries,
   type FileSortKey,
+  type ProjectDirEntry,
   type ProjectFileEntry,
   type ProjectPlace,
   type ProjectRoot,
@@ -25,7 +28,7 @@ import { decodePreviewImages, drawPreviewPage, parsePreviewProject, type Preview
 interface DirListing {
   dir: string;
   parent: string | null;
-  dirs: { name: string; path: string }[];
+  dirs: ProjectDirEntry[];
   files: ProjectFileEntry[];
   truncated: boolean;
 }
@@ -50,6 +53,26 @@ const loadFavorites = (): string[] => {
     return [];
   }
 };
+/** Show hidden files and folders (dot names, system hidden flag); off by default, remembered per machine. */
+const HIDDEN_KEY = 'kizamubeam.openShowHidden';
+/** Collapsed section headings of the left column (favorites, recent, places, devices, folders). */
+const COLLAPSED_KEY = 'kizamubeam.openCollapsed';
+const loadJson = <T>(key: string, fallback: T): T => {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw === null ? fallback : (JSON.parse(raw) as T);
+  } catch {
+    return fallback;
+  }
+};
+const saveJson = (key: string, value: unknown) => {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    /* storage full or private: the choice only lasts for this dialog */
+  }
+};
+
 /** Internen Öffnen-Dialog mit Vorschau zeigen; Auflösen nach „Öffnen“ oder Abbruch. */
 export async function openProjectWithPreview(ed: Editor): Promise<void> {
   const { invoke } = await import('@tauri-apps/api/core');
@@ -78,11 +101,16 @@ export async function openProjectWithPreview(ed: Editor): Promise<void> {
   let places: ProjectPlace[] = [];
   let favorites: string[] = loadFavorites();
   const expanded = new Set<string>();
-  const treeKids = new Map<string, { name: string; path: string }[]>();
+  const treeKids = new Map<string, ProjectDirEntry[]>();
+  let showHidden = loadJson<boolean>(HIDDEN_KEY, false) === true;
+  const collapsed = new Set<string>(
+    (loadJson<unknown>(COLLAPSED_KEY, []) as unknown[]).filter((k): k is string => typeof k === 'string'),
+  );
   const treeLoading = new Set<string>();
 
   // Mittlere Spalte: Dateiliste
   let allFiles: ProjectFileEntry[] = [];
+  let allDirs: ProjectDirEntry[] = [];
   let allTruncated = false;
   let searchQuery = '';
   let sortKey: FileSortKey = 'name';
@@ -129,8 +157,22 @@ export async function openProjectWithPreview(ed: Editor): Promise<void> {
   const filesBox = h('div', { class: 'project-open-files', role: 'listbox', 'aria-label': t('Dateien im Ordner'), tabindex: '0' });
   const fileLabel = h('div', { class: 'project-open-file' });
   const pageLabel = h('div', { class: 'project-open-page', role: 'status', 'aria-live': 'polite' });
-  const prevBtn = h('button', { class: 'btn small', type: 'button' }, t('Vorherige Seite'));
-  const nextBtn = h('button', { class: 'btn small', type: 'button' }, t('Nächste Seite'));
+  const prevBtn = h('button', {
+    class: 'btn small project-open-pagebtn',
+    type: 'button',
+    title: t('Vorherige Seite'),
+    'aria-label': t('Vorherige Seite'),
+  }, '‹');
+  const nextBtn = h('button', {
+    class: 'btn small project-open-pagebtn',
+    type: 'button',
+    title: t('Nächste Seite'),
+    'aria-label': t('Nächste Seite'),
+  }, '›');
+  const fileInfo = h('div', { class: 'project-open-info' });
+  const hiddenBox = h('input', { type: 'checkbox' }) as HTMLInputElement;
+  hiddenBox.checked = showHidden;
+  const hiddenToggle = h('label', { class: 'project-open-hidden' }, hiddenBox, t('Versteckte Dateien und Ordner anzeigen'));
   const canvas = h('canvas', { class: 'project-open-canvas', 'aria-hidden': 'true' }) as HTMLCanvasElement;
   const previewBox = h('div', { class: 'project-open-preview' }, canvas);
   const previewHint = h('div', { class: 'note' }, t('Datei wählen, um die Vorschau zu sehen.'));
@@ -167,6 +209,8 @@ export async function openProjectWithPreview(ed: Editor): Promise<void> {
     const multi = total > 1;
     (prevBtn as HTMLButtonElement).disabled = !multi || pageIndex <= 0;
     (nextBtn as HTMLButtonElement).disabled = !multi || pageIndex >= total - 1;
+    const sel = selectedPath ? allFiles.find((f) => f.path === selectedPath) : undefined;
+    fileInfo.textContent = sel ? `${formatSize(sel.size)} · ${formatModified(sel.modified_ms)}` : '';
     if (!project) {
       pageLabel.textContent = '';
       fileLabel.textContent = '';
@@ -273,6 +317,27 @@ export async function openProjectWithPreview(ed: Editor): Promise<void> {
     }
   };
 
+  /** Folders on the way to the current one stay visible even when hidden */
+  const keepPaths = (): Set<string> => new Set(currentDir ? ancestorsOf(currentDir) : []);
+  const visibleDirs = (list: ProjectDirEntry[]): ProjectDirEntry[] => visibleEntries(list, showHidden, keepPaths());
+
+  /** Collapsible section heading; returns whether its rows should be rendered */
+  const renderHead = (key: string, label: string): boolean => {
+    const open = !collapsed.has(key);
+    treeBox.append(h('button', {
+      class: 'project-open-tree-head',
+      type: 'button',
+      'aria-expanded': String(open),
+      onclick: () => {
+        if (collapsed.has(key)) collapsed.delete(key);
+        else collapsed.add(key);
+        saveJson(COLLAPSED_KEY, [...collapsed]);
+        renderTree();
+      },
+    }, h('span', { class: 'project-open-tree-head-twisty', 'aria-hidden': 'true' }, open ? '▾' : '▸'), label));
+    return open;
+  };
+
   const renderPlaceRow = (path: string, label: string) => {
     const row = h('div', {
       class: 'project-open-tree-row',
@@ -291,29 +356,23 @@ export async function openProjectWithPreview(ed: Editor): Promise<void> {
 
   const renderTree = () => {
     treeBox.replaceChildren();
-    if (favorites.length) {
-      treeBox.append(h('div', { class: 'project-open-tree-head' }, t('Favoriten')));
+    if (favorites.length && renderHead('fav', t('Favoriten'))) {
       for (const dir of favorites) renderPlaceRow(dir, baseName(dir));
     }
-    if (recentDirs.length) {
-      treeBox.append(h('div', { class: 'project-open-tree-head' }, t('Zuletzt verwendet')));
+    if (recentDirs.length && renderHead('recent', t('Zuletzt verwendet'))) {
       for (const dir of recentDirs) renderPlaceRow(dir, baseName(dir));
     }
     const std = places.filter((p) => p.kind !== 'device');
-    if (std.length) {
-      treeBox.append(h('div', { class: 'project-open-tree-head' }, t('Orte')));
+    if (std.length && renderHead('places', t('Orte'))) {
       for (const p of std) renderPlaceRow(p.path, placeLabel(p));
     }
     const devs = places.filter((p) => p.kind === 'device');
-    if (devs.length) {
-      treeBox.append(h('div', { class: 'project-open-tree-head' }, t('Datenträger')));
+    if (devs.length && renderHead('devices', t('Datenträger'))) {
       for (const p of devs) renderPlaceRow(p.path, placeLabel(p));
     }
-    if ((recentDirs.length || places.length) && roots.length) {
-      treeBox.append(h('div', { class: 'project-open-tree-sep' }));
-    }
     const renderNode = (path: string, label: string, depth: number) => {
-      const kids = treeKids.get(path);
+      const all = treeKids.get(path);
+      const kids = all && visibleDirs(all);
       const isOpen = expanded.has(path);
       const row = h('div', {
         class: 'project-open-tree-row',
@@ -354,6 +413,7 @@ export async function openProjectWithPreview(ed: Editor): Promise<void> {
       treeBox.append(h('div', { class: 'note' }, t('Keine Ordner verfügbar.')));
       return;
     }
+    if (!renderHead('tree', t('Ordner'))) return;
     for (const r of roots) renderNode(r.path, rootLabel(r), 0);
   };
 
@@ -411,11 +471,36 @@ export async function openProjectWithPreview(ed: Editor): Promise<void> {
   };
 
   const visibleFiles = (): ProjectFileEntry[] =>
-    sortFiles(filterFiles(allFiles, searchQuery), sortKey, sortDir);
+    sortFiles(
+      filterFiles(showHidden ? allFiles : allFiles.filter((f) => !isHiddenEntry(f)), searchQuery),
+      sortKey,
+      sortDir,
+    );
+  /** Subfolders at the top of the file list, always by name; double click or Enter opens them */
+  const visibleSubdirs = (): ProjectDirEntry[] =>
+    filterFiles(visibleEntries(allDirs, showHidden), searchQuery)
+      .slice()
+      .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
 
   const renderFiles = () => {
     filesBox.replaceChildren();
     const shown = visibleFiles();
+    const subdirs = visibleSubdirs();
+    for (const d of subdirs) {
+      filesBox.append(h('button', {
+        class: 'project-open-file-item project-open-dir-item',
+        type: 'button',
+        role: 'option',
+        'aria-selected': 'false',
+        'data-dir': d.path,
+        title: d.path,
+        onclick: (e: Event) => markOption(e.currentTarget as HTMLElement),
+        ondblclick: () => void load(d.path),
+      },
+        h('span', { class: 'project-open-dir-icon', icon: 'open', 'aria-hidden': 'true' }),
+        h('span', { class: 'project-open-file-name' }, d.name),
+      ));
+    }
     if (!shown.length) {
       filesBox.append(h('div', { class: 'note' },
         allFiles.length ? t('Keine Treffer.') : t('Keine Projektdateien in diesem Ordner.')));
@@ -445,12 +530,16 @@ export async function openProjectWithPreview(ed: Editor): Promise<void> {
     }
   };
 
+  /** Highlight one row of the file list (folder or file) */
+  const markOption = (el: HTMLElement | null) => {
+    for (const o of filesBox.querySelectorAll('[aria-selected="true"]')) o.setAttribute('aria-selected', 'false');
+    el?.setAttribute('aria-selected', 'true');
+  };
+
   const selectFile = (path: string, name: string) => {
     selectedPath = path;
     updateOpenBtn();
-    for (const el of filesBox.querySelectorAll('[aria-selected="true"]')) el.setAttribute('aria-selected', 'false');
-    const btn = filesBox.querySelector(`[data-path="${CSS.escape(path)}"]`);
-    btn?.setAttribute('aria-selected', 'true');
+    markOption(filesBox.querySelector(`[data-path="${CSS.escape(path)}"]`));
     void loadPreview(path, name);
   };
 
@@ -465,6 +554,7 @@ export async function openProjectWithPreview(ed: Editor): Promise<void> {
       pathInput.value = listing.dir;
       (upBtn as HTMLButtonElement).disabled = !listing.parent;
       allFiles = listing.files;
+      allDirs = listing.dirs;
       allTruncated = listing.truncated;
       // Auswahl außerhalb des Ordners verwerfen
       if (selectedPath && !allFiles.some((f) => f.path === selectedPath)) {
@@ -560,14 +650,52 @@ export async function openProjectWithPreview(ed: Editor): Promise<void> {
     sortDirBtn.textContent = sortDir > 0 ? '▲' : '▼';
     renderFiles();
   });
-  // Enter auf einer Datei öffnet sie direkt (Auswahl allein genügt per Klick)
+  hiddenBox.addEventListener('change', () => {
+    showHidden = hiddenBox.checked;
+    saveJson(HIDDEN_KEY, showHidden);
+    renderTree();
+    renderFiles();
+  });
+  // File list keys: arrows move the selection (files show their preview), Enter opens the file or
+  // folder, Backspace goes up one level
+  const activate = (el: HTMLElement) => {
+    el.focus();
+    const path = el.getAttribute('data-path');
+    if (path) {
+      const entry = allFiles.find((f) => f.path === path);
+      if (entry) selectFile(entry.path, entry.name);
+    } else markOption(el);
+    el.scrollIntoView({ block: 'nearest' });
+  };
   filesBox.addEventListener('keydown', (e) => {
-    if (e.key !== 'Enter') return;
-    const el = e.target as HTMLElement | null;
-    const path = el?.closest?.('[data-path]')?.getAttribute('data-path');
-    if (!path) return;
+    const items = [...filesBox.querySelectorAll<HTMLElement>('[role="option"]')];
+    const cur = (e.target as HTMLElement | null)?.closest?.<HTMLElement>('[role="option"]') ?? null;
+    const i = cur ? items.indexOf(cur) : -1;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Home' || e.key === 'End') {
+      if (!items.length) return;
+      e.preventDefault();
+      const next =
+        e.key === 'Home' ? 0
+        : e.key === 'End' ? items.length - 1
+        : e.key === 'ArrowDown' ? Math.min(items.length - 1, i + 1)
+        : Math.max(0, i < 0 ? 0 : i - 1);
+      activate(items[next]);
+      return;
+    }
+    if (e.key === 'Backspace' && !e.altKey && !e.metaKey && !e.ctrlKey) {
+      e.preventDefault();
+      if (currentParent) void load(currentParent);
+      return;
+    }
+    if (e.key !== 'Enter' || !cur) return;
     e.preventDefault();
-    const entry = allFiles.find((f) => f.path === path);
+    const dir = cur.getAttribute('data-dir');
+    if (dir) {
+      void load(dir);
+      return;
+    }
+    const path = cur.getAttribute('data-path');
+    const entry = path ? allFiles.find((f) => f.path === path) : undefined;
     if (entry) selectFile(entry.path, entry.name);
     void confirmOpen();
   });
@@ -596,7 +724,7 @@ export async function openProjectWithPreview(ed: Editor): Promise<void> {
     h('h3', {}, t('Öffnen mit Vorschau')),
     h('div', { class: 'project-open-bar' }, pathInput, goBtn, upBtn, favBtn),
     h('div', { class: 'project-open-main' },
-      h('div', { class: 'project-open-left' }, treeBox),
+      h('div', { class: 'project-open-left' }, treeBox, hiddenToggle),
       h('div', { class: 'project-open-mid' },
         h('div', { class: 'project-open-searchrow' }, searchInput, sortSelect, sortDirBtn),
         filesBox,
@@ -605,6 +733,7 @@ export async function openProjectWithPreview(ed: Editor): Promise<void> {
         fileLabel,
         previewBox,
         h('div', { class: 'project-open-pages' }, prevBtn, pageLabel, nextBtn),
+        fileInfo,
       ),
     ),
     status,
@@ -614,6 +743,17 @@ export async function openProjectWithPreview(ed: Editor): Promise<void> {
       openBtn,
     ),
   ) as HTMLDialogElement;
+  // Dialog keys: Alt+Up goes up one level, Ctrl/Cmd+F jumps to the search field
+  dlg.addEventListener('keydown', (e) => {
+    if (e.altKey && e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (currentParent) void load(currentParent);
+    } else if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'f') {
+      e.preventDefault();
+      searchInput.focus();
+      searchInput.select();
+    }
+  });
   showDialog(dlg, () => {
     closed = true;
     navId++;

@@ -3,7 +3,8 @@
 import './core-fixtures-env';
 import { strict as assert } from 'node:assert';
 const { parsePreviewProject, filterVisibleTree, svgPreviewProject } = await import('../src/projectPreview');
-const { normalizeFavorites, toggleFavorite, MAX_FAVORITES } = await import('../src/projectOpenFiles');
+const { normalizeFavorites, toggleFavorite, MAX_FAVORITES, isHiddenEntry, visibleEntries } =
+  await import('../src/projectOpenFiles');
 
 let failed = 0;
 async function test(name: string, fn: () => void | Promise<void>) {
@@ -135,6 +136,33 @@ await test('Favoriten: bereinigen, umschalten, begrenzen', () => {
   assert.deepEqual(r, { list: [], added: false });
   r = toggleFavorite(['/a'], '  ');
   assert.deepEqual(r, { list: ['/a'], added: false });
+});
+
+await test('Hidden entries: backend flag wins, dot name as fallback', () => {
+  assert.equal(isHiddenEntry({ name: '.config' }), true);
+  assert.equal(isHiddenEntry({ name: 'Library', hidden: true }), true);
+  assert.equal(isHiddenEntry({ name: '.odd', hidden: false }), false);
+  assert.equal(isHiddenEntry({ name: 'Documents' }), false);
+});
+
+await test('Hidden entries: filtered by default, shown on request, current path kept', () => {
+  const dirs = [
+    { name: '.cache', path: '/Users/a/.cache', hidden: true },
+    { name: '.ssh', path: '/Users/a/.ssh', hidden: true },
+    { name: 'Desktop', path: '/Users/a/Desktop', hidden: false },
+  ];
+  assert.deepEqual(visibleEntries(dirs, false).map((d) => d.name), ['Desktop']);
+  assert.equal(visibleEntries(dirs, true).length, 3);
+  const keep = new Set(ancestorsOf('/Users/a/.cache/sub'));
+  assert.deepEqual(visibleEntries(dirs, false, keep).map((d) => d.name), ['.cache', 'Desktop']);
+  // Windows paths compare with forward slashes like ancestorsOf
+  const win = [{ name: 'AppData', path: 'C:\\Users\\a\\AppData', hidden: true }];
+  assert.equal(visibleEntries(win, false, new Set(ancestorsOf('C:\\Users\\a\\AppData\\Local'))).length, 1);
+});
+
+await test('Search filter works for folders and files alike', () => {
+  const dirs = [{ name: 'Projekte', path: '/p' }, { name: 'Fotos', path: '/f' }];
+  assert.deepEqual(filterFiles(dirs, 'proj').map((d) => d.name), ['Projekte']);
 });
 
 if (failed) {

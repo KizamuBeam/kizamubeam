@@ -6,6 +6,15 @@ export interface ProjectFileEntry {
   path: string;
   size: number | null;
   modified_ms: number | null;
+  /** Set by the backend (dot name or system hidden flag); older backends leave it out */
+  hidden?: boolean;
+}
+
+/** Subfolder entry of a listing (tree and file list) */
+export interface ProjectDirEntry {
+  name: string;
+  path: string;
+  hidden?: boolean;
 }
 
 export interface ProjectRoot {
@@ -68,8 +77,27 @@ export function ancestorsOf(path: string): string[] {
   return chain;
 }
 
+/** Hidden entry: the backend flag wins; without it a leading dot counts as hidden. */
+export function isHiddenEntry(e: { name: string; hidden?: boolean }): boolean {
+  return e.hidden ?? e.name.startsWith('.');
+}
+
+/**
+ * Entries to show: everything when showHidden is on, otherwise only non-hidden ones. Hidden
+ * entries on the way to the current folder stay visible so the tree never loses it; pass
+ * keep = new Set(ancestorsOf(currentDir)) (compared with forward slashes, like ancestorsOf).
+ */
+export function visibleEntries<T extends { name: string; path: string; hidden?: boolean }>(
+  list: T[],
+  showHidden: boolean,
+  keep: ReadonlySet<string> = new Set(),
+): T[] {
+  if (showHidden) return list;
+  return list.filter((e) => !isHiddenEntry(e) || keep.has(e.path.replace(/[\\/]+/g, '/')));
+}
+
 /** Dateiname enthält die Suchanfrage (Groß-/Kleinschreibung egal); leere Anfrage passt immer. */
-export function filterFiles(files: ProjectFileEntry[], query: string): ProjectFileEntry[] {
+export function filterFiles<T extends { name: string }>(files: T[], query: string): T[] {
   const q = query.trim().toLowerCase();
   if (!q) return files;
   return files.filter((f) => f.name.toLowerCase().includes(q));
