@@ -198,6 +198,93 @@ test('Ändern: Wert übernehmen, Kanten neu wählen, ersetzen', () => {
   assert.ok(nodesR4 !== nodesR2);
 });
 
+const wbox = (pts: { x: number; y: number }[]) => {
+  const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
+  return { w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
+};
+const applyMat = (m: number[], p: { x: number; y: number }) => ({ x: m[0] * p.x + m[2] * p.y + m[4], y: m[1] * p.x + m[3] * p.y + m[5] });
+
+test('rebake: nicht-uniforme Verformung hält Pfad-Bogen kreisförmig (Welt-mm)', () => {
+  const o = mkPath([{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 60 }, { x: 0, y: 60 }]);
+  const ed = stubEditor([o]);
+  ed.filletMode = 'round';
+  ed.filletR = 5;
+  const mm = (seg: number): EdgePick => ({ obj: o, m: [1, 0, 0, 1, 0, 0] as [number, number, number, number, number, number], sub: 0, seg });
+  ed.filletPicks = [mm(3), mm(0)];
+  ed.analyzeFilletPair();
+  assert.ok(ed.confirmFillet());
+  const first = ((o.shape as unknown as { cornerSets: CornerSet[] }).cornerSets ?? [])[0];
+  assert.ok(first && first.r === 5);
+  // Verformung 2x breit ohne Re-Bake: Bogen wird zur Ellipse (Kontrolle, Test-Sensitivität)
+  o.m = [2, 0, 0, 1, 0, 0];
+  const ctrl = piecesOf((o.shape as unknown as { subs: { nodes: { x: number; y: number }[] }[] }).subs[0])
+    .filter((q) => q.curve).map((q) => wbox([q.a, q.c1, q.c2, q.b].map((p) => applyMat(o.m, p))));
+  assert.equal(ctrl.length, 1);
+  assert.ok(Math.abs(ctrl[0].w - 10) < 0.7 && Math.abs(ctrl[0].h - 5) < 0.7);
+  // Re-Bake: Bogen wieder kreisförmig mit absolutem Radius, Satz-Daten weitergeführt
+  assert.ok(ed.rebakeFilletSets(o));
+  const sets = (o.shape as unknown as { cornerSets: CornerSet[] }).cornerSets ?? [];
+  assert.equal(sets.length, 1);
+  assert.equal(sets[0].id, first.id);
+  assert.equal(sets[0].r, 5);
+  const arc = piecesOf((o.shape as unknown as { subs: { nodes: { x: number; y: number }[] }[] }).subs[0])
+    .filter((q) => q.curve).map((q) => wbox([q.a, q.c1, q.c2, q.b].map((p) => applyMat(o.m, p))));
+  assert.equal(arc.length, 1);
+  assert.ok(Math.abs(arc[0].w - 5) < 0.7 && Math.abs(arc[0].h - 5) < 0.7);
+  // Rückbau nach Re-Bake funktioniert weiter (Datensätze passen zur Geometrie)
+  assert.ok(ed.deleteFilletSet(first.id));
+});
+
+test('rebake: Rechteck wird unter Verzerrung Pfad, unter Uniformität bleibt es parametrisch', () => {
+  const mkRect = () => ({ id: Math.floor(Math.random() * 1e9), m: [1, 0, 0, 1, 0, 0], layer: 0, shape: { kind: 'rect', w: 120, h: 80, r: 0 } }) as unknown as Obj;
+  const o = mkRect();
+  const ed = stubEditor([o]);
+  ed.filletMode = 'round';
+  ed.filletR = 6;
+  const mm = (seg: number): EdgePick => ({ obj: o, m: [1, 0, 0, 1, 0, 0] as [number, number, number, number, number, number], sub: 0, seg });
+  ed.filletPicks = [mm(3), mm(0)];
+  ed.analyzeFilletPair();
+  assert.ok(ed.confirmFillet());
+  assert.equal(o.shape.kind, 'rect');
+  const first = ((o.shape as unknown as { cornerSets: CornerSet[] }).cornerSets ?? [])[0];
+  assert.ok(first);
+  // Uniform: kein Eingriff, Rechteck bleibt Rechteck
+  o.m = [2, 0, 0, 2, 0, 0];
+  assert.ok(ed.rebakeFilletSets(o));
+  assert.equal(o.shape.kind, 'rect');
+  // Nicht-uniform: Pfad-Wandlung, Bogen kreisförmig, Satz-ID bleibt
+  o.m = [2, 0, 0, 1, 0, 0];
+  assert.ok(ed.rebakeFilletSets(o));
+  assert.equal(o.shape.kind, 'path');
+  const sets = (o.shape as unknown as { cornerSets: CornerSet[] }).cornerSets ?? [];
+  assert.equal(sets.length, 1);
+  assert.equal(sets[0].id, first.id);
+  const arc = piecesOf((o.shape as unknown as { subs: { nodes: { x: number; y: number }[] }[] }).subs[0])
+    .filter((q) => q.curve).map((q) => wbox([q.a, q.c1, q.c2, q.b].map((p) => applyMat(o.m, p))));
+  assert.equal(arc.length, 1);
+  assert.ok(Math.abs(arc[0].w - 6) < 0.8 && Math.abs(arc[0].h - 6) < 0.8);
+});
+
+test('rebake: veränderte Knoten verhindern den Rückbau (false, Geometrie unverändert)', () => {
+  const o = mkPath([{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 60 }, { x: 0, y: 60 }]);
+  const ed = stubEditor([o]);
+  ed.filletMode = 'round';
+  ed.filletR = 5;
+  const mm = (seg: number): EdgePick => ({ obj: o, m: [1, 0, 0, 1, 0, 0] as [number, number, number, number, number, number], sub: 0, seg });
+  ed.filletPicks = [mm(3), mm(0)];
+  ed.analyzeFilletPair();
+  assert.ok(ed.confirmFillet());
+  // Knoten nachträglich anfassen (Punkt-Werkzeug): Rückbau findet Originale nicht mehr
+  const nodes = (o.shape as unknown as { subs: { nodes: { x: number; y: number }[] }[] }).subs[0].nodes;
+  nodes[2].x += 7;
+  const beforeNodes = JSON.stringify((o.shape as unknown as { subs: unknown }).subs);
+  const beforeSets = JSON.stringify((o.shape as unknown as { cornerSets: unknown }).cornerSets);
+  o.m = [2, 0, 0, 1, 0, 0];
+  assert.equal(ed.rebakeFilletSets(o), false);
+  assert.equal(JSON.stringify((o.shape as unknown as { subs: unknown }).subs), beforeNodes);
+  assert.equal(JSON.stringify((o.shape as unknown as { cornerSets: unknown }).cornerSets), beforeSets);
+});
+
 if (failed) {
   console.log(`\n${failed} Test(s) fehlgeschlagen`);
   process.exit(1);

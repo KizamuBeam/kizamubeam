@@ -29,10 +29,20 @@ export class EditorNodes {
     if (!chosen.length) { const o = this.nodeTarget(); if (o) chosen.push(o); }
     const before = this.state(), redo = this.history.saveRedo(), batching = this.batching;
     this.snapshot(t('Pfadkomponenten bearbeiten')); this.batching = true;
+    let changed = false;
     try { for (const o of chosen) { this.nodeEditObj = o; action(); } }
     finally {
       this.nodeEditObj = null; this.batching = batching;
-      if (!batching && this.state() === before) { this.history.drop(); this.history.restoreRedo(redo); }
+      changed = this.state() !== before;
+      if (!batching && !changed) { this.history.drop(); this.history.restoreRedo(redo); }
+    }
+    // Knoten-Edits verformen eingebackene Geometrie direkt: Sätze auflösen statt verfälschen
+    let baked = false;
+    if (changed) for (const o of chosen) baked = this.bakeFilletSetsOf(o) || baked;
+    if (baked) {
+      this.hint = t('Kanten: Knotenbearbeitung — Kantensätze eingebrannt (Geometrie bleibt).');
+      this.emit('doc');
+      this.emit('tool');
     }
     return true;
   }

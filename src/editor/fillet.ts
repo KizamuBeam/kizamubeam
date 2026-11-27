@@ -361,12 +361,14 @@ export class EditorFillet {
       return false;
     }
     const set = applied.set;
-    if (old) {
+    if (old) this.detachFilletSet(old.obj, old.set.id);
+    if (this.filletDestructive) {
+      // Destruktiv: Geometrie bleibt, kein (alter oder neuer) Satz wird gespeichert
+    } else {
       // Ersetzen: alten Satz entfernen, neuen mit dessen ID weiterführen
-      this.detachFilletSet(old.obj, old.set.id);
-      set.id = old.set.id;
+      if (old) set.id = old.set.id;
+      this.attachFilletSet(tgt.obj, set);
     }
-    this.attachFilletSet(tgt.obj, set);
     this.touch(tgt.obj.shape);
     this.filletPicks = [];
     this.filletTarget = null;
@@ -560,21 +562,129 @@ export class EditorFillet {
     return true;
   }
 
-  /** Satz zum Ändern laden (Wert/Modus übernehmen, Kanten neu wählen) */
+  /** Ziel aus Satz-Daten rekonstruieren (für Ändern und Re-Bake nach Verformung).
+   * idx -1 heißt: Eckpunkt erst nach dem Rückbau suchen (confirmFillet löst auf) —
+   * in der verrundeten Geometrie ist er nicht mehr vorhanden. Nur echt Unmögliches gibt null. */
+  private filletTargetFromSet(this: Editor, obj: Obj, m: Mat, set: CornerSet): FilletTarget | null {
+    if (set.rectCorner !== undefined) {
+      if (obj.shape.kind !== 'rect') return null;
+      return { kind: 'rect', obj, m, corner: set.rectCorner, scale: uniformScale(m) };
+    }
+    if (set.extended) return { kind: 'virtual', obj, m, sub: set.sub, x: { ...set.vertex } };
+    const s = obj.shape;
+    if (s.kind !== 'path' || !s.subs[set.sub]) return null;
+    const idx = s.subs[set.sub].nodes.findIndex((nd) => nearPt(nd, set.vertex));
+    return { kind: 'vertex', obj, m, sub: set.sub, idx };
+  }
+
+  /**
+   * Kantensätze nach einer Matrix-Verformung neu einbrennen, damit Bögen in Welt-mm
+   * kreisförmig bleiben (Radius absolut, wie bei Rechtecken). Nur die blatteigene Matrix
+   * zählt — Verformung über Gruppen bleibt sichtbar. Kein Snapshot, kein Emit: der
+   * Aufrufer (Skalier-Drag, Größenfeld) steht bereits im Undo-Schritt. Bei Fehlschlag
+   * bleibt die Geometrie unverändert und es kommt false zurück.
+   */
+  rebakeFilletSets(this: Editor, obj: Obj): boolean {
+    const sets = this.filletSetsOf(obj);
+    if (!sets.length || uniformScale(obj.m) !== 0) return true;
+    const bakShape = structuredClone(obj.shape);
+    for (let i = sets.length - 1; i >= 0; i--) {
+      if (!this.removeFilletSetGeometry(obj, sets[i])) { obj.shape = bakShape; return false; }
+    }
+    // Parametrische Rechteck-Ecken würden unter Verzerrung elliptisch → einmalig in Pfad wandeln
+    const sharpWH = obj.shape.kind === 'rect' ? { w: obj.shape.w, h: obj.shape.h } : null;
+    if (sharpWH) this.convertObjToPath(obj);
+    const s = obj.shape;
+    if (s.kind !== 'path') { obj.shape = bakShape; return false; }
+    let m: Mat | null = null;
+    for (const [leaf, lm] of leaves(this.doc.objs)) {
+      if (leaf === obj) { m = lm; break; }
+    }
+    if (!m) { obj.shape = bakShape; return false; }
+    const fresh: CornerSet[] = [];
+    for (const old of sets) {
+      let tgt = this.filletTargetFromSet(obj, m, old);
+      const rc = old.rectCorner;
+      if (!tgt && rc !== undefined && sharpWH) {
+        // Rechteck-Ecke nach der Pfad-Wandlung: scharfer Eckpunkt liegt an gleicher Stelle
+        const sub = s.subs[0];
+        const idx = sub?.nodes.findIndex((nd) => nearPt(nd, rectCornerPoint(sharpWH, rc))) ?? -1;
+        if (sub && idx >= 0) tgt = { kind: 'vertex', obj, m, sub: 0, idx };
+      }
+      if (!tgt) { obj.shape = bakShape; return false; }
+      const applied = this.applyFilletPath(tgt, old.mode, old.r);
+      if (!applied) { obj.shape = bakShape; return false; }
+      applied.set.id = old.id;
+      fresh.push(applied.set);
+    }
+    if (fresh.length) s.cornerSets = fresh;
+    else delete s.cornerSets;
+    this.touch(s);
+    return true;
+  }
+
+  /** Satz zum Ändern laden: Ziel aus den Satz-Daten wiederherstellen, Enter ersetzt direkt */
   beginEditFilletSet(this: Editor, id: string): boolean {
     const found = this.findFilletSet(id);
     if (!found) return false;
+    let m: Mat | null = null;
+    for (const [leaf, lm] of leaves(this.doc.objs)) {
+      if (leaf === found.obj) {
+        m = lm;
+        break;
+      }
+    }
+    if (!m) return false;
     this.filletMode = found.set.mode;
     this.filletR = found.set.r;
     this.filletEditId = id;
     this.filletListObj = found.obj;
     this.filletPicks = [];
-    this.filletTarget = null;
     this.filletOffer = null;
-    this.filletPreview = null;
-    this.hint = t('Kanten: Kantenpaar erneut wählen, Wert anpassen, Enter zum Ersetzen.');
+    const set = found.set;
+    const tgt = this.filletTargetFromSet(found.obj, m, set);
+    this.filletTarget = tgt;
+    if (!tgt) {
+      // Eckpunkt nicht mehr auffindbar (Geometrie seither verändert): Kantenpaar neu wählen
+      this.filletEditId = null;
+      this.hint = t('Kanten: Satz-Geometrie verändert — Kantenpaar erneut wählen.');
+    } else {
+      this.hint = t('Kanten: Satz wird geändert — Wert/Modus anpassen, Enter ersetzt den Satz. Kantenpaar neu wählen möglich.');
+    }
+    this.refreshFilletPreview();
     this.emit('tool');
     this.redraw();
+    return true;
+  }
+
+  /** Satz einbrennen: Geometrie bleibt, der änderbare Satz wird aufgelöst */
+  bakeFilletSet(this: Editor, id: string): boolean {
+    const found = this.findFilletSet(id);
+    if (!found) {
+      this.hint = t('Kanten: Satz nicht gefunden.');
+      this.emit('tool');
+      return false;
+    }
+    this.snapshot(t('Kantensatz einbrennen'));
+    this.detachFilletSet(found.obj, id);
+    if (this.filletEditId === id) this.filletEditId = null;
+    this.touch(found.obj.shape);
+    this.hint = t('Kanten: Satz eingebrannt — Geometrie bleibt, ist aber nicht mehr änderbar.');
+    this.emit('doc');
+    this.emit('tool');
+    this.redraw();
+    return true;
+  }
+
+  /** Alle Sätze eines Objekts ohne eigenen Undo-Schritt auflösen (Geometrie bleibt); true wenn Sätze bestanden */
+  bakeFilletSetsOf(this: Editor, obj: Obj): boolean {
+    const sets = this.filletSetsOf(obj);
+    if (!sets.length) return false;
+    for (const s of sets) {
+      this.detachFilletSet(obj, s.id);
+      if (this.filletEditId === s.id) this.filletEditId = null;
+    }
+    this.touch(obj.shape);
     return true;
   }
 

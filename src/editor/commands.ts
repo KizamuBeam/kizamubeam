@@ -296,5 +296,21 @@ export class EditorCommands {
     const ty = next.y !== undefined ? next.y - A.y : 0;
     D = mul(translate(tx, ty), D);
     this.transformSel(D, t('Position/Größe'));
+    // Kantensätze kreisförmig halten (Radius absolut, wie bei Rechtecken)
+    let rebakeOk = true, rebaked = false;
+    for (const o of this.sel) {
+      const sh = o.shape;
+      if ((sh.kind === 'path' || sh.kind === 'rect') && sh.cornerSets?.length) {
+        rebaked = true;
+        if (!this.rebakeFilletSets(o)) rebakeOk = false;
+      }
+    }
+    if (rebaked) {
+      this.emit('doc');
+      if (!rebakeOk) {
+        this.hint = t('Kanten: Verformung übernommen — ein Satz ließ sich nicht kreisförmig halten (Kanten zu kurz).');
+        this.emit('tool');
+      }
+    }
   }
 }
