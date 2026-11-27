@@ -6,6 +6,12 @@ description: Bring in SVG, DXF, PDF, Illustrator and LightBurn files, and export
 
 # Import and export
 
+## Opening projects
+
+In the desktop app, **File → Open with preview …** (Ctrl+O) is the default: it browses any accessible folder — with places, a folder tree and favourites on the left, a searchable file list in the middle — and shows a preview of the selected project on the right, including multi-page KizamuBeam projects and LightBurn files. SVG files show a preview as well and are inserted through the regular vector import. Selecting a file never touches the editor; only **Open** loads the project. The classic system dialog is still available as **File → Open …**.
+
+Both open dialogs remember the last used folder for the session. Under **Edit → Settings → Files** you can set default folders for opening and saving, with an option to always use them.
+
 ## Importing
 
 **File → Import …** (Ctrl+I), dragging files onto the workspace, or pasting with Ctrl+V from other programs all work the same way. Colours are mapped to the nearest palette colour, which means the nearest layer, and several objects arrive as a group.
@@ -28,7 +34,7 @@ The first PDF page lands on the current page, every further page on a new projec
 
 ### LightBurn projects
 
-`.lbrn2` files can be opened (**File → Open**, as a new project) or imported into the current project. Shapes, groups, images with their adjustments and positions are kept. Layers take over name, mode, speed, power, passes, output, order, fill and image settings, sub-layers, perforation, lead-ins, overcut, power ramp and Z settings. Text stays editable text when the font is installed; otherwise its outlines are kept as a path. Elements that could not be imported are listed in the status bar and in the design check.
+`.lbrn2` files can be opened (**File → Open with preview**, as a new project) or imported into the current project. Shapes, groups, images with their adjustments and positions are kept. Layers take over name, mode, speed, power, passes, output, order, fill and image settings, sub-layers, perforation, lead-ins, overcut, power ramp and Z settings. Text stays editable text when the font is installed; otherwise its outlines are kept as a path. Elements that could not be imported are listed in the status bar and in the design check.
 
 LightBurn material libraries (`.clb`) can be imported in the material library.
 

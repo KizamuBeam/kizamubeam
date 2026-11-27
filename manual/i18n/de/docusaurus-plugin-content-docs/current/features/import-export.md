@@ -6,6 +6,12 @@ description: SVG-, DXF-, PDF-, Illustrator- und LightBurn-Dateien hereinholen un
 
 # Import und Export
 
+## Projekte öffnen
+
+In der Desktop-App ist **Datei → Öffnen mit Vorschau …** (Strg+O) der Standard: Der Dialog durchsucht beliebige erreichbare Ordner — links mit Orten, Ordnerbaum und Favoriten, in der Mitte eine durchsuchbare Dateiliste — und zeigt rechts eine Vorschau des gewählten Projekts, auch mehrseitige KizamuBeam-Projekte und LightBurn-Dateien. SVG-Dateien zeigen ebenfalls eine Vorschau und werden über den normalen Vektor-Import eingefügt. Eine Dateiauswahl verändert den Editor nicht; erst **Öffnen** lädt das Projekt. Der klassische Systemdialog bleibt als **Datei → Öffnen …** erhalten.
+
+Beide Öffnen-Dialoge merken sich den zuletzt benutzten Ordner für die Sitzung. Unter **Bearbeiten → Einstellungen → Dateien** lassen sich Standardordner zum Öffnen und Speichern festlegen, auf Wunsch immer geltend.
+
 ## Importieren
 
 **Datei → Importieren …** (Ctrl+I), Dateien auf die Arbeitsfläche ziehen oder mit Ctrl+V aus anderen Programmen einfügen funktioniert jeweils gleich. Farben werden der nächstgelegenen Palettenfarbe zugeordnet, also dem nächstgelegenen Layer, und mehrere Objekte kommen als Gruppe an.
@@ -28,7 +34,7 @@ Die erste PDF-Seite landet auf der aktuellen Seite, jede weitere auf einer neuen
 
 ### LightBurn-Projekte
 
-`.lbrn2`-Dateien lassen sich öffnen (**Datei → Öffnen**, als neues Projekt) oder in das aktuelle Projekt importieren. Formen, Gruppen, Bilder mit ihren Anpassungen und Positionen bleiben erhalten. Layer übernehmen Name, Modus, Geschwindigkeit, Leistung, Durchgänge, Ausgabe, Reihenfolge, Füll- und Bildeinstellungen, Sub-Layer, Perforation, Anschnitte, Überschnitt, Leistungsrampe und Z-Einstellungen. Text bleibt bearbeitbarer Text, wenn die Schrift installiert ist; sonst bleiben seine Umrisse als Pfad erhalten. Was sich nicht importieren ließ, steht in der Statusleiste und in der Konstruktionsprüfung.
+`.lbrn2`-Dateien lassen sich öffnen (**Datei → Öffnen mit Vorschau**, als neues Projekt) oder in das aktuelle Projekt importieren. Formen, Gruppen, Bilder mit ihren Anpassungen und Positionen bleiben erhalten. Layer übernehmen Name, Modus, Geschwindigkeit, Leistung, Durchgänge, Ausgabe, Reihenfolge, Füll- und Bildeinstellungen, Sub-Layer, Perforation, Anschnitte, Überschnitt, Leistungsrampe und Z-Einstellungen. Text bleibt bearbeitbarer Text, wenn die Schrift installiert ist; sonst bleiben seine Umrisse als Pfad erhalten. Was sich nicht importieren ließ, steht in der Statusleiste und in der Konstruktionsprüfung.
 
 LightBurn-Materialbibliotheken (`.clb`) lassen sich in der Material-Bibliothek importieren.
 

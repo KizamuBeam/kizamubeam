@@ -15,6 +15,7 @@ import { buildDxf, buildPdf, ExportItem, ExportPage, LayerInfo } from './vecexpo
 import { FallbackResolver, importPdfPages, isPdf } from './pdfimport';
 import { importRuida, isRuidaFile } from './ruida';
 import { applyDocJobSettings, device } from './laser';
+import { dirOf, resolveStartDir } from './fileDirs';
 import { t, tn } from './i18n';
 import { keepProjectPath, tabNameFromPath, type ProjectTab } from './editor/tabs';
 import { installNativeFileDrop, installDomFileDrop, dispatchNativeFiles } from './nativeFileDrop';
@@ -27,10 +28,10 @@ export async function saveText(name: string, filterName: string, ext: string, mi
 }
 
 /** Textdatei speichern; liefert den gewählten Pfad (im Browser den Dateinamen) oder null bei Abbruch */
-async function saveTextAs(name: string, filterName: string, ext: string, mime: string, contents: string): Promise<string | null> {
+async function saveTextAs(name: string, filterName: string, ext: string, mime: string, contents: string, directory?: string | null): Promise<string | null> {
   if (isTauri()) {
     const { invoke } = await import('@tauri-apps/api/core');
-    return await invoke<string | null>('save_text_file', { defaultName: name, filterName, extensions: [ext], contents });
+    return await invoke<string | null>('save_text_file', { defaultName: name, filterName, extensions: [ext], contents, directory: directory ?? null });
   }
   const url = URL.createObjectURL(new Blob([contents], { type: mime }));
   const a = document.createElement('a');
@@ -45,7 +46,7 @@ async function saveTextAs(name: string, filterName: string, ext: string, mime: s
 export async function openText(filterName: string, extensions: string[]): Promise<[string, string] | null> {
   if (isTauri()) {
     const { invoke } = await import('@tauri-apps/api/core');
-    const res = await invoke<[string, string] | null>('open_text_file', { filterName, extensions });
+    const res = await invoke<[string, string] | null>('open_text_file', { filterName, extensions, directory: null });
     return res ? [res[0].split(/[\\/]/).pop() ?? res[0], res[1]] : null;
   }
   return new Promise((resolve) => {
@@ -88,11 +89,13 @@ export async function saveProject(ed: Editor, saveAs = false) {
 
 /** Projekt über den Speichern-Dialog (bzw. Download) sichern; der Tab übernimmt Dateiname und Pfad */
 async function saveProjectDialog(ed: Editor, tab: ProjectTab, contents: string, saved: string) {
-  const path = await saveTextAs(`${tab.name ?? t('projekt')}.kzb`, t('KizamuBeam-Projekt'), 'kzb', 'application/json', contents);
+  const startDir = resolveStartDir(loadAlwaysDefaultDirs(), loadDefaultSaveDir(), sessionSaveDir);
+  const path = await saveTextAs(`${tab.name ?? t('projekt')}.kzb`, t('KizamuBeam-Projekt'), 'kzb', 'application/json', contents, startDir);
   if (path === null) return;
   tab.name = tabNameFromPath(path);
   // Im Browser ist der „Pfad“ nur der Download-Name: kein stilles Speichern möglich
   tab.path = '__TAURI_INTERNALS__' in window ? path : null;
+  if (tab.path) sessionSaveDir = dirOf(path) || null;
   tab.saved = saved;
   if (tab === ed.tab) ed.updateChanged();
   else tab.changed = false;
@@ -121,56 +124,124 @@ async function lbrnProjectJson(ed: Editor, text: string): Promise<{ json: string
   return { json: JSON.stringify(doc), notes: r.notes, cutOrder: r.cutOrder };
 }
 
+/** Projekt-Endungen beider Öffnen-Dialoge (nativ und intern), ohne Punkt, kleingeschrieben verglichen */
+export const PROJECT_EXTENSIONS = ['kzb', 'kzt', 'lwk', 'json', 'lbrn2', 'lbrn'];
 const isLbrnName = (name: string) => /\.lbrn2?$/i.test(name);
+
+/** Prüfen, ob ein Dateiname als Projektdatei in Frage kommt (Endung, ohne Beachtung der Großschreibung) */
+export const isProjectName = (name: string): boolean => {
+  const i = name.lastIndexOf('.');
+  if (i < 0) return false;
+  return PROJECT_EXTENSIONS.includes(name.slice(i + 1).toLowerCase());
+};
+
+/** Sitzungs-Gedächtnis (flüchtig, pro Fenster): gewinnt gegen die Einstellungs-Defaults, bis der Opt-in greift */
+let sessionOpenDir: string | null = null;
+let sessionSaveDir: string | null = null;
+
+const DEF_OPEN_KEY = 'kizamubeam.defaultOpenDir';
+const DEF_SAVE_KEY = 'kizamubeam.defaultSaveDir';
+const ALWAYS_KEY = 'kizamubeam.alwaysDefaultDirs';
+const getSetting = (key: string): string => {
+  try {
+    return localStorage.getItem(key) ?? '';
+  } catch {
+    return '';
+  }
+};
+const setSetting = (key: string, value: string) => {
+  try {
+    if (value) localStorage.setItem(key, value);
+    else localStorage.removeItem(key);
+  } catch {
+    /* Speicher voll oder privat: Einstellung gilt nur für diese Sitzung */
+  }
+};
+/** Persistente Standardordner aus den Einstellungen ('' = keiner) */
+export const loadDefaultOpenDir = (): string => getSetting(DEF_OPEN_KEY);
+export const saveDefaultOpenDir = (v: string) => setSetting(DEF_OPEN_KEY, v);
+export const loadDefaultSaveDir = (): string => getSetting(DEF_SAVE_KEY);
+export const saveDefaultSaveDir = (v: string) => setSetting(DEF_SAVE_KEY, v);
+export const loadAlwaysDefaultDirs = (): boolean => {
+  try {
+    return localStorage.getItem(ALWAYS_KEY) === '1';
+  } catch {
+    return false;
+  }
+};
+export const saveAlwaysDefaultDirs = (v: boolean) => setSetting(ALWAYS_KEY, v ? '1' : '');
+
+/** Aktueller Startordner für beide Öffnen-Dialoge (Sitzung schlägt Default, Opt-in erzwingt Default) */
+export const openStartDir = (): string | null =>
+  resolveStartDir(loadAlwaysDefaultDirs(), loadDefaultOpenDir(), sessionOpenDir);
+
+/** Sitzungsordner nach erfolgreichem Öffnen merken (nur vom bestätigten Öffnen aufrufen) */
+export const noteOpenedDir = (fullPath: string) => {
+  sessionOpenDir = dirOf(fullPath) || null;
+};
+
+/**
+ * Projekttext ins Editor-Modell übernehmen: leerer Tab oder neuer Tab, LightBurn wird
+ * übersetzt. Wirft bei ungültigen Daten (der Aufrufer entscheidet, wie der Fehler gezeigt wird).
+ */
+export async function applyProjectText(ed: Editor, text: string, name: string, fullPath: string | null = null): Promise<void> {
+  if (isLbrnName(name) || isLbrn(text)) {
+    const { json, notes, cutOrder } = await lbrnProjectJson(ed, text);
+    ed.openInTab(json, tabNameFromPath(name), null);
+    // Erst als KizamuBeam-Projekt gespeichert gilt die Datei als gesichert
+    ed.tab.saved = '';
+    ed.updateChanged();
+    // CutOrder (#153-Nr.3): Datei-Vorgabe als Job-Override übernehmen (Opt-out), Hinweis mit Rückgängig-Weg
+    const extra: string[] = [];
+    if (cutOrder && loadCutOrderApply()) {
+      const g = cutOrderGroupOverride(cutOrder);
+      // Nur mit Gruppen-Info anfassen — sonst bliebe ein manueller Override auf der Strecke
+      if (g !== null) void import('./laser').then((m) => m.applyImportedCutOrder(cutOrder));
+      extra.push(
+        g === null
+          ? t('CutOrder aus der Datei gelesen — Ebenen-Reihenfolge gilt ohnehin.')
+          : g
+            ? t('CutOrder übernommen: „Gruppen zusammenhalten“ an — gilt nur für diesen Job („Zurück zum Preset“ im Laser-Panel macht es rückgängig).')
+            : t('CutOrder übernommen: „Gruppen zusammenhalten“ aus — gilt nur für diesen Job („Zurück zum Preset“ im Laser-Panel macht es rückgängig).'),
+      );
+    }
+    ed.hint = [t('LightBurn-Projekt geöffnet.'), ...notes, ...extra].join(' ');
+    ed.emit('tool');
+    return;
+  }
+  ed.openInTab(text, tabNameFromPath(name), keepProjectPath(name, fullPath));
+  // Dateiwerte für Nur-Auswahl/Ursprung aufs Gerät (fehlen sie, bleibt das Gerät)
+  applyDocJobSettings(ed);
+  // Fehlende Schriften von Google Fonts nachladen (mit Rückfrage)
+  void import('./fontManager').then((m) => m.checkProjectFonts(ed));
+}
 
 /** Projektdatei in einem neuen Tab öffnen (oder im aktiven, wenn er leer ist); LightBurn-Projekte werden übersetzt */
 export async function openProject(ed: Editor) {
-  const apply = async (text: string, name: string, fullPath: string | null = null) => {
-    try {
-      if (isLbrnName(name) || isLbrn(text)) {
-        const { json, notes, cutOrder } = await lbrnProjectJson(ed, text);
-        ed.openInTab(json, tabNameFromPath(name), null);
-        // Erst als KizamuBeam-Projekt gespeichert gilt die Datei als gesichert
-        ed.tab.saved = '';
-        ed.updateChanged();
-        // CutOrder (#153-Nr.3): Datei-Vorgabe als Job-Override übernehmen (Opt-out), Hinweis mit Rückgängig-Weg
-        const extra: string[] = [];
-        if (cutOrder && loadCutOrderApply()) {
-          const g = cutOrderGroupOverride(cutOrder);
-          // Nur mit Gruppen-Info anfassen — sonst bliebe ein manueller Override auf der Strecke
-          if (g !== null) void import('./laser').then((m) => m.applyImportedCutOrder(cutOrder));
-          extra.push(
-            g === null
-              ? t('CutOrder aus der Datei gelesen — Ebenen-Reihenfolge gilt ohnehin.')
-              : g
-                ? t('CutOrder übernommen: „Gruppen zusammenhalten“ an — gilt nur für diesen Job („Zurück zum Preset“ im Laser-Panel macht es rückgängig).')
-                : t('CutOrder übernommen: „Gruppen zusammenhalten“ aus — gilt nur für diesen Job („Zurück zum Preset“ im Laser-Panel macht es rückgängig).'),
-          );
-        }
-        ed.hint = [t('LightBurn-Projekt geöffnet.'), ...notes, ...extra].join(' ');
-        ed.emit('tool');
-        return;
-      }
-      ed.openInTab(text, tabNameFromPath(name), keepProjectPath(name, fullPath));
-      // Dateiwerte für Nur-Auswahl/Ursprung aufs Gerät (fehlen sie, bleibt das Gerät)
-      applyDocJobSettings(ed);
-      // Fehlende Schriften von Google Fonts nachladen (mit Rückfrage)
-      void import('./fontManager').then((m) => m.checkProjectFonts(ed));
-    } catch (e) {
-      alert(t('Datei konnte nicht geöffnet werden: {message}', { message: (e as Error).message }));
-    }
-  };
   if (isTauri()) {
     const { invoke } = await import('@tauri-apps/api/core');
-    const res = await invoke<[string, string] | null>('open_text_file', { filterName: t('KizamuBeam- und LightBurn-Projekte'), extensions: ['kzb', 'kzt', 'lwk', 'json', 'lbrn2', 'lbrn'] });
-    if (res) await apply(res[1], res[0], res[0]);
+    const startDir = openStartDir();
+    const res = await invoke<[string, string] | null>('open_text_file', { filterName: t('KizamuBeam- und LightBurn-Projekte'), extensions: PROJECT_EXTENSIONS, directory: startDir });
+    if (res) {
+      noteOpenedDir(res[0]);
+      try {
+        await applyProjectText(ed, res[1], res[0], res[0]);
+      } catch (e) {
+        alert(t('Datei konnte nicht geöffnet werden: {message}', { message: (e as Error).message }));
+      }
+    }
     return;
   }
   const input = document.getElementById('fileinput') as HTMLInputElement;
   input.onchange = async () => {
     const f = input.files?.[0];
     input.value = '';
-    if (f) await apply(await f.text(), f.name);
+    if (!f) return;
+    try {
+      await applyProjectText(ed, await f.text(), f.name);
+    } catch (e) {
+      alert(t('Datei konnte nicht geöffnet werden: {message}', { message: (e as Error).message }));
+    }
   };
   input.click();
 }

@@ -51,6 +51,8 @@
     "test:slot-features": "node scripts/vector-offline-test.mjs scripts/slot-feature-engine-test.ts && node scripts/vector-offline-test.mjs scripts/slot-construction-test.ts && node scripts/vector-offline-test.mjs scripts/slot-manufacturing-test.ts && node scripts/run-ts.mjs scripts/slot-viewport-test.ts && node scripts/vector-offline-test.mjs scripts/slot-mirror-test.ts",
     "test:camera-overlay": "node scripts/camera-overlay-toggle-test.mjs",
     "test:corners": "node scripts/run-ts.mjs scripts/corners-test.ts",
+    "test:dirs": "node scripts/run-ts.mjs scripts/dirs-test.ts",
+    "test:project-open": "node scripts/run-ts.mjs scripts/project-open-test.ts",
     "test:rect-corners": "node scripts/run-ts.mjs scripts/rect-corners-test.ts",
     "test:edge-fillet": "node scripts/run-ts.mjs scripts/edge-fillet-test.ts",
     "test:vartext": "node scripts/run-ts.mjs scripts/vartext-test.ts",

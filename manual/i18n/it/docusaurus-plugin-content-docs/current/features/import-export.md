@@ -6,6 +6,12 @@ description: Importa file SVG, DXF, PDF, Illustrator e LightBurn ed esporta prog
 
 # Importazione ed esportazione
 
+## Aprire progetti
+
+Nell'app desktop, **File → Apri con anteprima …** (Ctrl+O) è lo standard: la finestra sfoglia qualsiasi cartella accessibile — a sinistra risorse, albero cartelle e preferiti, al centro un elenco file con ricerca — e mostra a destra un'anteprima del progetto selezionato, inclusi progetti KizamuBeam multipagina e file LightBurn. Anche i file SVG mostrano un'anteprima e vengono inseriti con la normale importazione vettoriale. Selezionare un file non tocca l'editor; solo **Apri** carica il progetto. La classica finestra di sistema resta disponibile come **File → Apri …**.
+
+Entrambe le finestre di apertura ricordano l'ultima cartella usata nella sessione. In **Modifica → Impostazioni → File** si possono impostare cartelle predefinite per apertura e salvataggio, con un'opzione per usarle sempre.
+
 ## Importare
 
 **File → Importa …** (Ctrl+I), il trascinamento dei file sull’area di lavoro o l’incolla con Ctrl+V da altri programmi funzionano allo stesso modo. I colori vengono associati al colore più vicino della tavolozza, cioè al livello più vicino, e più oggetti arrivano come gruppo.
@@ -28,7 +34,7 @@ La prima pagina del PDF finisce nella pagina corrente, ogni pagina successiva in
 
 ### Progetti LightBurn
 
-I file `.lbrn2` si possono aprire (**File → Apri**, come nuovo progetto) o importare nel progetto corrente. Forme, gruppi, immagini con le loro regolazioni e posizioni vengono mantenuti. I livelli riprendono nome, modalità, velocità, potenza, passaggi, uscita, ordine, impostazioni di riempimento e immagine, sotto-livelli, perforazione, entrate, sovrataglio, rampa di potenza e impostazioni Z. Il testo resta testo modificabile se il font è installato; altrimenti i suoi contorni restano come percorso. Gli elementi non importabili sono elencati nella barra di stato e nel controllo del progetto.
+I file `.lbrn2` si possono aprire (**File → Apri con anteprima**, come nuovo progetto) o importare nel progetto corrente. Forme, gruppi, immagini con le loro regolazioni e posizioni vengono mantenuti. I livelli riprendono nome, modalità, velocità, potenza, passaggi, uscita, ordine, impostazioni di riempimento e immagine, sotto-livelli, perforazione, entrate, sovrataglio, rampa di potenza e impostazioni Z. Il testo resta testo modificabile se il font è installato; altrimenti i suoi contorni restano come percorso. Gli elementi non importabili sono elencati nella barra di stato e nel controllo del progetto.
 
 Le librerie di materiali LightBurn (`.clb`) si possono importare nella libreria dei materiali.
 

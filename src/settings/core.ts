@@ -35,6 +35,7 @@ import { defaultLayerDefaults, loadLayerDefaults, saveLayerDefaults } from '../l
 import { openLayerDefaultsDialog } from '../layerDefaultsDialog';
 import { loadSpellSettings, saveSpellSettings } from '../spell';
 import { spellSettingsWidget } from '../spellUi';
+import { registerDirectorySettings } from './directories';
 
 export type ThemeMode = 'system' | 'light' | 'dark';
 
@@ -116,6 +117,7 @@ export function registerCoreSettings(ed: Editor, hooks: CoreSettingsHooks) {
   });
 
   // ---------- Appearance ----------
+  registerDirectorySettings();
   registerSettingsSection({
     id: 'appearance',
     title: t('Darstellung'),
