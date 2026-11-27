@@ -28,7 +28,7 @@ const PACKS_STORE = PRE + 'packs';
  * Sicherungen der FluidNC-Konfiguration, altes Einzelgerät, Abgleich selbst, Dialogpositionen und -größen (hängen am Bildschirm), ausgeschaltete und geprüfte Erweiterungen und ihre Netzwerk-Freigaben (je Rechner). Jeder Schlüssel im Code muss in
  * einer dieser Listen stehen (npm run test:sync prüft das).
  */
-export const LOCAL_KEYS = ['autosave', 'autosaveInterval', 'tabs', 'updateLastCheck', 'setupOffered', 'fluidBackups', 'materialtest.last', 'device', 'sync', 'syncKnown', 'syncFp', 'syncExport', 'dialogPos', 'dialogSize', 'previewSidebarWidth', 'packs.disabled', 'packs.verified', 'pluginNet', 'pluginNetOff', 'firePending', 'fireOverlayInPanel', 'spellPromptDismissed'].map(
+export const LOCAL_KEYS = ['autosave', 'autosaveInterval', 'tabs', 'updateLastCheck', 'setupOffered', 'fluidBackups', 'materialtest.last', 'device', 'sync', 'syncKnown', 'syncFp', 'syncExport', 'dialogPos', 'dialogSize', 'previewSidebarWidth', 'packs.disabled', 'packs.verified', 'pluginNet', 'pluginNetOff', 'firePending', 'fireOverlayInPanel', 'spellPromptDismissed', 'defaultOpenDir', 'defaultSaveDir', 'alwaysDefaultDirs', 'openFavorites'].map(
   (k) => PRE + k,
 );
 export const BROWSER_STORES = [TEMPLATES_STORE, PACKS_STORE];

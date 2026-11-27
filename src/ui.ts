@@ -14,6 +14,7 @@ import { onImageResourceReady } from './plugins/imageResource';
 import { assetImage, displayCanvas, onImageReady } from './images';
 import { openFontManager } from './fontManager';
 import { $, evalExpr, h, numInput } from './dom';
+import { isTauri } from './machine';
 import { openCircularArrayDialog, openGridArrayDialog } from './arrayDialogs';
 import { openNestDialog } from './nestDialog';
 import { openWorkpieceDialog } from './workpieceDialog';
@@ -244,7 +245,8 @@ function buildMenu(ed: Editor) {
     [t('Datei'), [
       [t('Neu'), 'new', () => (ed.newTab(), applyNewDocDefaults())],
       [t('Neu aus Vorlage …'), 'newtemplate', () => openTemplateLibrary(ed)],
-      [t('Öffnen …'), 'open', () => openProject(ed)],
+      [t('Öffnen mit Vorschau …'), 'open', () => void import('./projectOpenDialog').then((m) => m.openProjectWithPreview(ed)), undefined, undefined, () => isTauri()],
+      [t('Öffnen …'), '', () => openProject(ed)],
       [t('Speichern'), 'save', () => saveProject(ed)],
       [t('Speichern unter …'), 'saveas', () => saveProject(ed, true)],
       [t('Tab schließen'), '', () => closeTabAsk(ed)],
@@ -650,7 +652,7 @@ function buildBars(ed: Editor) {
   const tool = (id: Tool, icon: string, label: string): Action => ({ id: `tool:${id}`, cat: W, icon, label, run: () => ed.setTool(id), on: () => ed.tool === id });
   const list: Action[] = [
     { id: 'new', cat: F, icon: 'new', label: t('Neues Projekt in neuem Tab'), run: () => (ed.newTab(), applyNewDocDefaults()) },
-    { id: 'open', cat: F, icon: 'open', label: t('Öffnen'), run: () => openProject(ed) },
+    { id: 'open', cat: F, icon: 'open', label: t('Öffnen'), run: () => (isTauri() ? void import('./projectOpenDialog').then((m) => m.openProjectWithPreview(ed)) : openProject(ed)) },
     { id: 'save', cat: F, icon: 'save', label: t('Speichern'), run: () => saveProject(ed) },
     { id: 'saveas', cat: F, icon: 'save', label: t('Speichern unter …'), run: () => saveProject(ed, true) },
     { id: 'import', cat: F, icon: 'import', label: t('Importieren: Bilder, SVG, DXF, PDF, AI, LightBurn, 3D-Modelle'), run: () => importFile(ed) },
