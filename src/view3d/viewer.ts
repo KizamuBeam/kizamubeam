@@ -10,6 +10,7 @@ import { outlineSegments, partKey, solidBounds } from './solids';
 import { Pose, rotatePose } from './poses';
 import { DEFAULT_LOOK, LookPreset, lookTexture, resolveLook, shadeHex } from './looks';
 import { BlueprintLabels, BlueprintViewport, computeBlueprintLayout, computeOrthoScale, drawBlueprintOverlay } from './blueprint';
+import { Arrangement, Axis, AXES, dragDelta, dragPlane, snapAngle } from './arrange';
 
 export type ViewPreset = 'iso' | 'top' | 'front';
 
@@ -244,6 +245,35 @@ function engravingAlpha(cv: HTMLCanvasElement): THREE.CanvasTexture {
   return tx;
 }
 
+/** Part under the pointer, for the context menu of the 3D view */
+export interface PartHit {
+  /** Part key (see partKey) */
+  key: string;
+  label: string;
+  /** Assembly the part belongs to and the keys of all its parts */
+  group: string;
+  groupKeys: string[];
+  /** Point on the part's surface (world) */
+  point: THREE.Vector3;
+}
+
+/** Interactive move or rotate of parts, from the context menu until a click (confirm) or Esc (cancel) */
+interface ArrangeDrag {
+  kind: 'move' | 'rotate';
+  keys: string[];
+  /** Transforms before the drag (Esc) and at the start of the current step (changed when the axis changes) */
+  orig: Map<string, THREE.Matrix4>;
+  saved: Map<string, THREE.Matrix4>;
+  /** Movement of the current step, so a new axis continues from where the part is */
+  moved: THREE.Vector3;
+  axis: Axis | null;
+  /** Start of the drag (set by the first pointer move, so the part does not jump to the menu position) */
+  from: THREE.Vector3 | null;
+  x0: number | null;
+  /** Point the drag plane goes through (move) or rotation centre (rotate) */
+  at: THREE.Vector3;
+}
+
 const cssVar = (name: string, fallback: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
 
 export class Viewer3D {
@@ -277,6 +307,20 @@ export class Viewer3D {
   private themeObs: MutationObserver;
   /** Name des Teils unter dem Zeiger (null = keines) */
   onHover: (label: string | null) => void = () => {};
+  /** Right click (or Ctrl+click) without dragging: part under the pointer or null */
+  onContextMenu: (x: number, y: number, hit: PartHit | null) => void = () => {};
+  /** Hint while moving or rotating a part (null = finished) */
+  onArrangeHint: (text: string | null) => void = () => {};
+  /** Parts were hidden, made transparent, moved or rotated */
+  onArrangeChange: () => void = () => {};
+  /** Texts for the hints while moving or rotating (set by the panel, translated) */
+  arrangeTexts = {
+    move: (axis: Axis | null, mm: string) => `${axis ?? ''} ${mm}`,
+    rotate: (axis: Axis, deg: string) => `${axis} ${deg}`,
+  };
+  private arrangement = new Arrangement();
+  private drag: ArrangeDrag | null = null;
+  private menuDown: { x: number; y: number } | null = null;
   /** Ist das Fenster zu sehen? Sonst hält die Zeichenschleife an, bis setActive(true) sie wieder startet */
   isVisible: () => boolean = () => true;
 
@@ -317,8 +361,27 @@ export class Viewer3D {
     this.themeObs = new MutationObserver(() => this.applyTheme());
     this.themeObs.observe(document.documentElement, { attributes: true });
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => this.applyTheme());
-    this.renderer.domElement.addEventListener('pointermove', (e) => this.hover(e));
-    this.renderer.domElement.addEventListener('pointerleave', () => this.onHover(null));
+    const el = this.renderer.domElement;
+    el.addEventListener('pointermove', (e) => (this.drag ? this.dragMove(e.clientX, e.clientY, e.shiftKey) : this.hover(e)));
+    el.addEventListener('pointerleave', () => this.onHover(null));
+    // Right drag pans the view (OrbitControls); only a right click without moving opens the menu
+    el.addEventListener('pointerdown', (e) => {
+      if (this.drag) {
+        if (e.button === 0 && !e.ctrlKey) this.endDrag(true);
+        else this.endDrag(false);
+        e.preventDefault();
+        return;
+      }
+      this.menuDown = e.button === 2 || (e.button === 0 && e.ctrlKey) ? { x: e.clientX, y: e.clientY } : null;
+    });
+    el.addEventListener('pointerup', (e) => {
+      const d = this.menuDown;
+      this.menuDown = null;
+      if (!d || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 4) return;
+      this.onContextMenu(e.clientX, e.clientY, this.pick(e.clientX, e.clientY));
+    });
+    el.addEventListener('contextmenu', (e) => e.preventDefault());
+    this.keydown = this.keydown.bind(this);
     this.applyTheme();
     this.fitSize();
   }
@@ -450,6 +513,8 @@ export class Viewer3D {
       if (engrave) mesh.add(engrave);
       mesh.userData.label = s.label;
       const holder = new THREE.Group();
+      // Position comes from the arrangement and the explode slider (layout)
+      holder.matrixAutoUpdate = false;
       holder.add(mesh);
       this.root.add(holder);
       const c = partBoxes.get(partKey(s))!.getCenter(new THREE.Vector3()).sub(centers.get(s.group)!.getCenter(new THREE.Vector3()));
@@ -706,6 +771,29 @@ export class Viewer3D {
       }
       lineMat.needsUpdate = true;
     }
+    this.applyGhosts();
+  }
+
+  /** Transparent parts: see-through faces, fainter lines; in the line modes they no longer hide what is behind them */
+  private applyGhosts() {
+    const mode = this.renderMode;
+    for (const p of this.parts) {
+      if (!this.arrangement.isGhost(partKey(p.s))) continue;
+      const lineMat = p.outline.material as THREE.LineBasicMaterial;
+      lineMat.opacity *= 0.45;
+      lineMat.transparent = true;
+      p.mesh.castShadow = false;
+      if (mode === 'xray' || mode === 'wireframe') continue;
+      let mat: THREE.Material;
+      if (mode === 'hiddenLines' || mode === 'blueprint') mat = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
+      else {
+        const color = mode === 'layer' ? p.s.layerColor || '#888888' : (p.s.look ?? resolveLook(DEFAULT_LOOK)).color;
+        mat = new THREE.MeshStandardMaterial({ color: new THREE.Color(color), roughness: 0.6, metalness: 0.05, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide });
+        if (p.engrave) p.engrave.visible = false;
+      }
+      this.modeMats.push(mat);
+      p.mesh.material = mat;
+    }
   }
 
   /** Mockup-Modus: ohne Raster, mit Schatten und eigenem Hintergrund (für Bilder für Kunden) */
@@ -846,7 +934,7 @@ export class Viewer3D {
 
   private bounds() {
     const b = new THREE.Box3();
-    for (const p of this.parts) b.union(new THREE.Box3().setFromObject(p.holder));
+    for (const p of this.parts) if (p.holder.visible) b.union(new THREE.Box3().setFromObject(p.holder));
     return b;
   }
 
@@ -868,13 +956,18 @@ export class Viewer3D {
   }
 
   private layout() {
+    const exploded = new THREE.Matrix4();
     for (const p of this.parts) {
-      p.holder.position.copy(p.away).multiplyScalar(this.explode);
+      const a = this.arrangement.peek(partKey(p.s));
+      exploded.makeTranslation(p.away.x * this.explode, p.away.y * this.explode, p.away.z * this.explode);
+      p.holder.matrix.copy(a ? a.m.clone().multiply(exploded) : exploded);
+      p.holder.matrixWorldNeedsUpdate = true;
+      p.holder.visible = !a?.hidden;
       if (p.s.spin) p.mesh.matrix.copy(poseMatrix(this.angle ? rotatePose(p.s.pose, this.angle * p.s.spin) : p.s.pose));
     }
     if (this.mockup && !this.spin) this.applyMockup();
     // Die roten Bereiche gehören zur zusammengesteckten, ruhenden Lage
-    this.overlapGroup.visible = this.showOverlaps && !this.mockup && this.explode === 0 && this.angle === 0;
+    this.overlapGroup.visible = this.showOverlaps && !this.mockup && this.explode === 0 && this.angle === 0 && !this.arrangement.anyMoved(this.partKeys());
     this.needsRender = true;
   }
 
@@ -929,38 +1022,205 @@ export class Viewer3D {
   }
 
   private hover(e: PointerEvent) {
+    const hit = this.pickPart(e.clientX, e.clientY);
+    this.onHover(hit ? String(hit.part.s.label) : null);
+  }
+
+  /** Point the raycaster at the screen position (also in the views of the blueprint mode); false = outside all views */
+  private aim(clientX: number, clientY: number): boolean {
     const r = this.renderer.domElement.getBoundingClientRect();
-    const px = e.clientX - r.left;
-    const py = e.clientY - r.top;
+    const px = clientX - r.left;
+    const py = clientY - r.top;
     let cam: THREE.Camera = this.camera;
     let ndcX = (px / r.width) * 2 - 1;
     let ndcY = -(py / r.height) * 2 + 1;
     if (this.renderMode === 'blueprint') {
       const layout = computeBlueprintLayout(r.width, r.height);
       const vp = [layout.iso, layout.front, layout.top, layout.side].find((v) => px >= v.x && px <= v.x + v.w && py >= v.y && py <= v.y + v.h);
-      if (!vp) {
-        this.onHover(null);
-        return;
-      }
+      if (!vp) return false;
       ndcX = ((px - vp.x) / Math.max(1, vp.w)) * 2 - 1;
       ndcY = -((py - vp.y) / Math.max(1, vp.h)) * 2 + 1;
       if (vp.id !== 'iso') {
         const b = this.bounds();
-        if (b.isEmpty()) {
-          this.onHover(null);
-          return;
-        }
+        if (b.isEmpty()) return false;
         const size = b.getSize(new THREE.Vector3());
         this.setupOrtho(vp, b.getCenter(new THREE.Vector3()), size, computeOrthoScale(size, layout), size.length() * 2 + 100);
         cam = this.orthoCam;
       }
     }
     this.raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), cam);
-    const hit = this.raycaster.intersectObjects(this.parts.map((x) => x.mesh), false)[0];
-    this.onHover(hit ? String(hit.object.userData.label) : null);
+    return true;
+  }
+
+  /** Visible part under the pointer; transparent parts only when nothing solid is behind them */
+  private pickPart(clientX: number, clientY: number): { part: Part; point: THREE.Vector3 } | null {
+    if (!this.aim(clientX, clientY)) return null;
+    const shown = this.parts.filter((x) => x.holder.visible);
+    const hits = this.raycaster.intersectObjects(shown.map((x) => x.mesh), false);
+    if (!hits.length) return null;
+    const of = (o: THREE.Object3D) => shown.find((x) => x.mesh === o)!;
+    const hit = hits.find((x) => !this.arrangement.isGhost(partKey(of(x.object).s))) ?? hits[0];
+    return { part: of(hit.object), point: hit.point.clone() };
+  }
+
+  /** Part under the pointer, with its assembly */
+  pick(clientX: number, clientY: number): PartHit | null {
+    const hit = this.pickPart(clientX, clientY);
+    if (!hit) return null;
+    const s = hit.part.s;
+    const groupKeys = [...new Set(this.parts.filter((x) => x.s.group === s.group).map((x) => partKey(x.s)))];
+    return { key: partKey(s), label: s.label, group: s.group, groupKeys, point: hit.point };
+  }
+
+  // --- Arrangement (hide, transparent, move, rotate) ---
+
+  private partKeys(): string[] {
+    return [...new Set(this.parts.map((x) => partKey(x.s)))];
+  }
+
+  /** Name and key of every part in the scene */
+  partList(): { key: string; label: string }[] {
+    const seen = new Map<string, string>();
+    for (const p of this.parts) if (!seen.has(partKey(p.s))) seen.set(partKey(p.s), p.s.label);
+    return [...seen].map(([key, label]) => ({ key, label }));
+  }
+
+  isHidden = (key: string) => this.arrangement.isHidden(key);
+  isGhost = (key: string) => this.arrangement.isGhost(key);
+  isMoved = (key: string) => this.arrangement.isMoved(key);
+  /** Something differs from the plain assembled view */
+  arranged = () => this.arrangement.changed(this.partKeys());
+
+  private arrangeChanged(materials = false) {
+    if (materials && this.parts.length) this.applyRenderMode();
+    this.layout();
+    this.onArrangeChange();
+  }
+
+  setHidden(keys: string[], on: boolean) {
+    this.arrangement.setHidden(keys, on);
+    this.arrangeChanged();
+  }
+
+  setGhost(keys: string[], on: boolean) {
+    this.arrangement.setGhost(keys, on);
+    this.arrangeChanged(true);
+  }
+
+  /** Show only these parts */
+  isolate(keys: string[]) {
+    this.arrangement.isolate(keys, this.partKeys());
+    this.arrangeChanged();
+  }
+
+  showAll() {
+    this.arrangement.showAll();
+    this.arrangeChanged();
+  }
+
+  /** Back to the assembled position, visible and opaque (all parts without `keys`) */
+  resetParts(keys?: string[]) {
+    this.arrangement.reset(keys);
+    this.arrangeChanged(true);
+  }
+
+  /** Centre of the given parts as they are shown now */
+  private centerOf(keys: string[]): THREE.Vector3 {
+    const set = new Set(keys);
+    const b = new THREE.Box3();
+    for (const p of this.parts) if (set.has(partKey(p.s))) b.union(new THREE.Box3().setFromObject(p.holder));
+    return b.isEmpty() ? new THREE.Vector3() : b.getCenter(new THREE.Vector3());
+  }
+
+  /** Turn parts by a fixed angle around a world axis through their centre */
+  rotateParts(keys: string[], axis: Axis, deg: number) {
+    this.arrangement.rotate(keys, AXES[axis], deg, this.centerOf(keys));
+    this.arrangeChanged();
+  }
+
+  /** Move (from `at`, the clicked point) or rotate parts with the mouse until a click or Esc */
+  startArrange(kind: 'move' | 'rotate', keys: string[], at?: THREE.Vector3) {
+    this.endDrag(true);
+    if (!keys.length) return;
+    const saved = this.arrangement.snapshot(keys);
+    this.drag = { kind, keys, orig: saved, saved, moved: new THREE.Vector3(), axis: kind === 'rotate' ? 'z' : null, from: null, x0: null, at: kind === 'move' && at ? at.clone() : this.centerOf(keys) };
+    this.controls.enabled = false;
+    this.renderer.domElement.style.cursor = kind === 'move' ? 'move' : 'grabbing';
+    window.addEventListener('keydown', this.keydown, true);
+    this.dragHint(0);
+  }
+
+  private dragHint(v: number) {
+    const d = this.drag;
+    if (!d) return this.onArrangeHint(null);
+    const n = (x: number) => (Math.round(x * 10) / 10).toLocaleString(undefined, { maximumFractionDigits: 1 });
+    this.onArrangeHint(d.kind === 'move' ? this.arrangeTexts.move(d.axis, `${n(v)} mm`) : this.arrangeTexts.rotate(d.axis ?? 'z', `${n(v)}°`));
+  }
+
+  private dragMove(clientX: number, clientY: number, shift: boolean) {
+    const d = this.drag;
+    if (!d) return;
+    if (d.kind === 'rotate') {
+      if (d.x0 === null) d.x0 = clientX;
+      const deg = snapAngle((clientX - d.x0) * 0.5, shift ? 15 : 0);
+      this.arrangement.restore(d.saved);
+      this.arrangement.rotate(d.keys, AXES[d.axis ?? 'z'], deg, d.at);
+      this.layout();
+      this.dragHint(deg);
+      return;
+    }
+    if (!this.aim(clientX, clientY)) return;
+    const axis = d.axis ? AXES[d.axis] : null;
+    const viewDir = this.camera.getWorldDirection(new THREE.Vector3());
+    const hit = this.raycaster.ray.intersectPlane(dragPlane(d.at, viewDir, axis), new THREE.Vector3());
+    if (!hit) return;
+    if (!d.from) d.from = hit.clone();
+    let delta = dragDelta(d.from, hit, axis);
+    // Shift: whole millimetres
+    if (shift) delta = new THREE.Vector3(Math.round(delta.x), Math.round(delta.y), Math.round(delta.z));
+    this.arrangement.restore(d.saved);
+    this.arrangement.translate(d.keys, delta);
+    d.moved = delta;
+    this.layout();
+    this.dragHint(delta.length());
+  }
+
+  private keydown(e: KeyboardEvent) {
+    const d = this.drag;
+    if (!d) return;
+    const k = e.key.toLowerCase();
+    if (k === 'escape') this.endDrag(false);
+    else if (k === 'enter') this.endDrag(true);
+    else if (k === 'x' || k === 'y' || k === 'z') {
+      // Same key again unlocks the axis when moving; rotating always needs an axis
+      d.axis = d.axis === k && d.kind === 'move' ? null : (k as Axis);
+      // Keep what was done so far and continue from the current pointer position with the new axis
+      d.saved = this.arrangement.snapshot(d.keys);
+      d.at.add(d.moved);
+      d.moved = new THREE.Vector3();
+      d.from = null;
+      d.x0 = null;
+      this.dragHint(0);
+    } else return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+  }
+
+  /** Finish moving or rotating: keep the new position or go back */
+  private endDrag(keep: boolean) {
+    const d = this.drag;
+    if (!d) return;
+    this.drag = null;
+    if (!keep) this.arrangement.restore(d.orig);
+    this.controls.enabled = true;
+    this.renderer.domElement.style.cursor = '';
+    window.removeEventListener('keydown', this.keydown, true);
+    this.onArrangeHint(null);
+    this.arrangeChanged();
   }
 
   dispose() {
+    this.endDrag(false);
     this.active = false;
     this.clear();
     this.resize.disconnect();

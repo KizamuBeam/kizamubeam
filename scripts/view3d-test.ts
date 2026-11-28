@@ -1232,6 +1232,70 @@ test('Blueprint-Layout: 4 Ansichten ohne Überlappung und einheitlicher Orthogra
   });
 }
 
+{
+  const THREE = await import('three');
+  const { Arrangement, AXES, dragDelta, dragPlane, rotateAbout, snapAngle } = await import('../src/view3d/arrange');
+  const at = (m: InstanceType<typeof THREE.Matrix4>, x: number, y: number, z: number) => new THREE.Vector3(x, y, z).applyMatrix4(m);
+  const nearV = (v: { x: number; y: number; z: number }, x: number, y: number, z: number, what: string) => {
+    near(v.x, x, 1e-9, what + ' x');
+    near(v.y, y, 1e-9, what + ' y');
+    near(v.z, z, 1e-9, what + ' z');
+  };
+
+  test('Anordnung: Drehen um den Mittelpunkt hält den Mittelpunkt fest', () => {
+    const m = rotateAbout(new THREE.Matrix4(), AXES.z, 90, new THREE.Vector3(10, 0, 0));
+    nearV(at(m, 10, 0, 0), 10, 0, 0, 'Mitte');
+    nearV(at(m, 20, 0, 0), 10, 10, 0, 'Ecke');
+    // Two quarter turns around X = flipped over
+    const flip = rotateAbout(rotateAbout(new THREE.Matrix4(), AXES.x, 90, new THREE.Vector3()), AXES.x, 90, new THREE.Vector3());
+    nearV(at(flip, 0, 0, 3), 0, 0, -3, 'umgedreht');
+  });
+
+  test('Anordnung: Ausblenden, Transparent, Nur dieses Teil, Zurücksetzen', () => {
+    const a = new Arrangement();
+    const all = ['box:front', 'box:back', 'box:bottom'];
+    assert.equal(a.changed(all), false);
+    a.setHidden(['box:front'], true);
+    assert.deepEqual(a.hiddenOf(all), ['box:front']);
+    a.setGhost(['box:back'], true);
+    assert.ok(a.isGhost('box:back') && !a.isGhost('box:front'));
+    assert.equal(a.anyMoved(all), false, 'Ausblenden ist keine Bewegung');
+    a.isolate(['box:bottom'], all);
+    assert.deepEqual(a.hiddenOf(all), ['box:front', 'box:back']);
+    a.showAll();
+    assert.deepEqual(a.hiddenOf(all), []);
+    a.translate(['box:front'], new THREE.Vector3(0, -50, 0));
+    assert.ok(a.isMoved('box:front') && a.anyMoved(all));
+    a.reset(['box:front']);
+    assert.ok(!a.isMoved('box:front') && a.isGhost('box:back'));
+    a.reset();
+    assert.equal(a.changed(all), false);
+  });
+
+  test('Anordnung: Abbrechen stellt die Lage vor dem Ziehen wieder her', () => {
+    const a = new Arrangement();
+    a.translate(['p'], new THREE.Vector3(5, 0, 0));
+    const saved = a.snapshot(['p']);
+    a.rotate(['p'], AXES.y, 45, new THREE.Vector3(1, 2, 3));
+    a.translate(['p'], new THREE.Vector3(0, 0, 9));
+    a.restore(saved);
+    nearV(at(a.get('p').m, 0, 0, 0), 5, 0, 0, 'zurück');
+  });
+
+  test('Anordnung: Ziehen entlang einer Achse und Einrasten', () => {
+    const d = dragDelta(new THREE.Vector3(0, 0, 0), new THREE.Vector3(3, 4, 5), AXES.z);
+    nearV(d, 0, 0, 5, 'nur Z');
+    nearV(dragDelta(new THREE.Vector3(1, 1, 1), new THREE.Vector3(3, 4, 5), null), 2, 3, 4, 'frei');
+    // Looking straight down while moving along Z: the plane still contains the Z axis
+    const pl = dragPlane(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0.1, 0, -1), AXES.z);
+    near(pl.normal.z, 0, 1e-9, 'Ebene enthält Z');
+    near(pl.distanceToPoint(new THREE.Vector3(0, 0, 42)), 0, 1e-9, 'Punkt auf der Achse');
+    assert.equal(snapAngle(22, 15), 15);
+    assert.equal(snapAngle(23, 15), 30);
+    assert.equal(snapAngle(23, 0), 23);
+  });
+}
+
 if (failed) {
   console.log(`\n${failed} Test(s) fehlgeschlagen`);
   process.exit(1);
