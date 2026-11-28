@@ -65,7 +65,7 @@
         "Deforma testi, forme e immagini ad arco, rigonfiamento, bandiera o prospettiva, come curve di Bézier pulite",
         "Array a griglia e circolari con anteprima dal vivo, progetti su più pagine e una cronologia in cui tornare indietro",
         "Importa SVG, DXF, PDF, Illustrator (.ai), immagini e progetti LightBurn (.lbrn2) – i colori finiscono direttamente sul livello corrispondente",
-        "Esporta in SVG, DXF, PDF e Illustrator (.ai) – le curve restano curve, i livelli restano separati",
+        "Esporta in SVG, DXF, PDF e Illustrator (.ai) – le curve restano curve, i livelli restano separati, il testo può restare testo vero con il font incorporato",
         "Finestre agganciabili, barre degli strumenti personalizzabili, griglia completamente regolabile, tema chiaro e scuro"
       ]
     },

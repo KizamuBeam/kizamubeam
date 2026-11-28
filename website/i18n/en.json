@@ -65,7 +65,7 @@
         "Warp text, shapes and images into an arc, bulge, flag or perspective, as clean Bézier curves",
         "Grid and circular arrays with live preview, multi-page projects and a history you can jump back through",
         "Import SVG, DXF, PDF, Illustrator (.ai), images and LightBurn projects (.lbrn2) – colors map straight to the matching layer",
-        "Export as SVG, DXF, PDF and Illustrator (.ai) – curves stay curves, layers stay separate",
+        "Export as SVG, DXF, PDF and Illustrator (.ai) – curves stay curves, layers stay separate, text can stay real text with the font embedded",
         "Dockable windows, customizable toolbars, a fully adjustable grid, light and dark theme"
       ]
     },

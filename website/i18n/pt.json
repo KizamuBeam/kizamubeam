@@ -65,7 +65,7 @@
         "Distorça texto, formas e imagens em arco, ondulação, bandeira ou perspectiva, como curvas de Bézier limpas",
         "Matrizes em grade e circulares com prévia ao vivo, projetos com várias páginas e um histórico pelo qual você pode voltar",
         "Importe SVG, DXF, PDF, Illustrator (.ai), imagens e projetos LightBurn (.lbrn2) – as cores vão direto para a camada correspondente",
-        "Exporte como SVG, DXF, PDF e Illustrator (.ai) – curvas permanecem curvas, camadas permanecem separadas",
+        "Exporte como SVG, DXF, PDF e Illustrator (.ai) – curvas permanecem curvas, camadas permanecem separadas, o texto pode continuar texto de verdade com a fonte incorporada",
         "Janelas acopláveis, barras de ferramentas personalizáveis, grade totalmente ajustável, tema claro e escuro"
       ]
     },

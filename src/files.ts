@@ -4,14 +4,14 @@ import { parseMeshFile } from './model3d/mesh';
 import { addMesh } from './model3d/store';
 import { askModelKind, openGenDialog } from './generators/dialog';
 import { getGenerator } from './generators/index';
-import { IDENT, Mat, mul, Obj, pageName, TextShape, visibleLeaves, PALETTE, type ImageShape } from './model';
+import { cutsThrough, IDENT, Layer, Mat, mul, Obj, pageName, TextShape, visibleLeaves, PALETTE, type ImageShape } from './model';
 import { boundsOf, subsToD, shapeSubs, textLayout, textOutline } from './geom';
-import { assetImage, assetRgba, assetUrl, flipImageV, hashId, processedPng, readDpi, registerAsset } from './images';
+import { assetImage, assetRgba, assetUrl, flipImageV, hashId, imageRasterGeometry, outputGrid, processedPng, processImage, processImageAsync, readDpi, registerAsset } from './images';
 import { DEFAULT_IMAGE_MAX_PIXELS, rasterizeImage, resolveImageRasterGeometry } from './imageRaster';
 import { convertLbrn, cutOrderGroupOverride, finishLbrnTexts, isLbrn, LbrnResult, loadCutOrderApply, TextMeasure } from './lbrn';
-import { loadFont, textToSubs } from './fonts';
+import { loadedFont, loadFont, textGlyphRuns, textToSubs } from './fonts';
 import { importDxf, importSvg, ImportResult, ImportParseOptions, PathBuilder, transformSubs } from './importers';
-import { buildDxf, buildPdf, ExportItem, ExportPage, LayerInfo } from './vecexport';
+import { buildDxf, dpiScale, ExportItem, ExportOp, LayerInfo, limitImageDpi } from './vecexport';
 import { FallbackResolver, importPdfPages, isPdf } from './pdfimport';
 import { importRuida, isRuidaFile } from './ruida';
 import { applyDocJobSettings, device } from './laser';
@@ -472,22 +472,98 @@ const dataUrlBytes = (url: string) => {
   return out;
 };
 
+/** How exportItems collects the objects (PDF export options; DXF and the defaults keep the previous behaviour) */
+export interface ExportItemOptions {
+  /** embed = pixels, omit = left out, frame = outline of the image, none = placeholder without pixels (DXF counts them) */
+  images: 'embed' | 'omit' | 'frame' | 'none';
+  imageDpi: number;
+  imageSource: 'original' | 'laser';
+  realText: boolean;
+  fills: 'layer' | 'outline';
+  hiddenLayers: boolean;
+  nonOutput: 'on' | 'off' | 'omit';
+}
+const ITEM_DEFAULTS: ExportItemOptions = { images: 'embed', imageDpi: 0, imageSource: 'original', realText: false, fills: 'layer', hiddenLayers: false, nonOutput: 'on' };
+
+/** Operation of a layer for the colour option "by operation" and CutContour */
+const layerOp = (L: Layer): ExportOp => (L.mode === 'line' ? (cutsThrough(L) ? 'cut' : 'score') : 'engrave');
+
+/** Pixels of a canvas-drawable image, reduced to maxDpi on the area im */
+function canvasPixels(img: CanvasImageSource, pxW: number, pxH: number, maxDpi: number, im: Mat) {
+  const f = dpiScale(im, pxW, pxH, maxDpi);
+  const W = Math.max(1, Math.round(pxW * f)),
+    H = Math.max(1, Math.round(pxH * f));
+  const c = document.createElement('canvas');
+  c.width = W;
+  c.height = H;
+  const ctx = c.getContext('2d');
+  if (!ctx) return null;
+  ctx.drawImage(img, 0, 0, W, H);
+  const px = ctx.getImageData(0, 0, W, H).data;
+  const rgb = new Uint8Array(W * H * 3),
+    alpha = new Uint8Array(W * H);
+  for (let i = 0, j = 0; i < W * H; i++, j += 4) {
+    rgb[i * 3] = px[j];
+    rgb[i * 3 + 1] = px[j + 1];
+    rgb[i * 3 + 2] = px[j + 2];
+    alpha[i] = px[j + 3];
+  }
+  return { pxW: W, pxH: H, rgb, alpha };
+}
+
+/** The image as the laser burns it (dithered at the layer's line interval), as grey pixels 0 = burn … 255 = off */
+async function laserImage(ed: Editor, s: ImageShape, m: Mat, layer: number): Promise<{ m: Mat; pxW: number; pxH: number; gray: Uint8Array } | null> {
+  const L = ed.imgOutput(layer);
+  const { cols, rows } = outputGrid(s, m, L.interval);
+  if (s.edit !== undefined) {
+    const v = processImage(s, L, cols, rows, m);
+    const b = imageRasterGeometry(s).bounds;
+    return v && { m: mul(m, [b.width, 0, 0, b.height, b.x, b.y]), pxW: cols, pxH: rows, gray: new Uint8Array(v) };
+  }
+  const v = await processImageAsync(s, L, cols, rows, m);
+  return v && { m: mul(m, [s.w, 0, 0, s.h, 0, 0]), pxW: cols, pxH: rows, gray: new Uint8Array(v) };
+}
+
 /**
- * Sichtbare Objekte als Exportdaten: Konturen in Weltkoordinaten, Texte als Umrisse, Bilder mit Bildpunkten.
- * notes sammelt, was nicht mitkommt.
+ * Sichtbare Objekte als Exportdaten: Konturen in Weltkoordinaten, Texte als Umrisse (auf Wunsch zusätzlich als
+ * Glyphen für echten Text), Bilder mit Bildpunkten. notes sammelt, was nicht mitkommt.
  */
-async function exportItems(ed: Editor, objs: Obj[], withImages: boolean, notes: Set<string>): Promise<ExportItem[]> {
+export async function exportItems(ed: Editor, objs: Obj[], withImages: boolean, notes: Set<string>, opts: Partial<ExportItemOptions> = {}): Promise<ExportItem[]> {
+  const op: ExportItemOptions = { ...ITEM_DEFAULTS, ...opts };
+  if (!withImages) op.images = 'none';
   const items: ExportItem[] = [];
   for (const [o, m] of visibleLeaves(objs)) {
     const L = ed.layer(o.layer);
-    if (!L.show) continue;
-    const fill = L.mode === 'fill';
+    if (!L.show && !op.hiddenLayers) continue;
+    if (!L.output && op.nonOutput === 'omit') continue;
+    const fill = L.mode === 'fill' && op.fills === 'layer';
+    const base = { layer: o.layer, op: layerOp(L) };
     if (o.shape.kind === 'image') {
-      if (!withImages) {
-        items.push({ kind: 'image', m, layer: o.layer, pxW: 0, pxH: 0 });
+      const s = o.shape;
+      const im: Mat = mul(m, [s.w, 0, 0, s.h, 0, 0]);
+      if (op.images === 'omit') continue;
+      if (op.images === 'none') {
+        items.push({ kind: 'image', m, ...base, pxW: 0, pxH: 0 });
         continue;
       }
-      const s = o.shape;
+      if (op.images === 'frame') {
+        const q = [[0, 0], [1, 0], [1, 1], [0, 1]].map(([u, v]) => ({ x: im[0] * u + im[2] * v + im[4], y: im[1] * u + im[3] * v + im[5] }));
+        items.push({ kind: 'path', subs: [{ closed: true, nodes: q }], ...base, fill: false });
+        continue;
+      }
+      if (op.imageSource === 'laser') {
+        try {
+          const r = await laserImage(ed, s, m, o.layer);
+          if (r) {
+            items.push(limitImageDpi({ kind: 'image', ...base, ...r }, op.imageDpi));
+            continue;
+          }
+        } catch {
+          /* unten vermerkt */
+        }
+        notes.add(t('Ein Bild ließ sich nicht einbetten.'));
+        continue;
+      }
       if (imageEditAffectsAppearance(s)) {
         const source = assetRgba(s.asset);
         const baked = source ? bakeEditedImage(source, s, m) : null;
@@ -502,7 +578,7 @@ async function exportItems(ed: Editor, objs: Obj[], withImages: boolean, notes: 
           rgb[i * 3 + 1] = baked.rgba[j + 1];
           rgb[i * 3 + 2] = baked.rgba[j + 2];
         }
-        items.push({ kind: 'image', m: baked.im, layer: o.layer, pxW: baked.width, pxH: baked.height, rgb });
+        items.push(limitImageDpi({ kind: 'image', m: baked.im, ...base, pxW: baked.width, pxH: baked.height, rgb }, op.imageDpi));
         continue;
       }
       const img = assetImage(s.asset);
@@ -511,38 +587,24 @@ async function exportItems(ed: Editor, objs: Obj[], withImages: boolean, notes: 
         notes.add(t('Ein Bild ließ sich nicht einbetten.'));
         continue;
       }
-      const im: Mat = mul(m, [s.w, 0, 0, s.h, 0, 0]);
       const pxW = img.naturalWidth || img.width,
         pxH = img.naturalHeight || img.height;
       if (url.startsWith('data:image/jpeg')) {
         const jpeg = dataUrlBytes(url);
-        if (jpegComponents(jpeg) === 3) {
-          items.push({ kind: 'image', m: im, layer: o.layer, pxW, pxH, jpeg });
+        if (jpegComponents(jpeg) === 3 && dpiScale(im, pxW, pxH, op.imageDpi) >= 1) {
+          items.push({ kind: 'image', m: im, ...base, pxW, pxH, jpeg });
           continue;
         }
       }
-      const c = document.createElement('canvas');
-      c.width = pxW;
-      c.height = pxH;
-      const ctx = c.getContext('2d');
-      if (!ctx) continue;
-      ctx.drawImage(img, 0, 0);
-      const px = ctx.getImageData(0, 0, pxW, pxH).data;
-      const rgb = new Uint8Array(pxW * pxH * 3),
-        alpha = new Uint8Array(pxW * pxH);
-      for (let i = 0, j = 0; i < pxW * pxH; i++, j += 4) {
-        rgb[i * 3] = px[j];
-        rgb[i * 3 + 1] = px[j + 1];
-        rgb[i * 3 + 2] = px[j + 2];
-        alpha[i] = px[j + 3];
-      }
-      items.push({ kind: 'image', m: im, layer: o.layer, pxW, pxH, rgb, alpha });
+      const px = canvasPixels(img, pxW, pxH, op.imageDpi, im);
+      if (!px) continue;
+      items.push({ kind: 'image', m: im, ...base, ...px });
       continue;
     }
     if (o.shape.kind === 'text') {
       const ts = o.shape;
       let ol = textOutline(ts);
-      if (!ol) {
+      if (!ol || op.realText) {
         try {
           await loadFont(ts.font, ts.bold, ts.italic);
         } catch {
@@ -554,17 +616,31 @@ async function exportItems(ed: Editor, objs: Obj[], withImages: boolean, notes: 
         notes.add(t('Ein Text konnte nicht in Umrisse umgewandelt werden (Schrift fehlt).'));
         continue;
       }
-      items.push({ kind: 'path', subs: transformSubs(ol.subs, m), layer: o.layer, fill });
+      const outline = transformSubs(ol.subs, m);
+      const lf = op.realText ? loadedFont(ts.font, ts.bold, ts.italic) : null;
+      if (lf) {
+        const runs = lf.bytes && !lf.fallback ? textGlyphRuns(ts, lf.font) : null;
+        if (runs) {
+          const key = `${ts.font}|${ts.bold}|${ts.italic}`;
+          const name = [ts.font, ts.bold ? 'Bold' : '', ts.italic ? 'Italic' : ''].filter(Boolean).join(' ');
+          items.push({ kind: 'text', ...base, fill, font: { key, name, bytes: lf.bytes! }, runs: runs.map((r) => ({ ...r, m: mul(m, r.m) })), outline });
+          continue;
+        }
+        if (ts.weld) notes.add(t('Geschweißter Text wurde als Umriss exportiert.'));
+        else if (lf.fallback) notes.add(t('Text mit fehlender Schrift „{font}“ wurde als Umriss exportiert (Ersatzschrift).', { font: ts.font }));
+        else notes.add(t('Text in „{font}“ wurde als Umriss exportiert (Schriftdatei nicht lesbar).', { font: ts.font }));
+      }
+      items.push({ kind: 'path', subs: outline, ...base, fill });
       continue;
     }
-    items.push({ kind: 'path', subs: transformSubs(shapeSubs(o.shape), m), layer: o.layer, fill });
+    items.push({ kind: 'path', subs: transformSubs(shapeSubs(o.shape), m), ...base, fill });
   }
   return items;
 }
 
-const layerInfos = (ed: Editor): LayerInfo[] => Array.from({ length: PALETTE.length }, (_, i) => ({ index: i, name: ed.layer(i).name }));
+export const layerInfos = (ed: Editor): LayerInfo[] => Array.from({ length: PALETTE.length }, (_, i) => ({ index: i, name: ed.layer(i).name }));
 
-const exportName = (ed: Editor, ext: string) => {
+export const exportName = (ed: Editor, ext: string) => {
   return `${ed.tab?.name || 'export'}.${ext}`;
 };
 
@@ -582,25 +658,7 @@ export async function exportDxf(ed: Editor) {
   if (await saveText(exportName(ed, 'dxf'), 'DXF', 'dxf', 'image/vnd.dxf', text)) exportHint(ed, 'DXF', notes);
 }
 
-/** PDF aller Seiten (eine PDF-Seite je Projektseite in Bettgröße) */
-export async function buildPdfBytes(ed: Editor, opts: { currentOnly?: boolean } = {}): Promise<{ bytes: Uint8Array; notes: string[] }> {
-  const notes = new Set<string>();
-  const pages: ExportPage[] = [];
-  const list = opts.currentOnly ? [ed.doc.pages[ed.doc.page]] : ed.doc.pages;
-  for (const p of list) pages.push({ name: p.name, items: await exportItems(ed, p.objs, true, notes) });
-  const title = ed.tab?.name || 'KizamuBeam';
-  return { bytes: buildPdf(pages, { bed: ed.doc.bed, layers: layerInfos(ed), title }), notes: [...notes] };
-}
-
-/** PDF oder Illustrator-Datei (PDF-kompatibel, öffnet in Illustrator, Inkscape, Affinity …) speichern */
-export async function exportPdf(ed: Editor, format: 'pdf' | 'ai' = 'pdf') {
-  const { bytes, notes } = await buildPdfBytes(ed);
-  const url = 'data:application/pdf;base64,' + bytesToBase64(bytes);
-  const ok = await saveDataUrl(exportName(ed, format), format === 'ai' ? 'Adobe Illustrator' : 'PDF', format, url);
-  if (ok) exportHint(ed, format === 'ai' ? 'AI' : 'PDF', notes);
-}
-
-function exportHint(ed: Editor, what: string, notes: string[]) {
+export function exportHint(ed: Editor, what: string, notes: string[]) {
   ed.hint = [t('{what} exportiert.', { what }), ...notes].join(' ');
   ed.emit('tool');
 }
