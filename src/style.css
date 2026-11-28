@@ -1953,6 +1953,49 @@ label.check {
   gap: 4px;
   margin-top: 8px;
 }
+.macro-row {
+  margin-top: 8px;
+}
+.macro-row.compact {
+  margin-top: 4px;
+}
+.macro-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.macro-buttons .btn.on {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+.macro-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.macro-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+.macro-head {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.macro-head input {
+  flex: 1;
+  min-width: 0;
+}
+.macro-add-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
 .move-fire {
   margin-top: 8px;
   padding: 8px;

@@ -97,6 +97,26 @@ The **Move** window jogs the head in steps, sets and clears the user origin, unl
 A laser firing in one spot can set the material on fire and injure eyes. Only use test fire while you are standing at the machine with suitable eye protection and can reach its off switch. The time limit is enforced by the software only. After every test fire, check the laser at the machine and confirm that it is off before KizamuBeam accepts further commands.
 :::
 
+### Macros
+
+**Macros** are your own G-code sequences as buttons, for example to probe a motorized Z axis, move to the focus height or switch air assist. They are stored per device under **Device Settings → Macros** (name, optional tooltip, one command per line) and appear as a row of buttons in the **Move** window and the **Console**. Click **+ Macro** to add one; right-click a button to edit it. **Pick an example …** offers ready-made macros for the selected controller, such as **Probe Z** for GRBL, grblHAL and FluidNC:
+
+```gcode
+G91                            ; relative mode
+G38.2 Z-{probeMax} F{probeFeed}  ; move down until the probe triggers
+G10 L20 P1 Z0                  ; the trigger point becomes work Z = 0
+G0 Z{focusLift}                ; lift to the focus distance
+G90                            ; back to absolute mode
+```
+
+Words in braces are **variables**. Their values are set per device in the same tab, one `name = value` per line (the example adds `probeMax = 40`, `probeFeed = 150`, `focusLift = 7`). `{materialThickness}` is the material height from the device settings. A macro with a variable that has no value does not run.
+
+A macro runs only when the machine is connected and idle. KizamuBeam sends one line at a time and waits for the controller's `ok`. If the controller reports an error or an alarm (for example when the probe never triggers), the remaining lines are not sent and the message says which line failed. If a macro ends in relative mode (`G91`), KizamuBeam sends `G90` afterwards, because jobs and moves expect absolute mode. Clicking a running macro stops it after the current line.
+
+:::warning
+Macros that switch the laser on (`M3` or `M4` with a power above 0) ask for confirmation first. The G-code is shown in the button's tooltip. Check what a macro does before you run it, and keep the machine's off switch within reach.
+:::
+
 ## Console
 
 The **Console** shows the messages of the controller and lets you send commands, with a history. Alarms and active inputs (limit switches, door, probe) are explained in plain language.
@@ -121,6 +141,7 @@ Each laser is a **device** with its own connection, work area and settings. Pick
 - motorized Z axis (for Z offsets per pass and the focus test),
 - air assist command (M8 or M7),
 - **G-code scripts**: commands to run before and after every job,
+- **Macros**: your own G-code buttons for the Move window and the console (see [Macros](#macros)),
 - **red-dot pointer**: the offset between beam and pointer, so framing and click moves can aim with the red dot,
 - **Energy**: the electrical consumption of the machine for the [energy estimate](#energy-and-cost),
 - **test fire** (see above),
