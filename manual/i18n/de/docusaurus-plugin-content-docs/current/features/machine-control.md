@@ -97,6 +97,26 @@ Das Fenster **Verschieben** verfährt den Kopf in Schritten, setzt und löscht d
 Ein Laser, der auf eine Stelle feuert, kann das Material entzünden und Augen verletzen. Nutze Testfeuer nur, wenn du mit geeignetem Augenschutz an der Maschine stehst und ihren Ausschalter erreichst. Die Zeitgrenze setzt nur die Software durch. Prüfe nach jedem Testfeuer den Laser an der Maschine und bestätige, dass er aus ist, bevor KizamuBeam weitere Befehle annimmt.
 :::
 
+### Makros {#macros}
+
+**Makros** sind eigene G-Code-Folgen als Knöpfe, zum Beispiel um eine motorische Z-Achse anzutasten, auf Fokushöhe zu fahren oder Air Assist zu schalten. Sie gehören zum Gerät und stehen unter **Geräteeinstellungen → Makros** (Name, optionaler Tooltip, ein Befehl pro Zeile). Im Fenster **Verschieben** und in der **Konsole** erscheinen sie als Knopfreihe. **+ Makro** legt eines an, Rechtsklick auf einen Knopf bearbeitet ihn. **Beispiel wählen …** bietet fertige Makros für die gewählte Steuerung, etwa **Z antasten** für GRBL, grblHAL und FluidNC:
+
+```gcode
+G91                            ; relativ
+G38.2 Z-{probeMax} F{probeFeed}  ; nach unten, bis der Taster auslöst
+G10 L20 P1 Z0                  ; Auslösepunkt wird Werkstück-Z = 0
+G0 Z{focusLift}                ; auf Fokusabstand anheben
+G90                            ; zurück zu absolut
+```
+
+Wörter in geschweiften Klammern sind **Variablen**. Ihre Werte stehen pro Gerät im selben Reiter, eine Zeile `name = Wert` je Variable (das Beispiel ergänzt `probeMax = 40`, `probeFeed = 150`, `focusLift = 7`). `{materialThickness}` ist die Materialhöhe aus den Geräteeinstellungen. Ein Makro mit einer Variablen ohne Wert startet nicht.
+
+Ein Makro läuft nur, wenn die Maschine verbunden ist und stillsteht. KizamuBeam sendet Zeile für Zeile und wartet jeweils auf das `ok` der Steuerung. Meldet die Steuerung einen Fehler oder Alarm (etwa wenn der Taster nie auslöst), werden die restlichen Zeilen nicht gesendet, und die Meldung nennt die Zeile. Endet ein Makro relativ (`G91`), sendet KizamuBeam danach `G90`, weil Jobs und Fahrten absolute Koordinaten erwarten. Ein Klick auf ein laufendes Makro stoppt es nach der aktuellen Zeile.
+
+:::warning
+Makros, die den Laser einschalten (`M3` oder `M4` mit Leistung über 0), fragen vorher nach. Der G-Code steht im Tooltip des Knopfs. Vor dem Ausführen prüfen, was ein Makro tut, und den Ausschalter der Maschine in Reichweite halten.
+:::
+
 ## Konsole
 
 Die **Konsole** zeigt die Meldungen der Steuerung und lässt dich Befehle senden, mit Verlauf. Alarme und aktive Eingänge (Endschalter, Tür, Taster) werden verständlich erklärt.
@@ -121,6 +141,7 @@ Jeder Laser ist ein **Gerät** mit eigener Verbindung, eigenem Arbeitsbereich un
 - motorisierte Z-Achse (für Z-Versatz je Durchgang und den Fokustest),
 - Befehl für Air Assist (M8 oder M7),
 - **G-Code-Skripte**: Befehle, die vor und nach jedem Job laufen,
+- **Makros**: eigene G-Code-Knöpfe für das Fenster Verschieben und die Konsole (siehe [Makros](#macros)),
 - **Rotpunkt-Zeiger**: der Versatz zwischen Laserstrahl und Zeiger, damit Rahmen und Klickfahrten mit dem roten Punkt zielen können,
 - **Energie**: der elektrische Verbrauch der Maschine für die [Energieschätzung](#energy-and-cost),
 - **Testfeuer** (siehe oben),

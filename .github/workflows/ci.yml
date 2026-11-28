@@ -52,6 +52,9 @@ jobs:
       - name: G-code regression tests
         run: npm run test:gcode
 
+      - name: Macro button tests (#506)
+        run: npm run test:macros
+
       - name: Continuous frame tests (#503)
         run: npm run test:frame-repeat
 

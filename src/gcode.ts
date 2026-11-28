@@ -16,6 +16,7 @@ import { jobOutputsOff, jobOutputsOn } from './fluidnc';
 import { parkedObjs } from './parking';
 import { addPt, boxesOf, buildContainment, containsStrict, emptyBox } from './polyTopology';
 import { ruidaParamsForJob, sanitizeRuidaFilename, writeRuida } from './ruida';
+import { normalizeMacroVars, normalizeMacros, type Macro } from './macros';
 export { sanitizeRuidaFilename };
 
 // ---------- Geräte und Firmware ----------
@@ -290,6 +291,10 @@ export interface Device {
   frameView: 'pointer' | 'tool';
   /** Laser module (from the preset or entered by hand); informational, not used for G-code */
   laser?: LaserModule;
+  /** Custom macro buttons (#506), shown in the Move tab and the console */
+  macros?: Macro[];
+  /** Values for macro placeholders such as {probeMax} */
+  macroVars?: Record<string, number>;
   /** Ruida UDP-Datenport auf dem Laser (Standard 50200, manche Steuerungen 40200) */
   ruidaPort?: number;
   /** Ruida UDP-Tastenport auf dem Laser (Standard 50207) */
@@ -401,6 +406,8 @@ export function loadDevices(): DeviceStore {
           migrated.optTravel = false;
         }
         delete (migrated as { optimize?: boolean }).optimize;
+        if (migrated.macros !== undefined) migrated.macros = normalizeMacros(migrated.macros);
+        if (migrated.macroVars !== undefined) migrated.macroVars = normalizeMacroVars(migrated.macroVars);
         return migrated;
       });
       if (st.devices.length) {

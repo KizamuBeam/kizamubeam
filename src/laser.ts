@@ -34,6 +34,7 @@ import { drawPreviewHead, previewX, previewY } from './previewRender';
 import type { PlaybackSettings } from './previewPlayback';
 import { fireLockMessage } from './fire';
 import { fireControls, fireSettings, installFireOverlay } from './fireUi';
+import { macroRow, macroRunning, macroSettings, onMacroChange } from './macroUi';
 
 const store = loadDevices();
 /** Das gewählte Gerät (live gebunden: wechselt mit der Auswahl) */
@@ -597,7 +598,7 @@ export function buildLaser(ed: Editor) {
   const wins: [string, string, HTMLElement, (() => void)?][] = [
     ['laser', t('Laser'), laserTab(ed)],
     ['move', t('Verschieben'), moveTab(ed)],
-    ['console', t('Konsole'), consoleTab(), () => windowBody('console').querySelector('input')?.focus()],
+    ['console', t('Konsole'), consoleTab(ed), () => windowBody('console').querySelector('input')?.focus()],
     ['material', t('Material'), materialTab(ed)],
     ['camera', t('Kamera'), cameraTab(ed)],
   ];
@@ -1189,6 +1190,7 @@ function moveTab(ed: Editor): HTMLElement {
   );
   const zNote = h('div', { class: 'note' }, t('Z+/Z− verfahren die Achse in Steuerungsrichtung (unabhängig von „Z+ fährt Richtung Material“). Freiraum prüfen. Hinweis Kopfkamera: Nach einer Z-Fahrt stimmt der Maßstab des Kamera-Overlays nicht mehr.'));
   const fire = fireControls(() => device, () => openDeviceDialog(ed, device, undefined, 'fire'));
+  const macros = macroRow(() => device, (id) => openDeviceDialog(ed, device, undefined, 'macros', id), (m, e) => notify(m, e));
   root.append(
     pos,
     h('div', { class: 'move-row' }, pad,
@@ -1206,6 +1208,7 @@ function moveTab(ed: Editor): HTMLElement {
       clickB,
       unlock,
     ),
+    macros.root,
     fire.root,
     modeRow,
   );
@@ -1214,8 +1217,10 @@ function moveTab(ed: Editor): HTMLElement {
     pos.textContent = machine.connected && s.wpos
       ? t('Position X {x}  Y {y} mm', { x: dec(s.wpos[0].toFixed(2)), y: dec(s.wpos[1].toFixed(2)) }) + (device.zAxis && Number.isFinite(s.wpos[2]) ? `  Z ${dec(s.wpos[2].toFixed(2))}` : '') + (s.mpos && (Math.abs(s.mpos[0] - s.wpos[0]) > 1e-3 || Math.abs(s.mpos[1] - s.wpos[1]) > 1e-3) ? t(' (Maschine {x} / {y})', { x: dec(s.mpos[0].toFixed(2)), y: dec(s.mpos[1].toFixed(2)) }) : '')
       : t('Nicht verbunden');
+    const macroBusy = macroRunning();
     root.querySelectorAll('button').forEach((b) => {
-      if (fire.root.contains(b)) return;
+      if (fire.root.contains(b) || macros.root.contains(b)) return;
+      if (macroBusy) { b.disabled = true; return; }
       if (pad.contains(b)) {
         // Jog-Pad bleibt während aktiven Testfeuers bedienbar (Laser bleibt an);
         // nach Stopp ohne Bestätigung am Gerät (unknown) bleibt es gesperrt.
@@ -1227,15 +1232,17 @@ function moveTab(ed: Editor): HTMLElement {
     zSection.hidden = !device.zAxis;
     zNote.hidden = !device.zAxis;
     const zWhy = device.zAxis ? zBlocker() : null;
-    zMinus.disabled = zPlus.disabled = !machine.connected || machine.running || !!zWhy;
+    zMinus.disabled = zPlus.disabled = !machine.connected || machine.running || !!zWhy || macroBusy;
     // Der Zeiger-Modus ist kein Fahrbefehl und bleibt immer verstellbar.
     modeRow.querySelectorAll('button').forEach((b) => ((b as HTMLButtonElement).disabled = false));
     syncClickB();
     if (!fw().clearOrigin) clearO.disabled = true;
     if (!fw().unlock) unlock.disabled = true;
     fire.refresh();
+    macros.refresh();
   };
   machine.on((e) => e.type !== 'line' && refresh());
+  onMacroChange(refresh);
   deviceListeners.add(refresh);
   refresh();
   return root;
@@ -1243,7 +1250,7 @@ function moveTab(ed: Editor): HTMLElement {
 
 // ---------- Konsole ----------
 
-function consoleTab(): HTMLElement {
+function consoleTab(ed: Editor): HTMLElement {
   const root = h('div', { class: 'console-tab' });
   const log = h('div', { class: 'console-log' });
   const input = h('input', { type: 'text', placeholder: t('Befehl, z. B. $I oder G0 X10'), spellcheck: false }) as HTMLInputElement;
@@ -1283,7 +1290,9 @@ function consoleTab(): HTMLElement {
   };
   fillQuick();
   deviceListeners.add(fillQuick);
-  root.append(log, h('div', { class: 'console-input' }, input), quickRow);
+  const macros = macroRow(() => device, (id) => openDeviceDialog(ed, device, undefined, 'macros', id), (m, e) => notify(m, e), true);
+  deviceListeners.add(macros.refresh);
+  root.append(log, h('div', { class: 'console-input' }, input), quickRow, macros.root);
   machine.on((e) => {
     if (e.type !== 'line') return;
     const atEnd = log.scrollTop + log.clientHeight >= log.scrollHeight - 4;
@@ -1307,7 +1316,7 @@ function deviceEditBlocked(): boolean {
   return true;
 }
 
-export function openDeviceDialog(ed: Editor, target: Device = device, onDone?: () => void, initialSection?: 'fire') {
+export function openDeviceDialog(ed: Editor, target: Device = device, onDone?: () => void, initialSection?: 'fire' | 'macros', focusMacro?: string) {
   if (deviceEditBlocked()) return;
   const d = { ...target, energy: energyDraft(target.energy) };
   const bed = { w: d.bedW, h: d.bedH };
@@ -1731,6 +1740,10 @@ export function openDeviceDialog(ed: Editor, target: Device = device, onDone?: (
     }
   };
   syncFw();
+  newTab(t('Makros'));
+  const macroTabIndex = tabs.length - 1;
+  const macroRows = macroSettings(d, initialSection === 'macros' ? focusMacro : undefined);
+  rows.push(...macroRows.rows);
   newTab(t('Erweitert'));
   head(t('KI-Agenten'));
   const limit = (label: string, title: string, get: () => number, set: (v: number) => void) => {
@@ -1795,7 +1808,7 @@ export function openDeviceDialog(ed: Editor, target: Device = device, onDone?: (
     h('span', { class: 'conn-row' }, readBtn),
     readNote,
   );
-  let activeTab = initialSection === 'fire' ? fireTabIndex : lastDeviceTab < tabs.length ? lastDeviceTab : 0;
+  let activeTab = initialSection === 'fire' ? fireTabIndex : initialSection === 'macros' ? macroTabIndex : lastDeviceTab < tabs.length ? lastDeviceTab : 0;
   const selectTab = (i: number) => {
     activeTab = lastDeviceTab = i;
     tabBtns.forEach((b, k) => b.classList.toggle('cur', k === i));
@@ -1818,6 +1831,7 @@ export function openDeviceDialog(ed: Editor, target: Device = device, onDone?: (
           if (deviceEditBlocked()) return;
           (document.activeElement as HTMLElement | null)?.blur();
           if (!fireRows.save(() => selectTab(fireTabIndex))) return;
+          if (!macroRows.save(() => selectTab(macroTabIndex))) return;
           saveEnergySettings(energyRows, () => selectTab(energyTabIndex), () => {
             if (deviceEditBlocked()) return;
             Object.assign(target, d, { bedW: bed.w, bedH: bed.h });

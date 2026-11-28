@@ -97,6 +97,26 @@ La **Prova di accensione** accende il laser a bassa potenza per qualche secondo,
 Un laser che spara in un punto può incendiare il materiale e ferire gli occhi. Usa la prova di accensione solo se sei alla macchina con una protezione per gli occhi adatta e puoi raggiungere il suo interruttore di spegnimento. Il limite di tempo è imposto solo dal software. Dopo ogni prova controlla il laser sulla macchina e conferma che è spento prima che KizamuBeam accetti altri comandi.
 :::
 
+### Macro {#macros}
+
+Le **macro** sono sequenze G-code personali come pulsanti, ad esempio per tastare un asse Z motorizzato, portarsi all'altezza di fuoco o attivare l'air assist. Appartengono al dispositivo e si trovano in **Impostazioni dispositivo → Macro** (nome, tooltip facoltativo, un comando per riga). Compaiono come fila di pulsanti nella finestra **Sposta** e nella **Console**. **+ Macro** ne aggiunge una, il clic destro su un pulsante la modifica. **Scegli un esempio …** offre macro pronte per il controller scelto, ad esempio **Tasta Z** per GRBL, grblHAL e FluidNC:
+
+```gcode
+G91                            ; modalità relativa
+G38.2 Z-{probeMax} F{probeFeed}  ; scende finché il tastatore scatta
+G10 L20 P1 Z0                  ; il punto di contatto diventa Z pezzo = 0
+G0 Z{focusLift}                ; risale alla distanza di fuoco
+G90                            ; di nuovo modalità assoluta
+```
+
+Le parole tra parentesi graffe sono **variabili**. I loro valori si impostano per dispositivo nella stessa scheda, una riga `nome = valore` per variabile (l'esempio aggiunge `probeMax = 40`, `probeFeed = 150`, `focusLift = 7`). `{materialThickness}` è l'altezza materiale delle impostazioni del dispositivo. Una macro con una variabile senza valore non parte.
+
+Una macro viene eseguita solo se la macchina è connessa e ferma. KizamuBeam invia una riga alla volta e attende l'`ok` del controller. Se il controller segnala un errore o un allarme (ad esempio quando il tastatore non scatta mai), le righe restanti non vengono inviate e il messaggio indica la riga. Se una macro termina in modalità relativa (`G91`), KizamuBeam invia poi `G90`, perché lavori e spostamenti si aspettano coordinate assolute. Un clic su una macro in esecuzione la ferma dopo la riga corrente.
+
+:::warning
+Le macro che accendono il laser (`M3` o `M4` con potenza sopra 0) chiedono prima conferma. Il G-code è nel tooltip del pulsante. Prima di eseguire una macro controlla cosa fa e tieni a portata di mano l'interruttore della macchina.
+:::
+
 ## Console
 
 La **Console** mostra i messaggi del controller e permette di inviare comandi, con cronologia. Allarmi e ingressi attivi (finecorsa, sportello, sonda) vengono spiegati in modo comprensibile.
@@ -121,6 +141,7 @@ Ogni laser è un **dispositivo** con connessione, area di lavoro e impostazioni 
 - asse Z motorizzato (per l’offset Z per passaggio e il test del fuoco),
 - comando dell’air assist (M8 o M7),
 - **Script G-code**: comandi da eseguire prima e dopo ogni lavoro,
+- **Macro**: pulsanti G-code personali per la finestra Sposta e la console (vedi [Macro](#macros)),
 - **Puntatore punto rosso**: lo spostamento tra raggio e puntatore, così frame e spostamenti con clic possono mirare con il punto rosso,
 - **Energia**: il consumo elettrico della macchina per la [stima dell'energia](#energy-and-cost),
 - **prova di accensione** (vedi sopra),
