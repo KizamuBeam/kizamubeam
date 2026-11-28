@@ -1,7 +1,7 @@
 // Text auf Pfad: Glyphen entlang einer Kurve anordnen (wie „Apply Path to Text“ in LightBurn).
 // Jede Glyphe wird starr verschoben und gedreht, sodass ihre Mitte auf der Kurve sitzt und ihre Grundlinie
 // der Tangente folgt. Starre Transformationen erhalten die Bézierkurven der Schrift exakt.
-import { Node, Pt, SubPath, TextPath } from './model';
+import { Mat, Node, Pt, SubPath, TextPath } from './model';
 import { bezierPt, segments } from './curves';
 
 /** Eine Glyphe in Textkoordinaten: Konturen, Mitte auf der Grundlinie (x) und Grundlinie ihrer Zeile (y) */
@@ -123,19 +123,28 @@ function anchor(curve: ArcLength, align: 'left' | 'center' | 'right', flip: bool
   return align === 'left' ? 0 : align === 'center' ? L / 2 : L;
 }
 
-/** Glyphen auf die Kurve setzen (Konturen je Glyphe). Ergebnis in denselben lokalen Koordinaten wie die Kurve. */
-export function placeOnPath(glyphs: PlacedGlyph[], tp: TextPath, align: 'left' | 'center' | 'right'): SubPath[][] {
+/**
+ * Rigid placement of each glyph on the curve: matrix from text coordinates (glyph centre cx on the baseline) to the
+ * local coordinates of the curve. Used for outlines and for real text in PDF exports.
+ */
+export function pathGlyphMatrices(cxs: number[], tp: TextPath, align: 'left' | 'center' | 'right'): Mat[] {
   const curve = new ArcLength(tp.flip ? reverseSub(tp.sub) : tp.sub);
   const base = anchor(curve, align, tp.flip) + tp.offset;
-  return glyphs.map((g) => {
-    const { p, t: T } = curve.at(base + g.cx);
+  return cxs.map((cx) => {
+    const { p, t: T } = curve.at(base + cx);
     // Normale zeigt im y-nach-unten-System auf die Unterseite des Texts
     const N = { x: -T.y, y: T.x };
-    const map = (q: Pt): Pt => {
-      const u = q.x - g.cx,
-        v = q.y - tp.dist;
-      return { x: p.x + u * T.x + v * N.x, y: p.y + u * T.y + v * N.y };
-    };
+    // q ↦ p + (q.x − cx)·T + (q.y − dist)·N
+    return [T.x, T.y, N.x, N.y, p.x - cx * T.x - tp.dist * N.x, p.y - cx * T.y - tp.dist * N.y];
+  });
+}
+
+/** Glyphen auf die Kurve setzen (Konturen je Glyphe). Ergebnis in denselben lokalen Koordinaten wie die Kurve. */
+export function placeOnPath(glyphs: PlacedGlyph[], tp: TextPath, align: 'left' | 'center' | 'right'): SubPath[][] {
+  const mats = pathGlyphMatrices(glyphs.map((g) => g.cx), tp, align);
+  return glyphs.map((g, i) => {
+    const m = mats[i];
+    const map = (q: Pt): Pt => ({ x: m[0] * q.x + m[2] * q.y + m[4], y: m[1] * q.x + m[3] * q.y + m[5] });
     return g.subs.map((sp) => ({
       closed: sp.closed,
       nodes: sp.nodes.map((n): Node => {

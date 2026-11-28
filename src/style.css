@@ -6760,3 +6760,33 @@ dialog h3[tabindex]:focus-visible { outline: 2px solid var(--accent, #6bafff); o
     grid-row: auto;
   }
 }
+/* PDF/AI export dialog: option groups, scrolls on small windows */
+.pdf-export-dialog {
+  width: min(560px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+}
+.pdf-export-dialog .pdfx-group {
+  min-width: 0;
+  margin: 6px 0;
+  padding: 6px 10px 8px;
+  border: 1px solid var(--line);
+}
+.pdf-export-dialog .form {
+  grid-template-columns: minmax(120px, 1fr) minmax(0, 260px);
+}
+.pdf-export-dialog .form select,
+.pdf-export-dialog .form input {
+  width: 100%;
+  min-width: 0;
+}
+.pdf-export-dialog .pdfx-check {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  margin-top: 4px;
+}
+.pdf-export-dialog .dialog-buttons {
+  align-items: center;
+  flex-wrap: wrap;
+}

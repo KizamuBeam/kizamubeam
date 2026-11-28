@@ -472,6 +472,274 @@ await test('SVG: Auto-DPI erkennt Adobe-Illustrator-Kommentar trotz Bereinigung'
   }
 });
 
+// ---------- PDF-Export: echter Text und Optionen (#234) ----------
+{
+  const opentype = (await import('opentype.js')).default;
+  const { textGlyphRuns, textToSubs } = await import('../src/fonts');
+  const { readSfnt, fontFacts, toUnicodeCMap, checkEmbeddable } = await import('../src/pdftext');
+  const { itemsBounds, limitImageDpi, pageFrame } = await import('../src/vecexport');
+  const { cleanPdfOptions, lineWidthMm, PDF_EXPORT_DEFAULTS } = await import('../src/pdfExportOptions');
+  const { inflateSync } = await import('fflate');
+  type Mat = import('../src/model').Mat;
+  type TextShape = import('../src/model').TextShape;
+  type ExportText = import('../src/vecexport').ExportText;
+
+  const latin1 = (b: Uint8Array) => Array.from(b, (c) => String.fromCharCode(c)).join('');
+  /** All streams of a PDF, inflated where they are Flate-compressed */
+  const streams = (pdf: Uint8Array) => {
+    const s = latin1(pdf);
+    const out: { dict: string; data: string }[] = [];
+    const re = /<<((?:(?!>>\nstream)[\s\S])*)>>\nstream\n/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(s))) {
+      const len = Number(/\/Length (\d+)/.exec(m[1])?.[1] ?? 0);
+      const raw = pdf.subarray(m.index + m[0].length, m.index + m[0].length + len);
+      let data = raw;
+      if (m[1].includes('/FlateDecode')) data = inflateSync(raw.subarray(2));
+      out.push({ dict: m[1], data: latin1(data) });
+    }
+    return out;
+  };
+  const mulM = (a: Mat, b: Mat): Mat => [a[0] * b[0] + a[2] * b[1], a[1] * b[0] + a[3] * b[1], a[0] * b[2] + a[2] * b[3], a[1] * b[2] + a[3] * b[3], a[0] * b[4] + a[2] * b[5] + a[4], a[1] * b[4] + a[3] * b[5] + a[5]];
+  const moveSubs = (subs: SubPath[], m: Mat): SubPath[] => {
+    const ap = (p: { x: number; y: number }) => ({ x: m[0] * p.x + m[2] * p.y + m[4], y: m[1] * p.x + m[3] * p.y + m[5] });
+    return subs.map((sp) => ({ closed: sp.closed, nodes: sp.nodes.map((n) => ({ ...ap(n), ...(n.cin ? { cin: ap(n.cin) } : {}), ...(n.cout ? { cout: ap(n.cout) } : {}) })) }));
+  };
+  const ttfBytes = new Uint8Array(readFileSync('node_modules/three/examples/fonts/ttf/kenpixel.ttf'));
+  const parse = (b: Uint8Array) => opentype.parse(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength));
+  const ttf = parse(ttfBytes);
+  const textShape = (over: Partial<TextShape> = {}): TextShape => ({
+    kind: 'text', text: 'Hallo Welt\nÄpfel 42', font: 'KenPixel', size: 8, bold: false, italic: false, upper: false, align: 'left', hSpace: 0.4, vSpace: 1, ...over,
+  });
+  const textItem = (ts: TextShape, font: opentype.Font, bytes: Uint8Array, m: Mat, layer = 0, fill = true): ExportText => ({
+    kind: 'text',
+    layer,
+    fill,
+    op: fill ? 'engrave' : 'cut',
+    font: { key: ts.font, name: ts.font, bytes },
+    runs: textGlyphRuns(ts, font)!.map((r) => ({ ...r, m: mulM(m, r.m) })),
+    outline: moveSubs(textToSubs(ts, font), m),
+  });
+  /** Imported outlines land where the exported outlines were (same nodes; closed contours may start elsewhere) */
+  const sameOutlines = (want: SubPath[], got: SubPath[], tol: number) => {
+    assert.equal(got.length, want.length, 'Anzahl Konturen');
+    const left = [...got];
+    const fits = (a: SubPath, b: SubPath) => {
+      const n = a.nodes.length;
+      if (b.nodes.length !== n || a.closed !== b.closed) return false;
+      for (let r = 0; r < (a.closed ? n : 1); r++)
+        if (a.nodes.every((p, k) => Math.abs(p.x - b.nodes[(k + r) % n].x) <= tol && Math.abs(p.y - b.nodes[(k + r) % n].y) <= tol)) return true;
+      return false;
+    };
+    want.forEach((a, i) => {
+      const j = left.findIndex((b) => fits(a, b));
+      assert.ok(j >= 0, `Kontur ${i} (${a.nodes.length} Knoten bei ${a.nodes[0].x.toFixed(3)}, ${a.nodes[0].y.toFixed(3)}) fehlt`);
+      left.splice(j, 1);
+    });
+  };
+  const outlinesOf = (r: Awaited<ReturnType<typeof importPdf>>) => r.items.filter((it): it is ImportedPath => it.kind === 'path').flatMap((p) => p.subs);
+
+  await test('PDF-Text: TrueType als CIDFontType2-Teilmenge, Rundreise genau, ToUnicode', async () => {
+    const ts = textShape();
+    const m: Mat = [1, 0, 0, 1, 20, 40];
+    const it = textItem(ts, ttf, ttfBytes, m);
+    const fallbacks: string[] = [];
+    const pdf = buildPdf([{ name: 'p', items: [it] }], { bed, layers, realText: true, onTextFallback: (r) => fallbacks.push(r) });
+    save('text-ttf.pdf', pdf);
+    assert.deepEqual(fallbacks, []);
+    const s = latin1(pdf);
+    assert.match(s, /\/Subtype \/CIDFontType2/);
+    assert.match(s, /\/Encoding \/Identity-H/);
+    assert.match(s, /\/BaseFont \/[A-Z]{6}\+KenPixel/);
+    assert.match(s, /\/CIDToGIDMap \/Identity/);
+    const st = streams(pdf);
+    const content = st.find((x) => x.data.includes(' TJ'));
+    assert.ok(content, 'Text im Inhalt');
+    assert.match(content!.data, /BT \/F0 1 Tf 2 Tr/);
+    const tu = st.find((x) => x.data.includes('beginbfchar'))!.data;
+    const H = ttf.charToGlyph('H').index.toString(16).toUpperCase().padStart(4, '0');
+    assert.ok(tu.includes(`<${H}> <0048>`), 'H in ToUnicode');
+    const ae = ttf.charToGlyph('Ä').index.toString(16).toUpperCase().padStart(4, '0');
+    assert.ok(tu.includes(`<${ae}> <00C4>`), 'Ä in ToUnicode');
+    // Eingebettete Teilmenge ist eine gültige TrueType-Datei mit denselben Glyphen-IDs
+    const prog = st.find((x) => x.dict.includes('/Length1'))!;
+    const sub = Uint8Array.from(prog.data, (c) => c.charCodeAt(0));
+    assert.ok(sub.length < ttfBytes.length, 'kleiner als die ganze Schrift');
+    const sf = readSfnt(sub)!;
+    assert.ok(sf && fontFacts(sf), 'lesbar');
+    const subFont = parse(sub);
+    assert.equal(subFont.numGlyphs, ttf.numGlyphs, 'Glyphen-IDs bleiben');
+    assert.ok(subFont.glyphs.get(ttf.charToGlyph('H').index).getPath(0, 0, 10).commands.length > 0, 'H behalten');
+    assert.equal(subFont.glyphs.get(ttf.charToGlyph('Z').index).getPath(0, 0, 10).commands.length, 0, 'Z geleert');
+    assert.equal(subFont.charToGlyph('H').index, ttf.charToGlyph('H').index, 'cmap der Teilmenge');
+    // Rundreise: dieselben Umrisse an derselben Stelle
+    sameOutlines(it.outline, outlinesOf(await importPdf(pdf)), 2e-3);
+  });
+
+  await test('PDF-Text: gedreht, gestaucht (Höchstbreite), rechtsbündig und auf Pfad', async () => {
+    const turn: Mat = [Math.cos(0.4), Math.sin(0.4), -Math.sin(0.4), Math.cos(0.4), 120, 90];
+    const squeezed = textShape({ text: 'Breiter Text', maxW: 30, align: 'right' });
+    const onPath = textShape({
+      text: 'Bogen',
+      align: 'center',
+      path: { sub: { closed: false, nodes: [{ x: -30, y: 0, cout: { x: -15, y: -25 } }, { x: 30, y: 0, cin: { x: 15, y: -25 } }] }, offset: 0, dist: 0, flip: false },
+    });
+    const a = textItem(squeezed, ttf, ttfBytes, turn);
+    const b = textItem(onPath, ttf, ttfBytes, [1, 0, 0, 1, 60, 150]);
+    assert.ok(b.runs.length > 1 && b.runs.every((r) => r.glyphs.length === 1), 'auf Pfad je Glyphe ein Lauf');
+    const pdf = buildPdf([{ name: 'p', items: [a, b] }], { bed, layers, realText: true });
+    save('text-turned.pdf', pdf);
+    sameOutlines([...a.outline, ...b.outline], outlinesOf(await importPdf(pdf)), 3e-3);
+  });
+
+  await test('PDF-Text: Linien-Layer als Kontur (1 Tr), geschweißter Text hat keine Glyphen', async () => {
+    const it = textItem(textShape(), ttf, ttfBytes, [1, 0, 0, 1, 10, 20], 0, false);
+    const pdf = buildPdf([{ name: 'p', items: [it] }], { bed, layers, realText: true });
+    assert.match(streams(pdf).find((x) => x.data.includes(' TJ'))!.data, /1 Tr/);
+    assert.equal(textGlyphRuns(textShape({ weld: true }), ttf), null);
+  });
+
+  await test('PDF-Text: Schrift mit Einbettungsverbot wird zu Umrissen', async () => {
+    const locked = new Uint8Array(ttfBytes);
+    const sf = readSfnt(locked)!;
+    const os2 = sf.tables.get('OS/2')!;
+    os2[8] = 0;
+    os2[9] = 2; // fsType = 0x0002 (Restricted License)
+    assert.equal(checkEmbeddable(locked), 'license');
+    const it = textItem(textShape(), ttf, locked, [1, 0, 0, 1, 20, 40]);
+    const why: string[] = [];
+    const pdf = buildPdf([{ name: 'p', items: [it] }], { bed, layers, realText: true, onTextFallback: (r, f) => why.push(`${r}:${f}`) });
+    assert.deepEqual(why, ['license:KenPixel']);
+    assert.ok(!latin1(pdf).includes('/FontFile2'), 'keine Schrift eingebettet');
+    sameOutlines(it.outline, outlinesOf(await importPdf(pdf)), 2e-4);
+  });
+
+  await test('PDF-Text: OpenType mit CFF wird ganz eingebettet (FontFile3 /OpenType)', async () => {
+    // Kleine CFF-Schrift mit opentype.js bauen: .notdef, Leerzeichen, A, B
+    const glyph = (name: string, unicode: number | undefined, pts: [number, number][]) => {
+      const path = new opentype.Path();
+      pts.forEach(([x, y], i) => (i ? path.lineTo(x, y) : path.moveTo(x, y)));
+      if (pts.length) path.close();
+      return new opentype.Glyph({ name, unicode, advanceWidth: 600, path });
+    };
+    const cffFont = new opentype.Font({
+      familyName: 'Probe', styleName: 'Regular', unitsPerEm: 1000, ascender: 800, descender: -200,
+      glyphs: [glyph('.notdef', undefined, []), glyph('space', 32, []), glyph('A', 65, [[50, 0], [300, 700], [550, 0]]), glyph('B', 66, [[50, 0], [50, 700], [500, 600], [500, 100]])],
+    });
+    const otf = new Uint8Array(cffFont.toArrayBuffer());
+    assert.equal(latin1(otf.subarray(0, 4)), 'OTTO');
+    const font = parse(otf);
+    const ts = textShape({ text: 'AB BA', font: 'Probe', hSpace: 0 });
+    const it = textItem(ts, font, otf, [1, 0, 0, 1, 30, 60]);
+    const pdf = buildPdf([{ name: 'p', items: [it] }], { bed, layers, realText: true });
+    save('text-cff.pdf', pdf);
+    const s = latin1(pdf);
+    assert.match(s, /\/Subtype \/CIDFontType0 /);
+    assert.match(s, /\/FontFile3/);
+    assert.match(s, /\/Subtype \/OpenType/);
+    sameOutlines(it.outline, outlinesOf(await importPdf(pdf)), 2e-3);
+  });
+
+  await test('PDF-Text: WOFF wird entpackt, Sammlungen (.ttc) abgelehnt', async () => {
+    const woff = new Uint8Array(readFileSync('node_modules/@fontsource/roboto/files/roboto-latin-400-normal.woff'));
+    const sf = readSfnt(woff);
+    assert.ok(sf && fontFacts(sf)?.kind === 'truetype', 'WOFF lesbar');
+    assert.equal(readSfnt(new Uint8Array([0x74, 0x74, 0x63, 0x66, 0, 1, 0, 0, 0, 0, 0, 1])), null);
+    assert.equal(checkEmbeddable(new Uint8Array([0x74, 0x74, 0x63, 0x66, 0, 1, 0, 0, 0, 0, 0, 1])), 'format');
+    assert.match(toUnicodeCMap(new Map([[3, 'ﬁ'], [5, 'fi']])), /<0005> <00660069>/);
+  });
+
+  await test('PDF-Optionen: Seitengröße Inhalt mit Rand und Papier quer', () => {
+    const its: ExportItem[] = [{ kind: 'path', subs: [rect], layer: 0, fill: false }];
+    assert.deepEqual(itemsBounds(its), { x: 10, y: 10, w: 50, h: 30 });
+    const c = pageFrame(its, { bed, pageSize: { kind: 'content', margin: 5 } });
+    assert.deepEqual(c, { w: 60, h: 40, dx: -5, dy: -5 });
+    const a4 = pageFrame(its, { bed, pageSize: { kind: 'paper', w: 210, h: 297 } });
+    assert.equal(a4.w, 297, 'quer, weil der Inhalt breiter als hoch ist');
+    near(a4.dx + 10 + 25, 297 / 2, 1e-9, 'mittig');
+    const pdf = buildPdf([{ name: 'p', items: its }], { bed, layers, pageSize: { kind: 'content', margin: 5 } });
+    assert.match(latin1(pdf), new RegExp(`/MediaBox \\[0 0 ${(60 * 72 / 25.4).toFixed(4).replace(/0+$/, '')} `));
+  });
+
+  await test('PDF-Optionen: Farben, Haarlinie, CutContour, ausgeschaltete und nicht druckende Ebenen, Metadaten', () => {
+    const its: ExportItem[] = [
+      { kind: 'path', subs: [rect], layer: 0, fill: false, op: 'cut' },
+      { kind: 'path', subs: [circle], layer: 1, fill: true, op: 'engrave' },
+      { kind: 'path', subs: [sCurve], layer: 5, fill: false, op: 'score' },
+      { kind: 'path', subs: [mixed], layer: 2, fill: false, group: 'guides', color: [0, 150, 255], noBounds: true },
+      { kind: 'note', layer: 0, group: 'notes', x: 5, y: 5, size: 3.5, lines: ['Material: Pappel', 'Größe (3 mm)'] },
+    ];
+    const pdf = buildPdf([{ name: 'p', items: its }], {
+      bed, layers, colors: 'operation', stroke: lineWidthMm({ lineWeight: 'hairline', lineWidth: 0 }), cutContour: true, layersOff: [5],
+      groups: [{ id: 'guides', name: 'Hilfslinien', print: false }, { id: 'notes', name: 'Notizen', print: false }, { id: 'unused', name: 'X' }],
+      author: 'Hanjo', subject: 'Probe', keywords: 'Laser, Test',
+    });
+    save('options.pdf', pdf);
+    const s = latin1(pdf);
+    const c = streams(pdf).find((x) => x.data.includes('BDC'))!.data;
+    assert.match(c, /^0\.0283 w/, 'Haarlinie 0,01 mm');
+    assert.match(c, /\/OC \/L0 BDC\n\/CutContour CS 1 SCN\n/, 'Schnitt als Schmuckfarbe');
+    assert.match(c, /\/OC \/L1 BDC\n0 0 0 RG 0 0 0 rg/, 'Gravur schwarz');
+    assert.match(c, /\/OC \/L5 BDC\n0 0 1 RG/, 'Ritzen blau');
+    assert.match(c, /\/OC \/Gguides BDC\n0 0\.5882 1 RG/, 'feste Farbe der Hilfslinien');
+    assert.ok(c.includes('(Gr\\366\\337e \\(3 mm\\)) Tj'), 'Notiz in WinAnsi');
+    assert.match(s, /\/Separation \/CutContour \/DeviceRGB/);
+    assert.match(s, /\/BaseFont \/Helvetica/);
+    assert.match(s, /\/Name \(Hilfslinien\) \/Usage << \/Print << \/PrintState \/OFF >>/);
+    assert.ok(!s.includes('(X)'), 'unbenutzte Gruppe fehlt');
+    const off = /\/OFF \[([^\]]*)\]/.exec(s)![1];
+    const l5 = /(\d+) 0 obj\n<< \/Type \/OCG \/Name \(C05\) >>/.exec(s)![1];
+    assert.ok(off.includes(`${l5} 0 R`), 'Layer 5 ausgeschaltet');
+    assert.match(s, /\/Event \/Print/);
+    assert.match(s, /\/Author \(Hanjo\) \/Subject \(Probe\) \/Keywords \(Laser, Test\)/);
+  });
+
+  await test('PDF-Optionen: Illustrator-Zeichenflächen legen die Seiten nebeneinander', async () => {
+    const pdf = buildPdf(
+      [
+        { name: 'A', items: [{ kind: 'path', subs: [rect], layer: 0, fill: false }] },
+        { name: 'B', items: [{ kind: 'path', subs: [rect], layer: 3, fill: false }] },
+      ],
+      { bed, layers, artboards: { gap: 20, group: 'frames' }, groups: [{ id: 'frames', name: 'Zeichenflächen', print: false }] },
+    );
+    save('artboards.ai', pdf);
+    const r = await importPdf(pdf);
+    assert.equal(r.pageCount, 1);
+    near(r.pageSize.w, 300 * 2 + 20, 1e-3, 'Breite beider Seiten mit Abstand');
+    const s = latin1(pdf);
+    assert.ok(!s.includes('/PageLabels'));
+    const c = streams(pdf).find((x) => x.data.includes('BDC'))!.data;
+    assert.equal(c.match(/\/OC \/Gframes BDC/g)?.length, 2, 'zwei Rahmen');
+    assert.equal(c.match(/ re W n/g)?.length, 2, 'je Seite beschnitten');
+  });
+
+  await test('PDF-Optionen: Bildauflösung begrenzen, Graustufenbild, Optionen bereinigen', () => {
+    const big = { kind: 'image' as const, m: [25.4, 0, 0, 25.4, 0, 0] as Mat, layer: 0, pxW: 4, pxH: 4, rgb: new Uint8Array(48).fill(200), alpha: new Uint8Array(16).fill(255) };
+    const small = limitImageDpi(big, 2);
+    assert.equal(small.pxW, 2);
+    assert.equal(small.rgb!.length, 12);
+    assert.equal(small.rgb![0], 200);
+    assert.equal(limitImageDpi(big, 0), big);
+    const pdf = buildPdf([{ name: 'p', items: [{ kind: 'image', m: imgM, layer: 0, pxW: 2, pxH: 1, gray: new Uint8Array([0, 255]) }] }], { bed, layers });
+    assert.match(latin1(pdf), /\/ColorSpace \/DeviceGray \/Filter \/FlateDecode \/Length/);
+    const o = cleanPdfOptions({ scope: 'nope', margin: -4, imageDpi: 99999, realText: 'ja', title: 7, colors: 'black' });
+    assert.equal(o.scope, PDF_EXPORT_DEFAULTS.scope);
+    assert.equal(o.margin, 0);
+    assert.equal(o.imageDpi, 4800);
+    assert.equal(o.realText, false);
+    assert.equal(o.title, '');
+    assert.equal(o.colors, 'black');
+    assert.equal(lineWidthMm({ lineWeight: 'custom', lineWidth: 0.25 }), 0.25);
+  });
+
+  await test('DXF: echter Text kommt als Umriss an', () => {
+    const it = textItem(textShape(), ttf, ttfBytes, [1, 0, 0, 1, 20, 40]);
+    const { text } = buildDxf([it, { kind: 'note', layer: 0, x: 0, y: 0, size: 3, lines: ['x'] }], layers, bed.h);
+    const n = importDxf(text).items.filter((x) => x.kind === 'path').flatMap((x) => (x as ImportedPath).subs).length;
+    assert.equal(n, it.outline.length);
+  });
+}
+
 if (failed) {
   console.log(`\n${failed} Test(s) fehlgeschlagen`);
   process.exit(1);

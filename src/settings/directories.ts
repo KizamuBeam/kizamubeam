@@ -4,6 +4,7 @@ import { h } from '../dom';
 import { t } from '../i18n';
 import { isTauri } from '../machine';
 import { loadAlwaysDefaultDirs, loadDefaultOpenDir, loadDefaultSaveDir, saveAlwaysDefaultDirs, saveDefaultOpenDir, saveDefaultSaveDir } from '../files';
+import { loadPdfRemember, resetPdfOptions, savePdfRemember } from '../pdfExportOptions';
 import { registerSettingsSection, type SettingsDraftContext, type SettingsField } from './registry';
 
 const desktopOnly = () => isTauri();
@@ -52,6 +53,19 @@ export function directorySettingsFields(): SettingsField[] {
       hint: t('Öffnen- und Speichern-Dialog starten immer in den Standardordnern — auch wenn in dieser Sitzung schon andere Ordner benutzt wurden. Aus: Die Sitzung merkt sich benutzte Ordner; die Standards gelten nur, bis erstmals ein anderer Ordner gewählt wurde.'),
       when: desktopOnly,
       get: loadAlwaysDefaultDirs, set: (v) => saveAlwaysDefaultDirs(v),
+    },
+    {
+      kind: 'toggle', id: 'files.pdfExportRemember', group: t('PDF- und Illustrator-Export'), label: t('Letzte Export-Einstellungen merken'), def: true,
+      keywords: 'PDF AI Illustrator Export Dialog merken Einstellungen remember',
+      hint: t('Der Export-Dialog startet mit den zuletzt benutzten Einstellungen. Titel, Thema und Stichwörter gelten immer nur für einen Export.'),
+      get: loadPdfRemember, set: (v) => savePdfRemember(v),
+    },
+    {
+      kind: 'action', id: 'files.pdfExportReset', group: t('PDF- und Illustrator-Export'), label: t('Export-Einstellungen zurücksetzen'),
+      keywords: 'PDF AI Illustrator Export zurücksetzen Standard reset',
+      hint: t('Vergisst die gemerkten Einstellungen; der nächste Export startet mit den Standardwerten.'),
+      button: t('Zurücksetzen'),
+      run: () => resetPdfOptions(),
     },
   ];
 }

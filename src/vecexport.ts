@@ -3,20 +3,35 @@
 import { zlibSync } from 'fflate';
 import { apply, Mat, mul, PALETTE, Pt, SubPath } from './model';
 import { segments } from './curves';
+import { checkEmbeddable, FontRejectReason, gidHex, PdfFontParts, pdfFontParts } from './pdftext';
 
+export type Rgb = [number, number, number];
+/** What the laser does with an item; used for the colour option "by operation" and the CutContour spot colour */
+export type ExportOp = 'cut' | 'score' | 'engrave';
+
+interface ExportBase {
+  layer: number;
+  /** Item belongs to an extra PDF layer (guides, notes, registration marks, artboard frames) instead of its layer */
+  group?: string;
+  op?: ExportOp;
+  /** Not counted for "fit page to content" (guides across the bed) */
+  noBounds?: boolean;
+}
 /** Kontur in Weltkoordinaten (mm, y nach unten) */
-export interface ExportPath {
+export interface ExportPath extends ExportBase {
   kind: 'path';
   subs: SubPath[];
-  layer: number;
   /** Fläche füllen (Layer im Modus Füllen) */
   fill: boolean;
+  /** Fixed colour (otherwise from the layer and the colour option) */
+  color?: Rgb;
+  /** Fixed line width in mm (otherwise the export line width) */
+  width?: number;
 }
 /** Rasterbild: m bildet das Einheitsquadrat (0,0 = linke obere Bildecke) auf die Bildfläche in mm ab */
-export interface ExportImage {
+export interface ExportImage extends ExportBase {
   kind: 'image';
   m: Mat;
-  layer: number;
   pxW: number;
   pxH: number;
   /** JPEG-Datei (wird unverändert eingebettet) … */
@@ -24,8 +39,37 @@ export interface ExportImage {
   /** … oder Bildpunkte RGB (3 Byte je Punkt) und optional Deckkraft (1 Byte je Punkt) */
   rgb?: Uint8Array;
   alpha?: Uint8Array;
+  /** … oder Graustufen (1 Byte je Punkt), z. B. das Bild so, wie es gelasert wird */
+  gray?: Uint8Array;
 }
-export type ExportItem = ExportPath | ExportImage;
+/** Font file for real text; key identifies the font within one export */
+export interface ExportFont {
+  key: string;
+  name: string;
+  bytes: Uint8Array;
+}
+/** A run of glyphs: m maps run space (em units, y up, baseline at 0) to world mm; x is the pen position in em */
+export interface ExportRun {
+  m: Mat;
+  glyphs: { gid: number; x: number; text: string }[];
+}
+/** Text that may stay text in the PDF; outline (world mm) is used when it cannot (and for page bounds) */
+export interface ExportText extends ExportBase {
+  kind: 'text';
+  fill: boolean;
+  font: ExportFont;
+  runs: ExportRun[];
+  outline: SubPath[];
+}
+/** Plain lines of text in Helvetica (project notes); x, y = top left in mm from the top left of the page */
+export interface ExportNote extends ExportBase {
+  kind: 'note';
+  x: number;
+  y: number;
+  size: number;
+  lines: string[];
+}
+export type ExportItem = ExportPath | ExportImage | ExportText | ExportNote;
 
 export interface ExportPage {
   name: string;
@@ -77,7 +121,10 @@ const fmt = (v: number) => {
  * nach oben: am Bett gespiegelt, damit die Zeichnung in CAD-Programmen gleich herum liegt.
  * Bilder kann DXF nicht einbetten; sie werden übersprungen (skippedImages).
  */
-export function buildDxf(items: ExportItem[], layers: LayerInfo[], bedH: number): { text: string; skippedImages: number } {
+export function buildDxf(all: ExportItem[], layers: LayerInfo[], bedH: number): { text: string; skippedImages: number } {
+  const items = all.flatMap((it): (ExportPath | ExportImage)[] =>
+    it.kind === 'text' ? [{ kind: 'path', subs: it.outline, layer: it.layer, fill: it.fill }] : it.kind === 'note' ? [] : [it],
+  );
   let handle = 0x20;
   const H = () => (handle++).toString(16).toUpperCase();
   const out: string[] = [];
@@ -363,26 +410,153 @@ function pdfString(s: string): string {
   for (let i = 0; i < s.length; i++) hex += s.charCodeAt(i).toString(16).padStart(4, '0').toUpperCase();
   return `<${hex}>`;
 }
+/** Text in WinAnsi for the standard font Helvetica; characters it cannot show become “?” */
+function winAnsiString(s: string): string {
+  let out = '(';
+  for (const ch of s) {
+    const c = ch.codePointAt(0)!;
+    if (c === 0x28 || c === 0x29 || c === 0x5c) out += '\\' + ch;
+    else if (c >= 0x20 && c < 0x7f) out += ch;
+    else if (c >= 0xa0 && c <= 0xff) out += '\\' + c.toString(8).padStart(3, '0');
+    else out += '?';
+  }
+  return out + ')';
+}
 const pdfDate = (d: Date) => {
   const p = (v: number) => String(v).padStart(2, '0');
   return `D:${d.getUTCFullYear()}${p(d.getUTCMonth() + 1)}${p(d.getUTCDate())}${p(d.getUTCHours())}${p(d.getUTCMinutes())}${p(d.getUTCSeconds())}Z`;
 };
 
+/** Extra PDF layer that is not a KizamuBeam layer (guides, notes, registration marks, artboard frames) */
+export interface PdfGroup {
+  id: string;
+  name: string;
+  /** Printed (default true); false = visible on screen only */
+  print?: boolean;
+  /** Switched on when the file opens (default true) */
+  on?: boolean;
+}
+
+/** Page size: bed size, content bounds plus margin, or paper (portrait size in mm; turned to fit the content) */
+export type PdfPageSize = { kind: 'bed' } | { kind: 'content'; margin: number } | { kind: 'paper'; w: number; h: number };
+
 export interface PdfOptions {
   bed: { w: number; h: number };
   layers: LayerInfo[];
   title?: string;
+  author?: string;
+  subject?: string;
+  keywords?: string;
   /** Strichstärke der Linien in mm */
   stroke?: number;
+  /** Colours: layer colours, all black, or by operation (cut red, score blue, engrave black) */
+  colors?: 'layer' | 'black' | 'operation';
+  /** Cut lines in the spot colour “CutContour” (print and cut services) */
+  cutContour?: boolean;
+  pageSize?: PdfPageSize;
+  /** Layers whose PDF layer is switched off when the file opens (hidden layers) */
+  layersOff?: number[];
+  groups?: PdfGroup[];
+  /**
+   * Illustrator: all pages side by side on one PDF page, gap in mm, each framed by a rectangle in the given group
+   * (Object → Artboards → Convert to Artboards turns the frames into artboards)
+   */
+  artboards?: { gap: number; group: string };
+  /** Keep text as text with the font embedded (otherwise outlines) */
+  realText?: boolean;
+  /** A font could not be embedded; its texts became outlines */
+  onTextFallback?: (reason: FontRejectReason, font: string) => void;
   /** Feste Zeit (Tests) */
   date?: Date;
 }
 
+/** Bounds of the items in world mm (control points included), null when there is nothing */
+export function itemsBounds(items: ExportItem[]): { x: number; y: number; w: number; h: number } | null {
+  let x0 = Infinity,
+    y0 = Infinity,
+    x1 = -Infinity,
+    y1 = -Infinity;
+  const add = (p: Pt) => {
+    x0 = Math.min(x0, p.x);
+    y0 = Math.min(y0, p.y);
+    x1 = Math.max(x1, p.x);
+    y1 = Math.max(y1, p.y);
+  };
+  const subs = (list: SubPath[]) => {
+    for (const sp of list) for (const n of sp.nodes) [n, n.cin, n.cout].forEach((p) => p && add(p));
+  };
+  for (const it of items) {
+    if (it.noBounds || it.kind === 'note') continue;
+    if (it.kind === 'path') subs(it.subs);
+    else if (it.kind === 'text') subs(it.outline);
+    else
+      for (const [u, v] of [[0, 0], [1, 0], [1, 1], [0, 1]]) add(apply(it.m, u, v));
+  }
+  return isFinite(x0) ? { x: x0, y: y0, w: x1 - x0, h: y1 - y0 } : null;
+}
+
+/** Size of a PDF page in mm and where the world origin lands on it (dx, dy) */
+export function pageFrame(items: ExportItem[], o: Pick<PdfOptions, 'bed' | 'pageSize'>): { w: number; h: number; dx: number; dy: number } {
+  const ps = o.pageSize ?? { kind: 'bed' };
+  if (ps.kind === 'bed') return { w: o.bed.w, h: o.bed.h, dx: 0, dy: 0 };
+  const b = itemsBounds(items) ?? { x: 0, y: 0, w: o.bed.w, h: o.bed.h };
+  if (ps.kind === 'content') {
+    const m = Math.max(0, ps.margin);
+    return { w: Math.max(1, b.w + 2 * m), h: Math.max(1, b.h + 2 * m), dx: m - b.x, dy: m - b.y };
+  }
+  // Paper: long side along the long side of the content, content centred
+  let pw = ps.w,
+    ph = ps.h;
+  if ((b.w > b.h) !== (pw > ph)) [pw, ph] = [ph, pw];
+  return { w: pw, h: ph, dx: (pw - b.w) / 2 - b.x, dy: (ph - b.h) / 2 - b.y };
+}
+
+/** Factor (≤ 1) that brings an image of pxW × pxH pixels on the area m (unit square → mm) down to maxDpi */
+export function dpiScale(m: Mat, pxW: number, pxH: number, maxDpi: number): number {
+  if (!(maxDpi > 0) || !pxW || !pxH) return 1;
+  const maxW = Math.max(1, Math.round((Math.hypot(m[0], m[1]) / 25.4) * maxDpi)),
+    maxH = Math.max(1, Math.round((Math.hypot(m[2], m[3]) / 25.4) * maxDpi));
+  return Math.min(1, maxW / pxW, maxH / pxH);
+}
+
+/** Downsample an RGB/gray image (box filter) so it has at most maxDpi pixels per inch on the page */
+export function limitImageDpi(img: ExportImage, maxDpi: number): ExportImage {
+  if (img.jpeg) return img;
+  const f = dpiScale(img.m, img.pxW, img.pxH, maxDpi);
+  if (f >= 1) return img;
+  const W = Math.max(1, Math.round(img.pxW * f)),
+    H = Math.max(1, Math.round(img.pxH * f));
+  const shrink = (src: Uint8Array | undefined, ch: number) => {
+    if (!src) return undefined;
+    const out = new Uint8Array(W * H * ch);
+    for (let y = 0; y < H; y++) {
+      const sy0 = Math.floor((y * img.pxH) / H),
+        sy1 = Math.max(sy0 + 1, Math.floor(((y + 1) * img.pxH) / H));
+      for (let x = 0; x < W; x++) {
+        const sx0 = Math.floor((x * img.pxW) / W),
+          sx1 = Math.max(sx0 + 1, Math.floor(((x + 1) * img.pxW) / W));
+        for (let c = 0; c < ch; c++) {
+          let sum = 0;
+          for (let yy = sy0; yy < sy1; yy++) for (let xx = sx0; xx < sx1; xx++) sum += src[(yy * img.pxW + xx) * ch + c];
+          out[(y * W + x) * ch + c] = Math.round(sum / ((sy1 - sy0) * (sx1 - sx0)));
+        }
+      }
+    }
+    return out;
+  };
+  return { ...img, pxW: W, pxH: H, rgb: shrink(img.rgb, 3), alpha: shrink(img.alpha, 1), gray: shrink(img.gray, 1) };
+}
+
+const OP_RGB: Record<ExportOp, Rgb> = { cut: [255, 0, 0], score: [0, 0, 255], engrave: [0, 0, 0] };
+const groupTag = (id: string) => 'G' + id.replace(/[^A-Za-z0-9]/g, '');
+
 /**
- * PDF 1.5 mit einer Seite je Projektseite in Bettgröße (1:1 in mm). Konturen bleiben Bézierkurven, Füll-Layer
- * werden gefüllt (gerade-ungerade), jeder Layer wird eine eigene Ebene (Optional Content), damit PDF-Programme
- * und Illustrator die Layer auseinanderhalten. Bilder werden als JPEG oder verlustfrei (Flate) eingebettet.
- * Dieselbe Datei mit der Endung .ai öffnet Illustrator als PDF-kompatible Illustrator-Datei.
+ * PDF 1.5 mit einer Seite je Projektseite (1:1 in mm; Bettgröße, Inhalt mit Rand oder Papierformat). Konturen
+ * bleiben Bézierkurven, Füll-Layer werden gefüllt (gerade-ungerade), jeder Layer wird eine eigene Ebene (Optional
+ * Content), damit PDF-Programme und Illustrator die Layer auseinanderhalten. Bilder werden als JPEG oder
+ * verlustfrei (Flate) eingebettet. Texte bleiben auf Wunsch echter Text mit eingebetteter Schrift.
+ * Dieselbe Datei mit der Endung .ai öffnet Illustrator als PDF-kompatible Illustrator-Datei (mit artboards alle
+ * Seiten nebeneinander auf einer Seite).
  */
 export function buildPdf(pages: ExportPage[], o: PdfOptions): Uint8Array {
   const enc = new TextEncoder();
@@ -411,53 +585,182 @@ export function buildPdf(pages: ExportPage[], o: PdfOptions): Uint8Array {
   const catalog = alloc(),
     pagesObj = alloc(),
     info = alloc();
-  // Ebenen nur für Layer, die irgendwo vorkommen
-  const usedLayers = [...new Set(pages.flatMap((p) => p.items.map((it) => it.layer)))].sort((a, b) => a - b);
-  const ocg = new Map<number, number>();
+
+  // ----- Ebenen: Layer, die irgendwo vorkommen, und Zusatzgruppen -----
+  const allItems = pages.flatMap((p) => p.items);
+  const usedLayers = [...new Set(allItems.filter((it) => !it.group).map((it) => it.layer))].sort((a, b) => a - b);
+  const groups = (o.groups ?? []).filter((g) => allItems.some((it) => it.group === g.id) || o.artboards?.group === g.id);
+  const props: string[] = [];
+  const ocgOn: string[] = [],
+    ocgOff: string[] = [],
+    noPrint: string[] = [];
+  const ocgList: string[] = [];
   for (const li of usedLayers) {
     const n = alloc();
-    ocg.set(li, n);
     const L = o.layers.find((x) => x.index === li);
     set(n, `<< /Type /OCG /Name ${pdfString(L ? dxfLayerName(L) : `C${String(li).padStart(2, '0')}`)} >>`);
+    props.push(`/L${li} ${n} 0 R`);
+    ocgList.push(`${n} 0 R`);
+    (o.layersOff?.includes(li) ? ocgOff : ocgOn).push(`${n} 0 R`);
+  }
+  for (const g of groups) {
+    const n = alloc();
+    const usage = g.print === false ? ' /Usage << /Print << /PrintState /OFF >> /View << /ViewState /ON >> >>' : '';
+    set(n, `<< /Type /OCG /Name ${pdfString(g.name)}${usage} >>`);
+    props.push(`/${groupTag(g.id)} ${n} 0 R`);
+    ocgList.push(`${n} 0 R`);
+    (g.on === false ? ocgOff : ocgOn).push(`${n} 0 R`);
+    if (g.print === false) noPrint.push(`${n} 0 R`);
   }
 
-  const { w, h } = o.bed;
-  const W = w * PT,
-    Hh = h * PT;
-  // mm (y nach unten) → pt (y nach oben)
-  const F: Mat = [PT, 0, 0, -PT, 0, Hh];
-  const lw = (o.stroke ?? 0.1) * PT;
-  const kids: number[] = [];
-  for (const page of pages) {
-    const pageN = alloc(),
-      contentN = alloc();
-    kids.push(pageN);
-    const xobj: string[] = [];
-    let c = `${num(lw)} w 1 J 1 j\n`;
-    for (const it of page.items) {
-      const tag = `/OC /L${it.layer} BDC\n`;
-      const [r, gg, b] = layerRgb(it.layer).map((v) => num(v / 255));
+  // ----- Schriften für echten Text: erst alle Glyphen sammeln, dann einbetten -----
+  interface FontUse {
+    res: string;
+    font: ExportFont;
+    uni: Map<number, string>;
+    parts?: PdfFontParts;
+    rejected?: FontRejectReason;
+  }
+  const fonts = new Map<string, FontUse>();
+  if (o.realText)
+    for (const it of allItems) {
+      if (it.kind !== 'text') continue;
+      let f = fonts.get(it.font.key);
+      if (!f) {
+        f = { res: `F${fonts.size}`, font: it.font, uni: new Map() };
+        const r = checkEmbeddable(it.font.bytes);
+        if (r) f.rejected = r;
+        fonts.set(it.font.key, f);
+      }
+      if (f.rejected) continue;
+      for (const run of it.runs) for (const g of run.glyphs) if (!f.uni.has(g.gid) || (!f.uni.get(g.gid) && g.text)) f.uni.set(g.gid, g.text);
+    }
+  const fontRefs: string[] = [];
+  for (const f of fonts.values()) {
+    if (f.rejected) {
+      o.onTextFallback?.(f.rejected, f.font.name);
+      continue;
+    }
+    const parts = pdfFontParts(f.font.bytes, f.uni, f.font.name);
+    if (typeof parts === 'string') {
+      f.rejected = parts;
+      o.onTextFallback?.(parts, f.font.name);
+      continue;
+    }
+    f.parts = parts;
+    const type0 = alloc(),
+      cid = alloc(),
+      desc = alloc(),
+      prog = alloc(),
+      tu = alloc();
+    stream(prog, `${parts.programDict} /Filter /FlateDecode`, zlibSync(parts.program));
+    set(desc, `<< ${parts.descriptor} /${parts.programKey} ${prog} 0 R >>`);
+    set(
+      cid,
+      `<< /Type /Font /Subtype /${parts.cidSubtype} /BaseFont /${parts.baseFont} /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> ` +
+        `/FontDescriptor ${desc} 0 R /DW 1000 /W [${parts.widths}] ${parts.cidToGid} >>`,
+    );
+    stream(tu, '/Filter /FlateDecode', zlibSync(enc.encode(parts.toUnicode)));
+    set(type0, `<< /Type /Font /Subtype /Type0 /BaseFont /${parts.baseFont} /Encoding /Identity-H /DescendantFonts [${cid} 0 R] /ToUnicode ${tu} 0 R >>`);
+    fontRefs.push(`/${f.res} ${type0} 0 R`);
+  }
+  let helv = 0;
+  const helvetica = () => {
+    if (!helv) {
+      helv = alloc();
+      set(helv, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+      fontRefs.push(`/Helv ${helv} 0 R`);
+    }
+  };
+  let cutCs = 0;
+  const cutContour = () => {
+    if (!cutCs) {
+      cutCs = alloc();
+      set(cutCs, '[/Separation /CutContour /DeviceRGB << /FunctionType 2 /Domain [0 1] /C0 [1 1 1] /C1 [1 0 1] /N 1 >>]');
+    }
+  };
+
+  const lwMm = o.stroke ?? 0.1;
+  const colorOf = (it: ExportItem): Rgb => {
+    if ((it.kind === 'path' && it.color) || (it.group && it.kind === 'note')) return it.kind === 'path' && it.color ? it.color : [0, 0, 0];
+    if (o.colors === 'black') return [0, 0, 0];
+    if (o.colors === 'operation') return OP_RGB[it.op ?? 'engrave'];
+    return layerRgb(it.layer);
+  };
+
+  /** Content of one project page; F maps world mm to PDF points, frameTop/Left in pt for notes */
+  const drawItems = (items: ExportItem[], F: Mat, frame: { left: number; top: number }, xobj: string[]) => {
+    let c = '';
+    for (const it of items) {
+      const tag = `/OC /${it.group ? groupTag(it.group) : `L${it.layer}`} BDC\n`;
+      const rgb = colorOf(it).map((v) => num(v / 255)).join(' ');
       if (it.kind === 'image') {
         const imgN = alloc();
         const name = `Im${xobj.length}`;
         xobj.push(`/${name} ${imgN} 0 R`);
         let smask = '';
-        if (it.jpeg) stream(imgN, `/Type /XObject /Subtype /Image /Width ${it.pxW} /Height ${it.pxH} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode`, it.jpeg);
+        const dim = `/Type /XObject /Subtype /Image /Width ${it.pxW} /Height ${it.pxH} /BitsPerComponent 8`;
+        if (it.jpeg) stream(imgN, `${dim} /ColorSpace /DeviceRGB /Filter /DCTDecode`, it.jpeg);
+        else if (it.gray) stream(imgN, `${dim} /ColorSpace /DeviceGray /Filter /FlateDecode`, zlibSync(it.gray));
         else if (it.rgb) {
           if (it.alpha && it.alpha.some((a) => a < 255)) {
             const sN = alloc();
-            stream(sN, `/Type /XObject /Subtype /Image /Width ${it.pxW} /Height ${it.pxH} /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode`, zlibSync(it.alpha));
+            stream(sN, `${dim} /ColorSpace /DeviceGray /Filter /FlateDecode`, zlibSync(it.alpha));
             smask = ` /SMask ${sN} 0 R`;
           }
-          stream(imgN, `/Type /XObject /Subtype /Image /Width ${it.pxW} /Height ${it.pxH} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode${smask}`, zlibSync(it.rgb));
-        } else continue;
+          stream(imgN, `${dim} /ColorSpace /DeviceRGB /Filter /FlateDecode${smask}`, zlibSync(it.rgb));
+        } else {
+          xobj.pop();
+          set(imgN, 'null');
+          continue;
+        }
         // Bildraum: (0,0) = linke untere Ecke, oberste Bildzeile bei v = 1
         const m = mul(F, mul(it.m, [1, 0, 0, -1, 0, 1]));
         c += `${tag}q ${m.map(num).join(' ')} cm /${name} Do Q\nEMC\n`;
         continue;
       }
+      if (it.kind === 'note') {
+        helvetica();
+        const size = it.size * PT,
+          lead = size * 1.25;
+        const x = frame.left + it.x * PT,
+          y = frame.top - it.y * PT - size;
+        c += `${tag}BT /Helv ${num(size)} Tf ${rgb} rg ${num(lead)} TL ${num(x)} ${num(y)} Td\n`;
+        it.lines.forEach((ln, i) => (c += `${i ? 'T* ' : ''}${winAnsiString(ln)} Tj\n`));
+        c += 'ET\nEMC\n';
+        continue;
+      }
+      const spot = !!o.cutContour && it.op === 'cut';
+      if (spot) cutContour();
+      const fill = it.fill && !spot;
+      const strokeCol = spot ? '/CutContour CS 1 SCN' : `${rgb} RG`;
+      const fillCol = fill ? ` ${rgb} rg` : '';
+      const width = it.kind === 'path' && it.width !== undefined ? it.width : lwMm;
+      const wOp = width !== lwMm ? `${num(width * PT)} w ` : '';
+      const f = it.kind === 'text' ? fonts.get(it.font.key) : undefined;
+      if (it.kind === 'text' && f?.parts) {
+        const parts = f.parts;
+        c += `${tag}q ${wOp}${strokeCol}${fillCol}\nBT /${f.res} 1 Tf ${fill ? 2 : 1} Tr\n`;
+        for (const run of it.runs) {
+          if (!run.glyphs.length) continue;
+          const tm = mul(F, run.m);
+          let tj = '';
+          if (Math.abs(run.glyphs[0].x) > 1e-6) tj += `${num(-run.glyphs[0].x * 1000)} `;
+          run.glyphs.forEach((g, i) => {
+            tj += gidHex(g.gid);
+            const next = run.glyphs[i + 1];
+            if (!next) return;
+            const adj = parts.width(g.gid) - (next.x - g.x) * 1000;
+            if (Math.abs(adj) > 5e-4) tj += ` ${num(adj)} `;
+          });
+          c += `${tm.map(num).join(' ')} Tm [${tj}] TJ\n`;
+        }
+        c += 'ET Q\nEMC\n';
+        continue;
+      }
+      const subs = it.kind === 'text' ? it.outline : it.subs;
       let d = '';
-      for (const sp of it.subs) {
+      for (const sp of subs) {
         if (!sp.nodes.length) continue;
         const P = (p: Pt) => {
           const q = apply(F, p.x, p.y);
@@ -468,32 +771,80 @@ export function buildPdf(pages: ExportPage[], o: PdfOptions): Uint8Array {
         if (sp.closed) d += 'h\n';
       }
       if (!d) continue;
-      c += `${tag}${r} ${gg} ${b} RG ${it.fill ? `${r} ${gg} ${b} rg\n` : '\n'}${d}${it.fill ? 'B*' : 'S'}\nEMC\n`;
+      const q0 = wOp ? 'q ' : '',
+        q1 = wOp ? ' Q' : '';
+      c += `${tag}${q0}${wOp}${strokeCol}${fillCol}\n${d}${fill ? 'B*' : 'S'}${q1}\nEMC\n`;
     }
-    stream(contentN, '/Filter /FlateDecode', zlibSync(enc.encode(c)));
-    const props = usedLayers.map((li) => `/L${li} ${ocg.get(li)} 0 R`).join(' ');
-    set(
-      pageN,
-      `<< /Type /Page /Parent ${pagesObj} 0 R /MediaBox [0 0 ${num(W)} ${num(Hh)}] /Contents ${contentN} 0 R ` +
-        `/Resources << /XObject << ${xobj.join(' ')} >> /Properties << ${props} >> >> >>`,
-    );
+    return c;
+  };
+
+  // ----- Seiten -----
+  const frames = pages.map((p) => pageFrame(p.items, o));
+  const kids: number[] = [];
+  const resources = (xobj: string[]) => {
+    const cs = cutCs ? ` /ColorSpace << /CutContour ${cutCs} 0 R >>` : '';
+    const fnt = fontRefs.length ? ` /Font << ${fontRefs.join(' ')} >>` : '';
+    return `/Resources << /XObject << ${xobj.join(' ')} >> /Properties << ${props.join(' ')} >>${fnt}${cs} >>`;
+  };
+  // Seiten erst nach allen Inhalten schreiben: Schrift und Schmuckfarbe kommen beim Zeichnen dazu
+  const pending: { pageN: number; W: number; H: number; content: string; xobj: string[] }[] = [];
+  const head = (lw: number) => `${num(lw * PT)} w 1 J 1 j\n`;
+  if (o.artboards && pages.length) {
+    const gap = Math.max(0, o.artboards.gap);
+    const H = Math.max(...frames.map((f) => f.h));
+    const W = frames.reduce((a, f) => a + f.w, 0) + gap * (pages.length - 1);
+    const xobj: string[] = [];
+    let c = head(lwMm);
+    let ox = 0;
+    pages.forEach((p, i) => {
+      const fr = frames[i];
+      const F: Mat = [PT, 0, 0, -PT, PT * (ox + fr.dx), PT * (H - fr.dy)];
+      const rect = `${num(ox * PT)} ${num((H - fr.h) * PT)} ${num(fr.w * PT)} ${num(fr.h * PT)} re`;
+      // Inhalt auf die eigene Zeichenfläche beschneiden (Hilfslinien reichen sonst in die Nachbarseite)
+      c += `q ${rect} W n\n${drawItems(p.items, F, { left: ox * PT, top: H * PT }, xobj)}Q\n`;
+      c += `/OC /${groupTag(o.artboards!.group)} BDC\nq 0.5 0.5 0.5 RG ${num(0.2 * PT)} w ${rect} S Q\nEMC\n`;
+      ox += fr.w + gap;
+    });
+    pending.push({ pageN: alloc(), W: W * PT, H: H * PT, content: c, xobj });
+  } else
+    pages.forEach((p, i) => {
+      const fr = frames[i];
+      const F: Mat = [PT, 0, 0, -PT, PT * fr.dx, PT * (fr.h - fr.dy)];
+      const xobj: string[] = [];
+      const c = head(lwMm) + drawItems(p.items, F, { left: 0, top: fr.h * PT }, xobj);
+      pending.push({ pageN: alloc(), W: fr.w * PT, H: fr.h * PT, content: c, xobj });
+    });
+  for (const pg of pending) {
+    const contentN = alloc();
+    kids.push(pg.pageN);
+    stream(contentN, '/Filter /FlateDecode', zlibSync(enc.encode(pg.content)));
+    set(pg.pageN, `<< /Type /Page /Parent ${pagesObj} 0 R /MediaBox [0 0 ${num(pg.W)} ${num(pg.H)}] /Contents ${contentN} 0 R ${resources(pg.xobj)} >>`);
   }
   set(pagesObj, `<< /Type /Pages /Kids [${kids.map((k) => `${k} 0 R`).join(' ')}] /Count ${kids.length} >>`);
-  const ocgRefs = usedLayers.map((li) => `${ocg.get(li)} 0 R`).join(' ');
-  const labels = pages.map((p, i) => `${i} << /P ${pdfString(p.name || String(i + 1))} >>`).join(' ');
+  const labels = o.artboards ? '' : ` /PageLabels << /Nums [${pages.map((p, i) => `${i} << /P ${pdfString(p.name || String(i + 1))} >>`).join(' ')}] >>`;
+  const as = noPrint.length ? ` /AS [<< /Event /Print /OCGs [${noPrint.join(' ')}] /Category [/Print] >> << /Event /View /OCGs [${noPrint.join(' ')}] /Category [/View] >>]` : '';
   set(
     catalog,
-    `<< /Type /Catalog /Pages ${pagesObj} 0 R /PageLabels << /Nums [${labels}] >> ` +
-      `/OCProperties << /OCGs [${ocgRefs}] /D << /Order [${ocgRefs}] /ON [${ocgRefs}] >> >> >>`,
+    `<< /Type /Catalog /Pages ${pagesObj} 0 R${labels} ` +
+      `/OCProperties << /OCGs [${ocgList.join(' ')}] /D << /Order [${ocgList.join(' ')}] /ON [${ocgOn.join(' ')}] /OFF [${ocgOff.join(' ')}]${as} >> >> >>`,
   );
   const date = pdfString(pdfDate(o.date ?? new Date()));
-  set(info, `<< /Title ${pdfString(o.title ?? 'KizamuBeam')} /Creator (KizamuBeam) /Producer (KizamuBeam) /CreationDate ${date} /ModDate ${date} >>`);
+  const meta = [
+    ['Author', o.author],
+    ['Subject', o.subject],
+    ['Keywords', o.keywords],
+  ]
+    .filter(([, v]) => v && v.trim())
+    .map(([k, v]) => ` /${k} ${pdfString(v!.trim())}`)
+    .join('');
+  set(info, `<< /Title ${pdfString(o.title?.trim() || 'KizamuBeam')}${meta} /Creator (KizamuBeam) /Producer (KizamuBeam) /CreationDate ${date} /ModDate ${date} >>`);
 
   // Zusammensetzen mit Querverweistabelle
   const header = new Uint8Array([...enc.encode('%PDF-1.5\n%'), 0xe2, 0xe3, 0xcf, 0xd3, 0x0a]);
   const offsets: number[] = [];
   let len = header.length;
   for (let n = 1; n < objs.length; n++) {
+    if (!objs[n]) set(n, 'null');
     offsets[n] = len;
     len += objs[n]!.length;
   }
