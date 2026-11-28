@@ -29,8 +29,8 @@ description: Welche Dateien KizamuBeam öffnet, importiert und exportiert.
 |---|---|
 | SVG | Aktuelle Seite, mit Bildern |
 | DXF | Aktuelle Seite, ein DXF-Layer pro KizamuBeam-Layer, Kurven als exakte Splines. Bilder können nicht ins DXF. |
-| PDF | Alle Seiten in Bettgröße 1:1, eine PDF-Ebene pro KizamuBeam-Layer, Bilder eingebettet |
-| Adobe Illustrator (`.ai`) | Dieselbe PDF-kompatible Datei; öffnet in Illustrator, Inkscape und Affinity |
+| PDF | Alle Seiten in Bettgröße 1:1 (oder auf Inhalt zugeschnitten, A4, A3, Letter), eine PDF-Ebene pro KizamuBeam-Layer, Bilder eingebettet, Text als Umrisse oder als echter Text mit eingebetteter Schrift |
+| Adobe Illustrator (`.ai`) | Dieselbe PDF-kompatible Datei; öffnet in Illustrator, Inkscape und Affinity; mehrere Seiten nebeneinander als Zeichenflächen |
 | G-Code (`.gcode`, `.nc`) | **Laser → G-Code speichern …** für das gewählte Gerät |
 | Ruida (`.rd`) | **Laser → .rd speichern …**, wenn ein Ruida-Gerät gewählt ist |
 | PNG | **Bearbeitetes Bild speichern …**: ein Bild genau so, wie es gelasert würde |

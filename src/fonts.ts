@@ -1,8 +1,8 @@
 // Schriftdateien laden und Text in Bézierpfade umwandeln.
 // Desktop: Systemschriften über Rust (fontdb). Browser: lokale Schriften (falls erlaubt), sonst Roboto als Ersatz.
 import opentype from 'opentype.js';
-import { Node, SubPath, TextShape } from './model';
-import { PlacedGlyph, placeOnPath } from './textpath';
+import { Mat, Node, SubPath, TextShape } from './model';
+import { pathGlyphMatrices, PlacedGlyph, placeOnPath } from './textpath';
 import { weldGlyphs } from './clip';
 import { shownText } from './vartext';
 import roboto400 from '@fontsource/roboto/files/roboto-latin-400-normal.woff?inline';
@@ -16,6 +16,8 @@ export interface LoadedFont {
   font: opentype.Font;
   /** true, wenn die gewünschte Schrift fehlte und Roboto eingesprungen ist */
   fallback: boolean;
+  /** Raw font file (TTF/OTF), kept for embedding real text in PDF exports; missing for the fallback font */
+  bytes?: Uint8Array;
 }
 
 const cache = new Map<string, Promise<LoadedFont>>();
@@ -128,7 +130,7 @@ export function loadFont(family: string, bold: boolean, italic: boolean): Promis
       } else buf = await browserLocalFont(family, bold, italic);
       if (buf) {
         try {
-          return { font: opentype.parse(buf), fallback: false };
+          return { font: opentype.parse(buf), fallback: false, bytes: new Uint8Array(buf) };
         } catch {
           /* z. B. nicht unterstütztes Format */
         }
@@ -167,7 +169,7 @@ export async function withFonts<T>(files: FontFile[], fn: () => Promise<T>): Pro
     }
     const key = fontKey(f.family, f.bold, f.italic);
     if (!saved.has(key)) saved.set(key, [cache.get(key), ready.get(key)]);
-    const lf: LoadedFont = { font, fallback: false };
+    const lf: LoadedFont = { font, fallback: false, bytes: new Uint8Array(f.buf) };
     cache.set(key, Promise.resolve(lf));
     ready.set(key, lf);
   }
@@ -264,6 +266,74 @@ export function textGlyphSubs(t: TextShape, font: opentype.Font): SubPath[][] {
   // Text auf Pfad: jede Glyphe für sich auf die Kurve setzen
   const placed = t.path && t.path.sub.nodes.length > 1 ? placeOnPath(glyphs, t.path, t.align) : glyphs.map((g) => g.subs);
   return t.weld ? [weldGlyphs(placed)] : placed;
+}
+
+/** A run of glyphs for real text: m maps run space (em units, y up, baseline at 0) to local text mm */
+export interface GlyphRun {
+  m: Mat;
+  glyphs: { gid: number; /** pen position along the run in em */ x: number; /** text this glyph stands for */ text: string }[];
+}
+
+/**
+ * Glyph placement for real text in PDF exports, exactly where textGlyphSubs puts the outlines: one run per line,
+ * or one run per glyph for text on a path. null for welded text (no longer glyphs, only a merged outline).
+ */
+export function textGlyphRuns(t: TextShape, font: opentype.Font): GlyphRun[] | null {
+  if (t.weld) return null;
+  t = fitText(t, font);
+  const size = t.size;
+  const scale = size / font.unitsPerEm;
+  const onPath = !!t.path && t.path.sub.nodes.length > 1;
+  const runs: GlyphRun[] = [];
+  const pathGlyphs: { gid: number; text: string; cx: number; m: Mat }[] = [];
+  for (const ln of textLines(t, font)) {
+    if (!ln.glyphs.length) continue;
+    const texts = glyphTexts(ln.text, ln.glyphs, !!t.rtl);
+    if (onPath) {
+      ln.glyphs.forEach((g, i) =>
+        pathGlyphs.push({ gid: g.index, text: texts[i], cx: ln.xs[i] + ((g.advanceWidth ?? 0) * scale * ln.sx) / 2, m: [size * ln.sx, 0, 0, -size, ln.xs[i], ln.y] }),
+      );
+      continue;
+    }
+    const k = size * ln.sx;
+    runs.push({ m: [k, 0, 0, -size, ln.x, ln.y], glyphs: ln.glyphs.map((g, i) => ({ gid: g.index, x: (ln.xs[i] - ln.x) / k, text: texts[i] })) });
+  }
+  if (onPath) {
+    const mats = pathGlyphMatrices(pathGlyphs.map((g) => g.cx), t.path!, t.align);
+    pathGlyphs.forEach((g, i) => {
+      const P = mats[i],
+        G = g.m;
+      const m: Mat = [P[0] * G[0] + P[2] * G[1], P[1] * G[0] + P[3] * G[1], P[0] * G[2] + P[2] * G[3], P[1] * G[2] + P[3] * G[3], P[0] * G[4] + P[2] * G[5] + P[4], P[1] * G[4] + P[3] * G[5] + P[5]];
+      runs.push({ m, glyphs: [{ gid: g.gid, x: 0, text: g.text }] });
+    });
+  }
+  return runs;
+}
+
+/**
+ * Which characters each glyph of a line stands for. One glyph per character in the common case; a ligature (fi, fl)
+ * takes characters until the next glyph's character comes. RTL lines are set reversed, so are their characters.
+ */
+export function glyphTexts(line: string, glyphs: opentype.Glyph[], rtl: boolean): string[] {
+  const chars = [...line];
+  if (rtl) chars.reverse();
+  if (chars.length === glyphs.length) return chars;
+  const unis = (g: opentype.Glyph | undefined) => (g ? (g.unicodes?.length ? g.unicodes : g.unicode !== undefined ? [g.unicode] : []) : []);
+  const out: string[] = [];
+  let ci = 0;
+  glyphs.forEach((g, i) => {
+    let take = 1;
+    if (i === glyphs.length - 1) take = Math.max(1, chars.length - ci);
+    else if (!unis(g).includes(chars[ci]?.codePointAt(0) ?? -1) || chars.length - ci > glyphs.length - i) {
+      const next = unis(glyphs[i + 1]);
+      let k = 1;
+      while (ci + k < chars.length && k < 8 && !next.includes(chars[ci + k].codePointAt(0)!)) k++;
+      take = ci + k < chars.length && k < 8 ? k : 1;
+    }
+    out.push(chars.slice(ci, ci + take).join(''));
+    ci += take;
+  });
+  return out;
 }
 
 function squeezeNode(n: Node, x0: number, sx: number) {

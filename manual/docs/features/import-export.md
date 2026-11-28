@@ -54,10 +54,40 @@ See [Images and tracing](images.md).
 |---|---|
 | **SVG** | The current page, with images. |
 | **DXF** | The current page in mm, one DXF layer per used layer with name and colour. Curves are exported as exact splines. Images cannot go into DXF. |
-| **PDF** | All pages, each at bed size 1:1, every layer as its own PDF layer, fill layers filled, images embedded. |
-| **Illustrator (`.ai`)** | The same PDF-compatible file; opens in Illustrator, Inkscape and Affinity. |
+| **PDF** | All pages, each at bed size 1:1, every layer as its own PDF layer, fill layers filled, images embedded. Options in the export dialog, see below. |
+| **Illustrator (`.ai`)** | The same PDF-compatible file; opens in Illustrator, Inkscape and Affinity. Several pages are placed side by side as artboards. |
 
-Texts are exported as outlines.
+In SVG and DXF, texts are exported as outlines.
+
+### PDF and Illustrator export options
+
+PDF and Illustrator export open a dialog first. It remembers the last settings; **Reset** goes back to the defaults. Under **Edit → Settings → Files** you can switch remembering off.
+
+**Basic**
+
+- **Scope:** all pages, the current page, or only the selected objects.
+- **Layers without output:** include them, include them switched off, or leave them out. **Include hidden layers** adds hidden layers as PDF layers that are switched off when the file opens.
+- **Page size:** bed size, fit to content (with a margin), A4, A3 or US Letter. Paper sizes turn to fit the content, and the content is centred.
+- **Images:** embed, frame only, or leave out. Embedded images can be limited to a resolution (dpi) and exported either as the original or **as they are lasered** (dithered at the layer's line interval).
+- **Export text as text (embed font):** text stays selectable, searchable and copyable, and Illustrator, Inkscape or Affinity open it as editable text when the font is installed there. The result looks exactly like the outlines. TrueType fonts are embedded as a subset with only the used letters; OpenType fonts with CFF outlines are embedded whole. Off by default, because outlines are safer for laser services and computers without the font. Some texts always become outlines, with a notice: welded text, text whose font is missing (a fallback font stepped in), and fonts whose license forbids embedding. Text on a path is placed letter by letter, so Illustrator shows single letters instead of path text.
+- **Guides** and **project notes** can come along as layers that are not printed.
+
+**Advanced**
+
+- **Colours:** layer colours, all black, or by operation (cut red, score blue, engrave black).
+- **Lines:** hairline (0.01 mm, which many laser and plotter services require), visible (0.1 mm) or a custom width.
+- **Fills:** as the layer says, or everything as outline.
+
+**Print and Cut**
+
+- **Output registration marks:** three marks around the design, like the [Print and Cut](print-and-cut.md) assistant places them. Pages that already have marks keep theirs.
+- **Cut lines in the spot colour “CutContour”** for cutting plotters and print services that recognise contours by this colour.
+
+**Document:** title (default: project name), author, subject and keywords.
+
+**Illustrator:** Illustrator opens only the first page of a multi-page file. For `.ai`, all pages are therefore placed side by side on one page, each with a frame on the non-printing layer “Artboards”. In Illustrator, select these frames and choose **Object → Artboards → Convert to Artboards** to get one artboard per page.
+
+The MCP tool `save_document` takes the same options as the field `pdf`.
 
 ## G-code
 

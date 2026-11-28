@@ -54,10 +54,40 @@ Siehe [Bilder und Nachzeichnen](images.md).
 |---|---|
 | **SVG** | Die aktuelle Seite, mit Bildern. |
 | **DXF** | Die aktuelle Seite in mm, ein DXF-Layer pro verwendetem Layer mit Name und Farbe. Kurven werden als exakte Splines exportiert. Bilder können nicht in DXF. |
-| **PDF** | Alle Seiten, jede in Bettgröße 1:1, jeder Layer als eigene PDF-Ebene, Füll-Layer gefüllt, Bilder eingebettet. |
-| **Illustrator (`.ai`)** | Dieselbe PDF-kompatible Datei; öffnet in Illustrator, Inkscape und Affinity. |
+| **PDF** | Alle Seiten, jede in Bettgröße 1:1, jeder Layer als eigene PDF-Ebene, Füll-Layer gefüllt, Bilder eingebettet. Optionen im Export-Dialog, siehe unten. |
+| **Illustrator (`.ai`)** | Dieselbe PDF-kompatible Datei; öffnet in Illustrator, Inkscape und Affinity. Mehrere Seiten liegen nebeneinander als Zeichenflächen. |
 
-Texte werden als Umrisse exportiert.
+In SVG und DXF werden Texte als Umrisse exportiert.
+
+### Optionen beim PDF- und Illustrator-Export
+
+PDF- und Illustrator-Export öffnen zuerst einen Dialog. Er merkt sich die letzten Einstellungen; **Zurücksetzen** stellt die Standardwerte wieder her. Unter **Bearbeiten → Einstellungen → Dateien** lässt sich das Merken abschalten.
+
+**Grundeinstellungen**
+
+- **Umfang:** alle Seiten, die aktuelle Seite oder nur die ausgewählten Objekte.
+- **Layer ohne Ausgabe:** mitnehmen, ausgeschaltet mitnehmen oder weglassen. **Ausgeblendete Layer mitnehmen** legt ausgeblendete Layer als PDF-Ebenen an, die beim Öffnen ausgeschaltet sind.
+- **Seitengröße:** Bettgröße, auf Inhalt zugeschnitten (mit Rand), A4, A3 oder US Letter. Papierformate drehen sich passend zum Inhalt, der Inhalt liegt mittig.
+- **Bilder:** einbetten, nur Rahmen oder weglassen. Eingebettete Bilder lassen sich auf eine Auflösung (dpi) begrenzen und als Original oder **so, wie sie gelasert werden** (gerastert im Zeilenabstand des Layers) ausgeben.
+- **Text als Text exportieren (Schrift einbetten):** Text bleibt markier-, durchsuch- und kopierbar, und Illustrator, Inkscape oder Affinity öffnen ihn als bearbeitbaren Text, wenn die Schrift dort installiert ist. Das Ergebnis sieht genau wie die Umrisse aus. TrueType-Schriften werden als Teilmenge mit nur den benutzten Buchstaben eingebettet, OpenType-Schriften mit CFF-Konturen ganz. Standardmäßig aus, weil Umrisse für Laser-Dienste und Rechner ohne die Schrift sicherer sind. Manche Texte werden immer zu Umrissen, mit Hinweis: geschweißter Text, Text mit fehlender Schrift (eine Ersatzschrift sprang ein) und Schriften, deren Lizenz das Einbetten verbietet. Text auf Pfad wird Buchstabe für Buchstabe gesetzt; Illustrator zeigt dann Einzelbuchstaben statt Pfadtext.
+- **Hilfslinien** und **Projekt-Notizen** können als Ebenen mitkommen, die nicht gedruckt werden.
+
+**Erweitert**
+
+- **Farben:** Layerfarben, alles schwarz oder nach Bearbeitung (Schneiden rot, Ritzen blau, Gravieren schwarz).
+- **Linien:** Haarlinie (0,01 mm, verlangen viele Laser- und Plotter-Dienste), sichtbar (0,1 mm) oder eigene Stärke.
+- **Füllungen:** wie im Layer oder alles als Kontur.
+
+**Print and Cut**
+
+- **Passermarken ausgeben:** drei Marken um das Design, so wie der Assistent für [Print and Cut](print-and-cut.md) sie setzt. Seiten mit eigenen Marken behalten ihre.
+- **Schnittlinien als Schmuckfarbe „CutContour“** für Schneideplotter und Druckdienste, die Konturen an dieser Farbe erkennen.
+
+**Dokument:** Titel (Standard: Projektname), Autor, Thema und Stichwörter.
+
+**Illustrator:** Illustrator öffnet von einer mehrseitigen Datei nur die erste Seite. Bei `.ai` liegen deshalb alle Seiten nebeneinander auf einer Seite, jede mit einem Rahmen auf der nicht druckenden Ebene „Zeichenflächen“. In Illustrator diese Rahmen auswählen und **Objekt → Zeichenflächen → In Zeichenflächen konvertieren** wählen, dann hat jede Seite ihre eigene Zeichenfläche.
+
+Das MCP-Werkzeug `save_document` nimmt dieselben Optionen im Feld `pdf`.
 
 ## G-Code
 
