@@ -17,6 +17,7 @@ import { parkedObjs } from './parking';
 import { addPt, boxesOf, buildContainment, containsStrict, emptyBox } from './polyTopology';
 import { ruidaParamsForJob, sanitizeRuidaFilename, writeRuida } from './ruida';
 import { normalizeMacroVars, normalizeMacros, type Macro } from './macros';
+import { checkCustomGcode, compileJobGraph, nodeLabel, pauseSupported, stepDeviations, type JobPart, type JobStep, type OpStep, type OrderPreset, type StepOverride } from './jobGraph';
 export { sanitizeRuidaFilename };
 
 // ---------- Geräte und Firmware ----------
@@ -570,6 +571,8 @@ export function rotaryMoves(mv: Moves, d: Device, box: Box | null = null, t?: Fl
       }
     }
     out.zCur = mv.z[i];
+    const code = mv.code.get(i);
+    if (code) out.code.set(out.n, code);
     // Beim Aufspalten (nur f > 0) trägt das erste Teilstück die Pause; Eilgang wird nie aufgespalten.
     let carried = false;
     for (let j = 1; j <= n; j++) {
@@ -584,6 +587,7 @@ export function rotaryMoves(mv: Moves, d: Device, box: Box | null = null, t?: Fl
   }
   // Die End-Pause gehört ans Jobende, nicht an eine Koordinate: Transformation erhält sie
   out.dwellTrailing = mv.dwellTrailing;
+  out.codeEnd = mv.codeEnd;
   return { mv: out, t: t ? Float64Array.from(tt) : undefined };
 }
 
@@ -672,7 +676,23 @@ export class Moves {
   dwellOutgoing = new Uint8Array(1024);
   /** End-Pause der zuletzt fertiggestellten Kontur (s, Leistung): hängt an der nächsten Bewegung bzw. ans Jobende */
   dwellTrailing: { sec: number; s: number } | null = null;
+  /** Lines from the job graph (#551: pause, own G-code) before move i; see codeEnd for the end of the job */
+  code = new Map<number, string[]>();
+  /** Job graph lines after the last move */
+  codeEnd: string[] = [];
   constructor(public x0 = 0, public y0 = 0) {}
+  /** Insert lines before the next move (or at the end of the job if none follows, see closeCode) */
+  addCode(lines: string[]) {
+    if (!lines.length) return;
+    this.code.set(this.n, [...(this.code.get(this.n) ?? []), ...lines]);
+  }
+  /** Lines waiting for a move that never came belong to the end of the job */
+  closeCode() {
+    const rest = this.code.get(this.n);
+    if (!rest) return;
+    this.code.delete(this.n);
+    this.codeEnd.push(...rest);
+  }
   push(x: number, y: number, f: number, s: number, layer: number, cls = MOVE_TRAVEL, sub = -1) {
     if (this.n === this.x.length) {
       const grow = <T extends Float64Array | Float32Array | Int16Array | Uint8Array>(a: T): T => {
@@ -746,8 +766,12 @@ export function startHere(mv: Moves, i: number, frac: number): Moves {
     out.dwell[out.n - 1] = mv.dwell[k];
     out.dwellS[out.n - 1] = mv.dwellS[k];
     out.dwellOutgoing[out.n - 1] = mv.dwellOutgoing[k];
+    // Job graph lines (pause, own G-code) after the resume point still run; those before it are skipped
+    const code = mv.code.get(k);
+    if (code) out.code.set(out.n - 1, code);
   }
   out.dwellTrailing = mv.dwellTrailing;
+  out.codeEnd = mv.codeEnd;
   return out;
 }
 
@@ -818,6 +842,8 @@ export interface Job {
   air: number[];
   /** Zusammengefasste Doppel-Linien je Layer (Bettkoordinaten, für die Vorschau-Markierung) */
   dedup?: { layer: number; len: number; lines: Pt[][] }[];
+  /** Job graph (#551): moves [from, to) of each step, by node id (for the time per step) */
+  steps?: { node: string; from: number; to: number }[];
 }
 
 export interface JobInput {
@@ -953,6 +979,37 @@ export const effOrderOf = (device: Device, o: OrderOverride): OrderOpts => ({
   lessTurns: o.lessTurns ?? device.optLessTurns,
 });
 /** Manuell ist die Reihenfolge nur, wenn kein Optimierer umsortiert (Ecke-Start rotiert nur den Anfangspunkt, dann warnt die Prüfung weiter) */
+/** Path order of a job graph order node (#551); 'device' keeps the job's order */
+export function orderOfPreset(p: OrderPreset, base: OrderOpts): OrderOpts {
+  const off: OrderOpts = { ...base, innerFirst: false, travel: false, group: false, dirOrder: 'none', lessTurns: false };
+  switch (p) {
+    case 'device':
+      return base;
+    case 'shortest':
+      return { ...off, travel: true, bestStart: true, bestDirection: true };
+    case 'innerFirst':
+      return { ...off, innerFirst: true, travel: true, bestStart: true, bestDirection: true };
+    case 'manual':
+      return { ...off, cornerStart: false, bestStart: false, bestDirection: false };
+    default:
+      return { ...off, dirOrder: p, bestStart: true, bestDirection: true };
+  }
+}
+
+/** Plain ASCII for a G-code comment (controllers choke on other bytes) */
+export const asciiComment = (s: string) => s.normalize('NFKD').replace(/[^\x20-\x7e]/g, '').replace(/[;()]/g, ' ').trim().slice(0, 60);
+
+/**
+ * Job graph pause: laser off, the message as a comment (on Marlin on the display), wait for the user (resume with
+ * the Start/Resume button), then the firmware's laser mode again so the next cut writes its power.
+ */
+export function pauseLines(d: Device, message: string): string[] {
+  const msg = asciiComment(message);
+  const fw = FIRMWARES[d.fw];
+  if (d.fw === 'marlin') return ['M5', msg ? `M0 ${msg}` : 'M0', ...fw.laserOn];
+  return ['M5', ...(msg ? [`; ${msg}`] : []), 'M0', ...fw.laserOn];
+}
+
 export const isManualOrder = (o: OrderOpts): boolean => !o.innerFirst && !o.travel && !o.group && o.dirOrder === 'none' && !o.lessTurns;
 
 /** Kosinus-Grenze für Ecke-Start (#153): nur Richtungswechsel ab 30° gelten als Ecke —
@@ -2615,20 +2672,46 @@ export async function buildJob(inp: JobInput): Promise<Job> {
 
   // 3. Bewegungen je Layer in Ausgabereihenfolge
   const start: Pt = device.startFrom === 'current' && inp.position ? inp.position : { x: 0, y: 0 };
-  const mv = new Moves(start.x, start.y);
+  let mv = new Moves(start.x, start.y);
   const order = [...buckets.keys()].sort((a, b) => (layerOf(a).priority ?? a) - (layerOf(b).priority ?? b) || a - b);
   // Z-Versatz nur mit Z-Achse; ist Z die Drehachse, bleibt der Fokus, wo er ist
   const useZ = device.zAxis && !(rotaryOn(device) && device.rotary.axis === 'Z');
   let zSkipped = false;
   let manualViolations = 0;
-  for (const li of order) {
+  const preset = (p: OrderPreset | null): OrderOpts => (p ? orderOfPreset(p, orderOpts) : orderOpts);
+  /** Which contours each set holds: true = inner (strictly inside another closed contour of the same set) */
+  const innerFlags = new Map<Poly[], boolean[]>();
+  const innerOf = (polys: Poly[]) => {
+    let f = innerFlags.get(polys);
+    if (!f) {
+      const closed = polys.filter((p) => p.closed);
+      const boxes = boxesOf(closed);
+      const inner = new Set<Poly>();
+      for (let i = 0; i < closed.length; i++)
+        for (let j = 0; j < closed.length; j++)
+          if (i !== j && containsStrict(closed, boxes, i, j)) {
+            inner.add(closed[i]);
+            break;
+          }
+      innerFlags.set(polys, (f = polys.map((p) => inner.has(p))));
+    }
+    return f;
+  };
+  const partOf = (polys: Poly[], part: JobPart) => {
+    if (part === 'all') return polys;
+    const f = innerOf(polys);
+    return polys.filter((_, k) => f[k] === (part === 'inner'));
+  };
+  /** One layer (or one part of it) in output order: images, then image cut contours, then layer and sub-layers */
+  const runLayer = async (li: number, part: JobPart, ord: OrderOpts, ownOrder: boolean, over: StepOverride) => {
     const L = layerOf(li);
-    const bk = buckets.get(li)!;
+    const bk = buckets.get(li);
+    if (!bk) return;
     const flip = { v: false };
     mv.zCur = 0;
-    // Bilder zuerst (gravieren), dann Vektoren
-    if (bk.images.length) {
-      const IL = imageOutput(L, inp.imgLayer(li));
+    // Bilder zuerst (gravieren), dann Vektoren; images count as outer parts
+    if (bk.images.length && part !== 'inner') {
+      const IL = { ...imageOutput(L, inp.imgLayer(li)), ...over };
       const ov = (IL.overscan / 100) * (IL.speed / 60);
       for (const im of bk.images) {
         const lines = await imageLines(im.shape, im.world, toOut, IL);
@@ -2646,31 +2729,122 @@ export async function buildJob(inp: JobInput): Promise<Job> {
       }
     }
     // Nach allen Gravuren die Schnittkonturen der Bilder, noch vor den Vektor-Bearbeitungen.
-    if (bk.cuts.length) {
+    if (bk.cuts.length && part !== 'inner') {
       const cut = imageCutSettings(inp.imgLayer(li));
       const entry = { ...cut, mode: 'line' as const } as CutEntry;
       const pass = (p: number) => (mv.zCur = useZ ? cut.zOffset + p * cut.zStep : 0);
       if (!useZ && (cut.zOffset || cut.zStep)) zSkipped = true;
-      const ord: OrderOpts = { innerFirst: device.optInnerFirst, travel: device.optTravel, group: device.optGroup, cornerStart: device.optCornerStart, dirOrder: device.optDirOrder, bestStart: device.optBestStart, bestDirection: device.optBestDirection, lessTurns: device.optLessTurns };
+      const ord0: OrderOpts = ownOrder ? ord : { innerFirst: device.optInnerFirst, travel: device.optTravel, group: device.optGroup, cornerStart: device.optCornerStart, dirOrder: device.optDirOrder, bestStart: device.optBestStart, bestDirection: device.optBestDirection, lessTurns: device.optLessTurns };
       for (const polys of bk.cuts) {
-        emitEntry(mv, entry, polys, li, -2, flip, pass, ord, whitespaceTravel(device));
+        emitEntry(mv, entry, polys, li, -2, flip, pass, ord0, whitespaceTravel(device));
         mv.zCur = 0;
       }
     }
-    entriesOf(L).forEach(({ e, sub }, k) => {
-      const polys = bk.sets[k];
+    entriesOf(L).forEach(({ e: e0, sub }, k) => {
+      const polys = bk.sets[k] && partOf(bk.sets[k], part);
       if (!polys?.length) return;
+      // Step overrides from the job graph apply to the layer's own settings, not to its sub-layers
+      const e = sub === -1 && Object.keys(over).length ? ({ ...e0, ...over } as CutEntry) : e0;
       if (!useZ && (e.zOffset || e.zStep)) zSkipped = true;
       // Z je Durchgang: erster Durchgang beim Z-Versatz, jeder weitere um zStep tiefer
       const pass = (p: number) => (mv.zCur = useZ ? e.zOffset + p * e.zStep : 0);
 
-      if (!orderOpts.innerFirst && !orderOpts.travel && !orderOpts.group && orderOpts.dirOrder === 'none' && !orderOpts.lessTurns && e.mode === 'line') {
+      if (!ord.innerFirst && !ord.travel && !ord.group && ord.dirOrder === 'none' && !ord.lessTurns && e.mode === 'line') {
         manualViolations += countManualViolations(polys);
       }
 
-      emitEntry(mv, e, polys, li, sub, flip, pass, orderOpts, whitespaceTravel(device));
+      emitEntry(mv, e, polys, li, sub, flip, pass, ord, whitespaceTravel(device));
       mv.zCur = 0;
     });
+  };
+
+  const graph = doc.jobGraph?.enabled ? doc.jobGraph : null;
+  let stepRanges: { node: string; from: number; to: number }[] | null = null;
+  if (!graph) {
+    for (const li of order) await runLayer(li, 'all', orderOpts, false, {});
+  } else {
+    // Job graph (#551): steps in the order of the sequence chain
+    const cg = compileJobGraph(graph);
+    if (cg.errors.length) throw new Error(t('Laser-Ablauf: {why}', { why: cg.errors.join(' ') }));
+    warnings.push(...cg.warnings.map((w) => t('Laser-Ablauf: {why}', { why: w })));
+    const name = (li: number) => (layerOf(li) as { name?: string }).name || String(li);
+    const done = new Map<number, Set<JobPart>>();
+    const nodeName = (id: string) => {
+      const n = graph.nodes.find((x) => x.id === id);
+      return n ? nodeLabel(n, name) : id;
+    };
+    /** Own G-code of a node, checked; it goes into the job with a comment naming the node */
+    const custom = (lines: string[], id: string): string[] => {
+      if (!lines.length) return [];
+      if (device.fw === 'ruida') {
+        warnings.push(t('Laser-Ablauf: Eigener G-Code in „{name}“ entfällt bei Ruida.', { name: nodeName(id) }));
+        return [];
+      }
+      const bad = checkCustomGcode(lines, device.sMax);
+      if (bad.length) throw new Error(t('Laser-Ablauf, Knoten „{name}“: {why}', { name: nodeName(id), why: bad.join(' ') }));
+      return [`; ${asciiComment(nodeName(id))}`, ...lines];
+    };
+    const steps = cg.steps;
+    const runStep = async (st: JobStep, k: number) => {
+      if (st.kind === 'pause') {
+        if (!pauseSupported(device.fw)) {
+          warnings.push(t('Laser-Ablauf: Pausen gehen mit {fw} nicht und werden übersprungen.', { fw: FIRMWARES[device.fw].label }));
+          return;
+        }
+        mv.addCode(pauseLines(device, st.message));
+      } else if (st.kind === 'gcode') mv.addCode(custom(st.lines, st.node));
+      else if (st.kind === 'frame') {
+        // Frame around the next operation: run it into a scratch list first to know where it burns
+        const next = steps.slice(k + 1).find((x): x is OpStep => x.kind === 'op');
+        if (!next) return;
+        const scratch = new Moves(mv.lastX(), mv.lastY());
+        const main = mv;
+        mv = scratch;
+        try {
+          await runLayer(next.layer, next.part, preset(next.order), next.order !== null, next.over);
+        } finally {
+          mv = main;
+        }
+        const b = emptyBox();
+        let px = scratch.x0,
+          py = scratch.y0;
+        for (let i = 0; i < scratch.n; i++) {
+          if (scratch.f[i] > 0 && scratch.s[i] > 0) (addPt(b, px, py), addPt(b, scratch.x[i], scratch.y[i]));
+          px = scratch.x[i];
+          py = scratch.y[i];
+        }
+        const fb = finite(b);
+        if (!fb) return;
+        // Laser off: rapid moves around the area, then back to where the head was, so the step starts as planned
+        const back = { x: mv.lastX(), y: mv.lastY() };
+        for (const [x, y] of [[fb.x0, fb.y0], [fb.x1, fb.y0], [fb.x1, fb.y1], [fb.x0, fb.y1], [fb.x0, fb.y0]]) mv.push(x, y, 0, 0, next.layer, MOVE_TRAVEL);
+        mv.push(back.x, back.y, 0, 0, next.layer, MOVE_TRAVEL);
+      } else {
+        if (!buckets.has(st.layer)) return;
+        (done.get(st.layer) ?? done.set(st.layer, new Set()).get(st.layer)!).add(st.part);
+        mv.addCode(custom(st.before, st.node));
+        await runLayer(st.layer, st.part, preset(st.order), st.order !== null, st.over);
+        mv.addCode(custom(st.after, st.node));
+      }
+    };
+    stepRanges = [];
+    for (let k = 0; k < steps.length; k++) {
+      const from = mv.n;
+      await runStep(steps[k], k);
+      stepRanges.push({ node: steps[k].node, from, to: mv.n });
+    }
+    mv.closeCode();
+    // Layers (or parts of them) that no step uses are not lasered: say so
+    for (const li of order) {
+      const p = done.get(li);
+      if (p && (p.has('all') || (p.has('inner') && p.has('outer')))) continue;
+      const bk = buckets.get(li)!;
+      const missing: JobPart = p?.has('outer') ? 'inner' : p?.has('inner') ? 'outer' : 'all';
+      const n = partOf(bk.sets[0] ?? [], missing).length + (missing === 'inner' ? 0 : bk.images.length + bk.cuts.length);
+      if (n) warnings.push(tn('Laser-Ablauf: {n} Kontur auf Layer {name} gehört zu keinem Schritt und wird nicht gelasert.', 'Laser-Ablauf: {n} Konturen auf Layer {name} gehören zu keinem Schritt und werden nicht gelasert.', n, { name: name(li) }));
+    }
+    const dev = stepDeviations(graph);
+    if (dev.length) warnings.push(tn('Laser-Ablauf: {n} Schritt weicht von den Layer-Einstellungen ab.', 'Laser-Ablauf: {n} Schritte weichen von den Layer-Einstellungen ab.', dev.length));
   }
   if (manualViolations)
     warnings.push(
@@ -2736,7 +2910,7 @@ export async function buildJob(inp: JobInput): Promise<Job> {
     const name = (L as { name?: string }).name ?? String(d.layer);
     warnings.push(t('{len} mm doppelte Linien zusammengefasst (Layer {name}).', { len: d.len < 10 ? d.len.toFixed(2) : d.len.toFixed(1), name }));
   }
-  return { moves: mv, bounds: ob, travel: finite(travel), hull: convexHull(dedupe(hullPts)), warnings, offset, air, dedup };
+  return { moves: mv, bounds: ob, travel: finite(travel), hull: convexHull(dedupe(hullPts)), warnings, offset, air, dedup, ...(stepRanges ? { steps: stepRanges } : {}) };
 }
 
 function dedupe(pts: Pt[]): Pt[] {
@@ -2866,7 +3040,22 @@ const num = (v: number) => {
   return Object.is(r, -0) ? '0' : String(r);
 };
 
-export type GCodeOrigin = 'header' | 'start' | 'move' | 'air' | 'z' | 'dwell' | 'end' | 'footer' | 'meta';
+export type GCodeOrigin = 'header' | 'start' | 'move' | 'air' | 'z' | 'dwell' | 'node' | 'end' | 'footer' | 'meta';
+
+/**
+ * What inserted lines do to the modal state the move writer caches (same rule in the Rust core):
+ * spindle commands (M3/M4/M5) make the next cut write its S again; any other line that isn't a Z step or a dwell
+ * (job graph pauses and own G-code) also makes the next move write G, X/Y and F again.
+ */
+export function insertEffect(lines: string[]): { power: boolean; foreign: boolean } {
+  let power = false,
+    foreign = false;
+  for (const l of lines) {
+    if (/^M[345](?![0-9])/.test(l)) power = true;
+    else if (!/^(G91|G90|G4 |G0 Z)/.test(l)) foreign = true;
+  }
+  return { power: power || foreign, foreign };
+}
 
 export interface GCode {
   lines: string[];
@@ -2993,8 +3182,10 @@ export function gcodeInserts(mv: Moves, d: Device, zs = zInserts(mv, d), dw = dw
   const inserts: [number, string[], GCodeOrigin][] = [
     ...zs.at.map(([at, ls]): [number, string[], GCodeOrigin] => [at, ls, 'z']),
     ...dw.at.map(([at, ls]): [number, string[], GCodeOrigin] => [at, ls, 'dwell']),
+    ...[...mv.code].filter(([at]) => at < mv.n).map(([at, ls]): [number, string[], GCodeOrigin] => [at, ls, 'node']),
   ];
-  const phase = ([at, , origin]: [number, string[], GCodeOrigin]) => origin === 'z' ? 1 : mv.dwellOutgoing[at] ? 0 : 2;
+  // Outgoing end pause, then job graph lines (after the previous step, before the next one's Z), Z, incoming pause
+  const phase = ([at, , origin]: [number, string[], GCodeOrigin]) => origin === 'node' ? 0.5 : origin === 'z' ? 1 : mv.dwellOutgoing[at] ? 0 : 2;
   return inserts.sort((a, b) => a[0] - b[0] || phase(a) - phase(b));
 }
 
@@ -3044,7 +3235,9 @@ export function gcodeLines(mv: Moves, d: Device, est: Estimate, airList: number[
       }
       // Pausen mit Anstechen ändern die Spindelleistung (M3 S…): der Cache muss
       // verfallen, sonst fehlt das S der folgenden Schnittbewegung (P1-Befund).
-      if (inserts[zk][2] === 'dwell' && inserts[zk][1].length > 1) cs = NaN;
+      const fx = insertEffect(inserts[zk][1]);
+      if (fx.power) cs = NaN;
+      if (fx.foreign) (cf = -1, known = false);
       g = -1;
     }
     const wantAir = airLayers.has(mv.layer[i]);
@@ -3104,8 +3297,8 @@ export function gcodeLines(mv: Moves, d: Device, est: Estimate, airList: number[
     times.push(est.total);
     origins.push('air');
   }
-  // End-Pause zuerst am beendeten Schnitt, dann erst Z-Rückstellung und Geräteschluss
-  for (const [z, origin] of [...dw.end.map((l): [string, GCodeOrigin] => [l, 'dwell']), ...zs.end.map((l): [string, GCodeOrigin] => [l, 'z'])]) {
+  // End-Pause zuerst am beendeten Schnitt, dann Ablauf-Zeilen am Ende, dann erst Z-Rückstellung und Geräteschluss
+  for (const [z, origin] of [...dw.end.map((l): [string, GCodeOrigin] => [l, 'dwell']), ...mv.codeEnd.map((l): [string, GCodeOrigin] => [l, 'node']), ...zs.end.map((l): [string, GCodeOrigin] => [l, 'z'])]) {
     lines.push(z);
     times.push(est.total);
     origins.push(origin);
@@ -3181,7 +3374,7 @@ export async function prepareGCode(
       const zs = zInserts(mv, d);
       const dw = dwellInserts(mv, d);
       const inserts = gcodeInserts(mv, d, zs, dw).map(([at, ls]) => [at, ls]);
-      const params = JSON.stringify({ x0: mv.x0, y0: mv.y0, sMax: d.sMax, air: job.air, airCmd: d.airCmd || 'M8', header, footer: [...dw.end, ...zs.end, ...gcodeFooter(d)], total: est.total, yAxis: outAxis(d), inserts });
+      const params = JSON.stringify({ x0: mv.x0, y0: mv.y0, sMax: d.sMax, air: job.air, airCmd: d.airCmd || 'M8', header, footer: [...dw.end, ...mv.codeEnd, ...zs.end, ...gcodeFooter(d)], total: est.total, yAxis: outAxis(d), inserts });
       const buf = await native<ArrayBuffer>('gcode_prepare', packMoves(mv, t!, params));
       const head = new Uint32Array(buf, 0, 2);
       return { id: head[0], lines: null, count: head[1], times: new Float64Array(buf, 8), total: est.total };
