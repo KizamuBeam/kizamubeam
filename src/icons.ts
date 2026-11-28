@@ -158,6 +158,8 @@ export const ICONS: Record<string, string> = {
   joint: svg('<path d="M3 9h4v3h4V9h4v3h4V9h2"/><path d="M3 15h4v-3M11 12v3h4v-3M19 12v3h2" stroke-dasharray="1.8 1.4"/>'),
   // Werkzeugkasten
   apps: svg('<rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><circle cx="17" cy="7.2" r="3.2"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/>'),
+  viewTiles: svg('<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>'),
+  viewList: svg('<rect x="3.5" y="4.5" width="4" height="4" rx="1"/><rect x="3.5" y="10" width="4" height="4" rx="1"/><rect x="3.5" y="15.5" width="4" height="4" rx="1"/><path d="M10.5 6.5h10M10.5 12h10M10.5 17.5h10"/>'),
   slots: svg('<rect x="3" y="4" width="18" height="16" rx="1"/><path d="M8 4v7h3V4M14 20v-7h3v7"/>'),
   jig: svg('<rect x="3" y="5" width="18" height="14" rx="1.5"/><circle cx="8" cy="10" r="2.3"/><circle cx="16" cy="10" r="2.3"/><path d="M7 16h2M15 16h2"/>'),
   jigfill: svg('<rect x="3" y="5" width="18" height="14" rx="1.5"/><circle cx="8" cy="12" r="2.6"/><circle cx="16" cy="12" r="2.6"/><path d="M7 12h2M15 12h2"/>'),

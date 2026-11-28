@@ -5905,5 +5905,7 @@
   "Einbrennen": "Fondi",
   "Kanten: Verformung übernommen — ein Satz ließ sich nicht kreisförmig halten (Kanten zu kurz).": "Spigoli: deformazione applicata — un insieme non è rimasto circolare (spigoli troppo corti).",
   "Kanten: Satz-Geometrie verändert — Kantenpaar erneut wählen.": "Spigoli: geometria dell'insieme modificata — riseleziona la coppia di spigoli.",
-  "Kanten: Knotenbearbeitung — Kantensätze eingebrannt (Geometrie bleibt).": "Spigoli: modifica nodi — insiemi fusi (geometria mantenuta)."
+  "Kanten: Knotenbearbeitung — Kantensätze eingebrannt (Geometrie bleibt).": "Spigoli: modifica nodi — insiemi fusi (geometria mantenuta).",
+  "Kacheln": "Riquadri",
+  "Liste": "Elenco"
 }
