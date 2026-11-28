@@ -411,6 +411,7 @@ function buildMenu(ed: Editor) {
     [t('Laser'), [
       [t('Konstruktion prüfen'), 'check', () => openCheck()],
       [t('Vorschau …'), 'preview', () => openPreview(ed)],
+      [t('Laser-Ablauf …'), '', () => void import('./jobGraphDialog').then((m) => m.openJobGraphDialog(ed))],
       [t('G-Code speichern …'), 'gcode', () => saveGCode(ed)],
       'sep',
       [t('Start'), 'start', () => startJob(ed)],

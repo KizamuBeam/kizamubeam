@@ -6790,3 +6790,86 @@ dialog h3[tabindex]:focus-visible { outline: 2px solid var(--accent, #6bafff); o
   align-items: center;
   flex-wrap: wrap;
 }
+
+/* Laser job graph (#551, src/jobGraphDialog.ts) */
+.jg-dialog {
+  width: min(1320px, 96vw);
+  height: min(860px, 92vh);
+  display: none;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+}
+.jg-dialog[open] { display: flex; }
+.jg-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.jg-toggle { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+.jg-status { flex: 1; min-width: 200px; text-align: right; color: var(--muted); }
+.jg-status.warn, .jg-warn { color: #9a6700; }
+.jg-status.error, .jg-error { color: #c62828; }
+.jg-warn, .jg-error { font-size: 12px; line-height: 1.4; margin: 4px 0; }
+div.jg-warn, div.jg-error { background: color-mix(in srgb, currentColor 9%, transparent); border: 1px solid color-mix(in srgb, currentColor 35%, transparent); border-radius: 5px; padding: 6px 8px; }
+.jg-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 4px; max-width: 520px; margin: 0 auto; }
+.jg-empty[hidden], .jg-body[hidden], .jg-steps[hidden] { display: none; }
+.jg-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 320px; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.jg-canvas {
+  position: relative;
+  overflow: auto;
+  background-color: var(--surface);
+  background-image: radial-gradient(color-mix(in srgb, var(--muted) 35%, transparent) 1px, transparent 1px);
+  background-size: 20px 20px;
+  outline: none;
+}
+.jg-plane { position: relative; }
+.jg-wires { position: absolute; left: 0; top: 0; overflow: visible; }
+.jg-nodes { position: absolute; left: 0; top: 0; }
+.jg-wire { fill: none; stroke-width: 2.4; cursor: pointer; pointer-events: stroke; }
+.jg-wire.seq { stroke: #5b6470; stroke-width: 3; }
+.jg-wire.data { stroke: #b08a00; }
+.jg-wire.sel { stroke: var(--accent); stroke-width: 4; }
+.jg-wire.temp { stroke-dasharray: 6 4; pointer-events: none; }
+.jg-node { position: absolute; background: var(--field); border: 1px solid var(--line); border-radius: 7px; box-shadow: 0 2px 6px var(--shadow); font-size: 12px; user-select: none; cursor: grab; }
+.jg-node.sel { outline: 2px solid var(--accent); outline-offset: 1px; }
+.jg-head { position: relative; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 6px 18px; border-radius: 6px 6px 0 0; color: #fff; background: #5b6470; }
+.jg-head b { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.jg-head small { width: 100%; opacity: 0.85; font-size: 10.5px; }
+.jg-op .jg-head { background: #1f6fd1; }
+.jg-gcode .jg-head { background: #3d4a5c; }
+.jg-order .jg-head { background: #7b4bb8; }
+.jg-layer .jg-head, .jg-split .jg-head { background: color-mix(in srgb, var(--muted) 18%, var(--field)); color: var(--text); }
+.jg-sum { padding: 5px 9px 7px; color: var(--muted); line-height: 1.5; font-size: 11px; overflow: hidden; }
+.jg-sum div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.jg-gcode .jg-sum { font-family: ui-monospace, Menlo, monospace; color: var(--text); }
+.jg-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; border: 1px solid rgba(0, 0, 0, 0.25); flex: none; }
+.jg-badge { position: absolute; right: 6px; top: -18px; font-size: 10.5px; background: #fff7d6; border: 1px solid #e3c766; color: #6b5300; border-radius: 9px; padding: 1px 7px; white-space: nowrap; }
+.jg-ports { padding: 0 0 6px; }
+.jg-prow { display: grid; grid-template-columns: 12px 1fr 1fr 12px; align-items: center; gap: 4px; height: 20px; }
+.jg-plabel { font-size: 10.5px; color: var(--muted); }
+.jg-plabel.right { text-align: right; }
+.jg-port { width: 12px; height: 12px; border-radius: 50%; background: var(--field); border: 2px solid #b08a00; box-sizing: border-box; cursor: crosshair; }
+.jg-prow .jg-port.in { margin-left: -7px; }
+.jg-prow .jg-port.out { margin-right: -7px; }
+.jg-port.seq { position: absolute; top: 9px; border-radius: 2px; transform: rotate(45deg); border-color: #2b3038; background: #fff; }
+.jg-port.seq.in { left: -7px; }
+.jg-port.seq.out { right: -7px; }
+.jg-port:hover { background: var(--accent); }
+.jg-inspector { border-left: 1px solid var(--line); background: var(--panel); overflow: auto; padding: 10px 12px; font-size: 12.5px; }
+.jg-inspector h4 { margin: 0 0 8px; text-transform: uppercase; letter-spacing: 0.05em; font-size: 12px; color: var(--muted); }
+.jg-inspector h5 { margin: 12px 0 6px; font-size: 12px; color: var(--muted); }
+.jg-inspector p { margin: 6px 0; line-height: 1.45; }
+.jg-field { display: flex; flex-direction: column; gap: 3px; margin: 6px 0; }
+.jg-field input, .jg-field textarea, .jg-field select { width: 100%; box-sizing: border-box; }
+.jg-field textarea.mono, .jg-field .mono { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+.jg-src { display: flex; align-items: center; gap: 6px; background: var(--field); border: 1px solid var(--line); border-radius: 5px; padding: 6px 8px; }
+.jg-orow { display: grid; grid-template-columns: 16px 1fr 80px 44px 36px; align-items: center; gap: 6px; margin: 4px 0; }
+.jg-orow.over > span:nth-child(2), .jg-orow.over input[type='number'] { color: #b45309; font-weight: 600; }
+.jg-ibuttons { margin-top: 12px; }
+.jg-steps h5 { margin: 0 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+.jg-strow { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; }
+.jg-st { position: relative; min-width: 120px; background: var(--field); border: 1px solid var(--line); border-radius: 6px; padding: 6px 9px; font-size: 12px; cursor: pointer; }
+.jg-st b { display: block; margin-right: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.jg-st .muted { white-space: nowrap; }
+.jg-st.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.jg-st.dev b::after { content: ' ⚠'; color: #b45309; }
+.jg-stn { position: absolute; right: 7px; top: 5px; font-size: 11px; color: var(--muted); }
+.jg-total { display: flex; align-items: center; gap: 12px; margin-top: 6px; }
+.jg-total > span:first-child { flex: 1; }

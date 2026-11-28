@@ -111,16 +111,26 @@ pub fn write(mv: &Moves, p: &Params) -> (Vec<String>, Vec<f64>) {
         // Anstech-Pausen ändern die Spindelleistung (M3 S…): der S-Cache muss
         // verfallen, sonst fehlt das S der folgenden Schnittbewegung.
         while zk < p.inserts.len() && p.inserts[zk].0 == i {
+            // Same rule as insertEffect() in src/gcode.ts: M3/M4/M5 → write S again; any other line that is not
+            // a Z step or a dwell (job graph pause, own G-code) → also write G, X/Y and F again.
             let mut power_changed = false;
+            let mut foreign = false;
             for z in &p.inserts[zk].1 {
-                if z.starts_with("M3 S") || z.starts_with("M3 I S") {
+                let b = z.as_bytes();
+                if b.len() >= 2 && b[0] == b'M' && (b'3'..=b'5').contains(&b[1]) && !(b.len() > 2 && b[2].is_ascii_digit()) {
                     power_changed = true;
+                } else if !(z.starts_with("G91") || z.starts_with("G90") || z.starts_with("G4 ") || z.starts_with("G0 Z")) {
+                    foreign = true;
                 }
                 lines.push(z.clone());
                 times.push(if i > 0 { mv.t[i - 1] } else { 0.0 });
             }
-            if power_changed {
+            if power_changed || foreign {
                 cs = i64::MIN;
+            }
+            if foreign {
+                cf = -1.0;
+                known = false;
             }
             g = -1;
             zk += 1;
@@ -242,5 +252,22 @@ mod tests {
         let pos = joined.find("M3 S800").expect("insert present");
         let after = &joined[pos + "M3 S800".len()..];
         assert!(after.contains("S500"), "S nach M3-Insert erneut emittieren, got:\n{joined}");
+    }
+    #[test]
+    fn modal_state_reemitted_after_job_graph_insert() {
+        let x = [10.0, 20.0];
+        let y = [0.0, 0.0];
+        let s = [0.5f32, 0.5];
+        let f = [1000.0f32, 1000.0];
+        let layer = [1i16, 1];
+        let t = [0.1, 0.2];
+        let mv = Moves { x0: 0.0, y0: 0.0, x: &x, y: &y, s: &s, f: &f, layer: &layer, t: &t };
+        let p = Params {
+            x0: 0.0, y0: 0.0, s_max: 1000.0, air: vec![], air_cmd: "M8".into(),
+            header: vec![], footer: vec![], total: 0.0, y_axis: "Y".into(),
+            inserts: vec![(1, vec!["M5".into(), "M0".into(), "M4 S0".into()])],
+        };
+        let (lines, _) = write(&mv, &p);
+        assert_eq!(lines.last().unwrap(), "G1 X20 Y0 S500 F1000", "got:\n{}", lines.join("\n"));
     }
 }

@@ -43,7 +43,7 @@ const scans = [
 
 // G-Code: Eilgänge, Vorschübe, gleiche Punkte, negative Koordinaten, Air Assist auf Layer 1
 // withZ: Z-Versatz wechselt (wie bei „tiefer je Durchgang“), Z-Zeilen werden vor Bewegungen eingefügt
-function gcodeCase(fw: 'fluidnc' | 'smoothie' | 'marlin', axis?: 'A', withZ = false, withDwell = false) {
+function gcodeCase(fw: 'fluidnc' | 'smoothie' | 'marlin', axis?: 'A', withZ = false, withDwell = false, withNode = false) {
   const d = newDevice({ fw, ...(axis ? { rotary: { ...DEFAULT_ROTARY, enabled: true, axis, kind: 'chuck' as const, objectDiam: 70 } } : {}) });
   const mv = new Moves(1.25, -3);
   let x = 0,
@@ -75,6 +75,14 @@ function gcodeCase(fw: 'fluidnc' | 'smoothie' | 'marlin', axis?: 'A', withZ = fa
     mv.dwellOutgoing[1000] = 1;
     mv.dwellTrailing = { sec: 0.3, s: 0 };
   }
+  if (withNode) {
+    // Job graph (#551): a pause, own G-code that moves the head, a spindle-only line, and lines at the end
+    mv.code.set(300, ['M5', '; pause', 'M0', 'M4 S0']);
+    mv.code.set(501, ['G4 P5']);
+    mv.code.set(1200, ['M7', 'G0 X1 Y1']);
+    mv.code.set(1800, ['M3 S500']);
+    mv.codeEnd = ['M9'];
+  }
   const est = estimate(mv, d);
   // Mit Drehachse: Bewegungen wie in prepareGCode umgerechnet, Y-Richtung als A ausgegeben
   const out = rotaryMoves(mv, d).mv;
@@ -82,8 +90,8 @@ function gcodeCase(fw: 'fluidnc' | 'smoothie' | 'marlin', axis?: 'A', withZ = fa
   const zs = zInserts(out, d);
   const dw = dwellInserts(out, d);
   const params = {
-    x0: out.x0, y0: out.y0, sMax: d.sMax, air: [1], airCmd: 'M8', header: ['; Kopf', 'G21', 'G90', 'M4 S0'], footer: [...dw.end, ...zs.end, ...FIRMWARES[fw].footer], total: est.total,
-    ...(axis ? { yAxis: outAxis(d) } : {}), ...((withZ || withDwell) ? { inserts: gcodeInserts(out, d, zs, dw).map(([at, ls]) => [at, ls]) } : {}),
+    x0: out.x0, y0: out.y0, sMax: d.sMax, air: [1], airCmd: 'M8', header: ['; Kopf', 'G21', 'G90', 'M4 S0'], footer: [...dw.end, ...out.codeEnd, ...zs.end, ...FIRMWARES[fw].footer], total: est.total,
+    ...(axis ? { yAxis: outAxis(d) } : {}), ...((withZ || withDwell || withNode) ? { inserts: gcodeInserts(out, d, zs, dw).map(([at, ls]) => [at, ls]) } : {}),
   };
   return {
     // so, wie prepareGCode die Daten an den Rust-Kern schickt
@@ -138,7 +146,7 @@ const out = {
   dithered,
   scans,
   gcode: [gcodeCase('fluidnc'), gcodeCase('smoothie'), gcodeCase('fluidnc', 'A'), gcodeCase('fluidnc', undefined, true),
-    gcodeCase('fluidnc', undefined, true, true), gcodeCase('marlin', undefined, true, true), gcodeCase('fluidnc', 'A', true, true)],
+    gcodeCase('fluidnc', undefined, true, true), gcodeCase('marlin', undefined, true, true), gcodeCase('fluidnc', 'A', true, true), gcodeCase('fluidnc', undefined, true, true, true), gcodeCase('marlin', 'A', false, false, true)],
   ruida: [
     ruidaCase('absolute', 'top-right', '88', '1'),
     ruidaCase('current', 'bottom-left', '11', 'both'),

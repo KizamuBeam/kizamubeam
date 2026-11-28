@@ -5,6 +5,7 @@ import type { ProjectParam } from './params';
 import type { SeriesTable, TemplateInfo } from './templates';
 import { conditionHolds } from './params';
 import { cleanLook, type MaterialLook } from './view3d/looks';
+import { cleanJobGraph, type JobGraph } from './jobGraph';
 // Datenmodell: Dokument, Objekte, Layer, Matrizen.
 // Interne Koordinaten sind Millimeter mit y nach unten (wie SVG), Ursprung oben links am Bett.
 // Angezeigt wird in Maschinenkoordinaten (Ursprung unten links, y nach oben).
@@ -857,6 +858,8 @@ export interface Doc {
   cutSelected?: boolean;
   /** Job-Ursprung 0 … 8: Stand beim Speichern, wird beim Öffnen aufs Gerät übernommen */
   jobOrigin?: number;
+  /** Laser job graph (#551): own order, steps and G-code for the job; absent = normal layer order */
+  jobGraph?: JobGraph;
 }
 
 /** Eine Platte referenziert ein oberstes Objekt; dessen Inhalt bleibt vollständig editierbar. */
@@ -974,6 +977,9 @@ export function loadDoc(raw: unknown): Doc {
   const notes = cleanNotes(d.notes);
   if (notes) d.notes = notes;
   else delete d.notes;
+  const graph = cleanJobGraph(d.jobGraph);
+  if (graph) d.jobGraph = graph;
+  else delete d.jobGraph;
   const guides = cleanGuides(d.guides);
   const bed = d.bed as { w: number; h: number };
   for (const p of pages) {

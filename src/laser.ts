@@ -2213,6 +2213,7 @@ export async function openPreview(ed: Editor, src?: JobSource) {
     ...((job.dedup?.length
       ? stat(t('Doppelte Linien'), t('{len} mm zusammengefasst', { len: dec(job.dedup.reduce((s, d) => s + d.len, 0).toFixed(1)) }))
       : [])),
+    ...(job.steps ? stat(t('Laser-Ablauf'), tn('Eigener Ablauf, {n} Schritt', 'Eigener Ablauf, {n} Schritte', job.steps.length)) : []),
   );
   const warn = h('div', { class: 'note' }, ...job.warnings.map((w) => h('div', {}, w)));
   const dlg = h('dialog', { class: 'preview-dialog', 'data-dialog-resize': 'true', 'data-dialog-min-width': '480', 'data-dialog-min-height': '360' },
