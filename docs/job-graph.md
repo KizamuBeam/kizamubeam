@@ -1,6 +1,6 @@
 # Job graph: node-based job order (proposal)
 
-Status: **proposal, not implemented.** This page describes a node-based way to set the order in which the laser
+Status: **implemented on branch `claude/project-thread-j16p78` for testing (#551).** This page describes a node-based way to set the order in which the laser
 works through a job, and which settings each step uses. It is a design basis for discussion before any code is
 written.
 

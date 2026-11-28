@@ -183,11 +183,12 @@ export function defaultJobGraph(layers: number[]): JobGraph {
   layers.forEach((li, k) => {
     const op = `op-${li}`,
       ln = `layer-${li}`;
-    nodes.push({ id: op, kind: 'op', x: 200 + k * 180, y: 40 }, { id: ln, kind: 'layer', layer: li, x: 200 + k * 180, y: 230 });
+    // layer nodes below and left of their step, so the data wire runs forward and up
+    nodes.push({ id: op, kind: 'op', x: 220 + k * 220, y: 40 }, { id: ln, kind: 'layer', layer: li, x: 20 + k * 220, y: 230 });
     edges.push({ from: prev, out: 'next', to: op, in: 'prev' }, { from: ln, out: 'objs', to: op, in: 'objs' });
     prev = op;
   });
-  nodes.push({ id: 'end', kind: 'end', x: 200 + layers.length * 180, y: 40 });
+  nodes.push({ id: 'end', kind: 'end', x: 220 + layers.length * 220, y: 40 });
   edges.push({ from: prev, out: 'next', to: 'end', in: 'prev' });
   return { v: 1, enabled: true, nodes, edges };
 }
