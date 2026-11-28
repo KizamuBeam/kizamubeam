@@ -50,6 +50,7 @@ Für Zähler und Datum bei jedem Job statt einer festen Liste siehe [variabler T
 - **Favoriten**: Rechtsklick auf eine Kachel heftet sie oben an. Unter den Favoriten stehen die drei zuletzt benutzten Werkzeuge.
 - Neue Werkzeuge tragen „NEU“, bis du sie einmal benutzt hast.
 - Braucht ein Werkzeug eine Auswahl, sagt die Statusleiste, was auszuwählen ist.
+- **Kacheln oder Liste**: Die zwei Schaltflächen neben der Suche schalten auf eine kompakte Liste mit einer Zeile pro Werkzeug (kleines Symbol und Name). Gruppen, Filter und Favoriten funktionieren gleich, und der Werkzeugkasten merkt sich die Ansicht.
 
 ## Bibliothek
 
