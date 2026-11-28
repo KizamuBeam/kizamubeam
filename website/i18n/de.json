@@ -65,7 +65,7 @@
         "Verformen: Text, Formen und Bilder als Bogen, Wölbung, Flagge oder in Perspektive, als saubere Bézierkurven",
         "Raster- und Kreis-Arrays mit Live-Vorschau, mehrseitige Projekte und ein Verlauf zum Zurückspringen",
         "Import von SVG, DXF, PDF, Illustrator (.ai), Bildern und LightBurn-Projekten (.lbrn2) – Farben landen direkt auf der passenden Ebene",
-        "Export als SVG, DXF, PDF und Illustrator (.ai) – Kurven bleiben Kurven, Layer bleiben getrennt",
+        "Export als SVG, DXF, PDF und Illustrator (.ai) – Kurven bleiben Kurven, Layer bleiben getrennt, Text auf Wunsch als echter Text mit eingebetteter Schrift",
         "Andockbare Fenster, anpassbare Werkzeugleisten, frei einstellbares Gitter, helles und dunkles Theme"
       ]
     },

@@ -67,6 +67,9 @@ jobs:
       - name: Path tests
         run: npm run test:paths
 
+      - name: Vector format tests (DXF, PDF/AI export and import)
+        run: npm run test:vecformats
+
   slots:
     name: slots
     runs-on: ubuntu-latest

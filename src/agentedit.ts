@@ -18,7 +18,8 @@ import { builtinPatterns } from './patternLibrary';
 import type { PatternPick } from './editor/pattern';
 import { DEFAULT_JOINT, EdgePick, isStraight, JointKind, JointOptions } from './joints';
 import { importSvg, parsePathData, transformSubs } from './importers';
-import { buildDxfText, buildPdfBytes, buildSvg, bytesToBase64, importBytesOrThrow } from './files';
+import { buildDxfText, buildSvg, bytesToBase64, importBytesOrThrow } from './files';
+import { buildPdfBytes } from './pdfExport';
 import { t } from './i18n';
 import { library, layerPatch } from './materials';
 import { isTauri } from './machine';
@@ -2079,10 +2080,44 @@ export const EDIT_TOOLS: ToolDef[] = [
     name: 'save_document',
     title: 'Speichern',
     description:
-      'Speichert das Projekt (.kzb, samt Bildern) oder exportiert unter einem absoluten Pfad: .svg und .dxf (aktuelle Seite), .pdf und .ai (PDF-kompatibel, alle Seiten). Texte werden zu Umrissen, DXF enthält keine Bilder. Eine vorhandene Datei wird nur mit overwrite überschrieben.',
+      'Speichert das Projekt (.kzb, samt Bildern) oder exportiert unter einem absoluten Pfad: .svg und .dxf (aktuelle Seite), .pdf und .ai (PDF-kompatibel, alle Seiten; .ai legt mehrere Seiten als Zeichenflächen nebeneinander). Texte werden zu Umrissen (bei PDF/AI mit pdf.realText als echter Text mit eingebetteter Schrift), DXF enthält keine Bilder. pdf nimmt dieselben Optionen wie der Export-Dialog. Eine vorhandene Datei wird nur mit overwrite überschrieben.',
     tier: Tier.Edit,
     ownUndo: true,
-    inputSchema: obj({ path: { type: 'string' }, overwrite: { type: 'boolean' } }, ['path']),
+    inputSchema: obj(
+      {
+        path: { type: 'string' },
+        overwrite: { type: 'boolean' },
+        pdf: {
+          type: 'object',
+          description: 'Nur .pdf/.ai: Export-Optionen; fehlende wie im Dialog voreingestellt.',
+          properties: {
+            scope: { type: 'string', enum: ['all', 'page', 'selection'] },
+            hiddenLayers: { type: 'boolean', description: 'Ausgeblendete Layer als ausgeschaltete PDF-Ebenen' },
+            nonOutput: { type: 'string', enum: ['on', 'off', 'omit'], description: 'Layer ohne Ausgabe' },
+            guides: { type: 'boolean' },
+            notes: { type: 'boolean' },
+            pageSize: { type: 'string', enum: ['bed', 'content', 'a4', 'a3', 'letter'] },
+            margin: { type: 'number', description: 'Rand in mm bei pageSize content' },
+            realText: { type: 'boolean', description: 'Text als Text mit eingebetteter Schrift' },
+            images: { type: 'string', enum: ['embed', 'omit', 'frame'] },
+            imageDpi: { type: 'number', description: 'Höchste Bildauflösung, 0 = unverändert' },
+            imageSource: { type: 'string', enum: ['original', 'laser'] },
+            colors: { type: 'string', enum: ['layer', 'black', 'operation'] },
+            lineWeight: { type: 'string', enum: ['hairline', 'visible', 'custom'] },
+            lineWidth: { type: 'number', description: 'mm bei lineWeight custom' },
+            fills: { type: 'string', enum: ['layer', 'outline'] },
+            marks: { type: 'boolean', description: 'Passermarken ausgeben' },
+            cutContour: { type: 'boolean', description: 'Schnittlinien als Schmuckfarbe CutContour' },
+            artboards: { type: 'boolean', description: 'Nur .ai: Seiten nebeneinander als Zeichenflächen' },
+            title: { type: 'string' },
+            author: { type: 'string' },
+            subject: { type: 'string' },
+            keywords: { type: 'string' },
+          },
+        },
+      },
+      ['path'],
+    ),
     run: async (ed, a) => {
       const path = String(a.path ?? '');
       const ext = (/\.([a-z]+)$/i.exec(path)?.[1] ?? '').toLowerCase();
@@ -2095,7 +2130,7 @@ export const EDIT_TOOLS: ToolDef[] = [
       if (ext === 'svg') contents = buildSvg(ed);
       else if (ext === 'dxf') ({ text: contents, notes } = await buildDxfText(ed));
       else if (ext === 'pdf' || ext === 'ai') {
-        const r = await buildPdfBytes(ed);
+        const r = await buildPdfBytes(ed, a.pdf && typeof a.pdf === 'object' ? (a.pdf as Record<string, unknown>) : {}, ext as 'pdf' | 'ai');
         contents = bytesToBase64(r.bytes);
         notes = r.notes;
         base64 = true;
