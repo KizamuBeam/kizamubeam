@@ -1,6 +1,6 @@
 [package]
 name = "kizamubeam-core"
-version = "2.9.12"
+version = "2.9.13"
 description = "Rechenkern von KizamuBeam ohne Oberfläche: Bildverarbeitung, Rasterzeilen, G-Code"
 authors = ["Hanjo Winter"]
 license = "GPL-3.0-or-later"
