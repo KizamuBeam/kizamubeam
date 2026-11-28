@@ -10,6 +10,7 @@
   "Testfeuer": "Teste de disparo",
   "Testfeuer ungeklärt. Laser am Gerät prüfen und Abschaltung bestätigen.": "Estado do laser incerto. Verifique o laser no dispositivo e confirme que está desligado.",
   "Nur vor Ort am Laser verwenden. Software versucht nach Ablauf zu stoppen; keine unabhängige Abschaltgarantie. Bei Störung am Gerät abschalten.": "Use somente estando presente junto ao laser. O software tenta parar após o prazo; não há garantia independente de desligamento. Em caso de falha, desligue no dispositivo.",
+  "Verfahren (Jog) bleibt während des Testfeuers möglich – der Laser bleibt dabei an.": "O deslocamento (jog) continua possível durante o teste de disparo – o laser permanece ligado ao mover.",
   "Testfeuer läuft oder startet · noch höchstens {s} s (Software-Zeit)": "Teste iniciando ou em andamento · no máximo {s} s restantes (tempo do software)",
   "Testfeuer stoppen": "Parar teste de disparo",
   "Testfeuer starten": "Iniciar teste de disparo",

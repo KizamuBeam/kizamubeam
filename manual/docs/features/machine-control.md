@@ -91,7 +91,7 @@ The **Move** window jogs the head in steps, sets and clears the user origin, unl
 
 ### Test fire
 
-**Test fire** fires the laser at a low power for a few seconds while the head stands still, for example to find the focus or to check the red-dot offset. It is **off by default** and must be enabled per device under **Device Settings → Framing & pointer → Test fire in Move window**, with power and duration (defaults 1 % and 5 s). The machine must be connected and idle. It works with GRBL, grblHAL, FluidNC, Marlin and Smoothieware, not with xTool or Ruida.
+**Test fire** fires the laser at a low power for a few seconds, for example to find the focus or to check the red-dot offset. It is **off by default** and must be enabled per device under **Device Settings → Framing & pointer → Test fire in Move window**, with power and duration (defaults 1 % and 5 s). The machine must be connected and idle. It works with GRBL, grblHAL, FluidNC, Marlin and Smoothieware, not with xTool or Ruida. While the fire is active, the jog pad stays enabled so the head can be positioned with the laser on; everything else stays locked until the fire ends.
 
 :::danger
 A laser firing in one spot can set the material on fire and injure eyes. Only use test fire while you are standing at the machine with suitable eye protection and can reach its off switch. The time limit is enforced by the software only. After every test fire, check the laser at the machine and confirm that it is off before KizamuBeam accepts further commands.

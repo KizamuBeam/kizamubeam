@@ -22,6 +22,12 @@ check('device editing entry points reject unresolved Fire before any mutation', 
   assert.match(laser, /if \(!fireRows\.save\(\(\) => selectTab\(fireTabIndex\)\)\) return;/);
   assert.match(laser, /const add = \(\) => \{\s*if \(deviceEditBlocked\(\)\) return;/);
 });
+check('only explicit jog buttons bypass the Fire motion lock', () => {
+  // Jog pad (single step, origin traverse, hold-to-jog); console, home, origin,
+  // teaches and overrides keep the plain send path and stay blocked while firing.
+  assert.equal((laser.match(/fireMotion: true/g) || []).length, 3);
+  assert.match(laser, /pad\.contains\(b\)/);
+});
 check('Move panel opens the device dialog directly at the Fire settings', () => {
   assert.match(laser, /fireControls\(\(\) => device, \(\) => openDeviceDialog\(ed, device, undefined, 'fire'\)\)/);
   assert.match(laser, /let activeTab = initialSection === 'fire' \? fireTabIndex/);

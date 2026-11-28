@@ -68,8 +68,8 @@ export function applyImportedCutOrder(co: { byGroup?: number } | undefined) {
   deviceChanged();
 }
 const fw = () => FIRMWARES[device.fw];
-const sendAll = (lines: string[]) => {
-  for (const l of lines) machine.send(l);
+const sendAll = (lines: string[], opts?: { fireMotion?: boolean }) => {
+  for (const l of lines) machine.send(l, false, opts);
 };
 
 // Die Klickfahrt teilen sich das Verschieben-Tab und der Toolbar-Knopf (linke Leiste,
@@ -1085,7 +1085,7 @@ function moveTab(ed: Editor): HTMLElement {
   const st = { step: 10, speed: 3000 };
   const jog = (dx: number, dy: number) => {
     if (!machine.connected) return notify(t('Nicht verbunden.'), true);
-    for (const l of jogLines(device, dx * st.step, dy * st.step, st.speed)) machine.send(l);
+    for (const l of jogLines(device, dx * st.step, dy * st.step, st.speed)) machine.send(l, false, { fireMotion: true });
   };
   const pad = h('div', { class: 'jog' });
   const arrows: [number, number, string][] = [
@@ -1097,7 +1097,7 @@ function moveTab(ed: Editor): HTMLElement {
     const b = h('button', {
       class: 'btn',
       title: dx || dy ? t('{step} mm verfahren', { step: st.step }) : t('Zum Nullpunkt fahren'),
-      onclick: () => (dx || dy ? jog(dx, dy) : sendAll(moveLines(device, 'X0 Y0'))),
+      onclick: () => (dx || dy ? jog(dx, dy) : sendAll(moveLines(device, 'X0 Y0'), { fireMotion: true })),
     }, label) as HTMLButtonElement;
     // Hold-to-Jog (#10): Halten fährt (nur $J-Firmwares), Loslassen stoppt per Jog-Cancel.
     // Sonst und bei kurzem Klick bleibt es beim Einzelschritt (heutiges Verhalten).
@@ -1114,7 +1114,7 @@ function moveTab(ed: Editor): HTMLElement {
         if (!jogHoldSupported(device) || !machine.connected) return;
         timer = window.setTimeout(() => {
           timer = 0; held = true; b.classList.add('held');
-          for (const l of jogHoldLines(device, dx * st.step, dy * st.step, st.speed)) machine.send(l);
+          for (const l of jogHoldLines(device, dx * st.step, dy * st.step, st.speed)) machine.send(l, false, { fireMotion: true });
         }, 250);
       };
       b.onpointerup = stop;
@@ -1215,7 +1215,14 @@ function moveTab(ed: Editor): HTMLElement {
       ? t('Position X {x}  Y {y} mm', { x: dec(s.wpos[0].toFixed(2)), y: dec(s.wpos[1].toFixed(2)) }) + (device.zAxis && Number.isFinite(s.wpos[2]) ? `  Z ${dec(s.wpos[2].toFixed(2))}` : '') + (s.mpos && (Math.abs(s.mpos[0] - s.wpos[0]) > 1e-3 || Math.abs(s.mpos[1] - s.wpos[1]) > 1e-3) ? t(' (Maschine {x} / {y})', { x: dec(s.mpos[0].toFixed(2)), y: dec(s.mpos[1].toFixed(2)) }) : '')
       : t('Nicht verbunden');
     root.querySelectorAll('button').forEach((b) => {
-      if (!fire.root.contains(b)) b.disabled = !machine.connected || machine.running || machine.fire.locked;
+      if (fire.root.contains(b)) return;
+      if (pad.contains(b)) {
+        // Jog-Pad bleibt während aktiven Testfeuers bedienbar (Laser bleibt an);
+        // nach Stopp ohne Bestätigung am Gerät (unknown) bleibt es gesperrt.
+        b.disabled = !machine.connected || machine.running || (machine.fire.locked && machine.fire.state === 'unknown');
+        return;
+      }
+      b.disabled = !machine.connected || machine.running || machine.fire.locked;
     });
     zSection.hidden = !device.zAxis;
     zNote.hidden = !device.zAxis;

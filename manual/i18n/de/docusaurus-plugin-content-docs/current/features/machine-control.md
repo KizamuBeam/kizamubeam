@@ -91,7 +91,7 @@ Das Fenster **Verschieben** verfährt den Kopf in Schritten, setzt und löscht d
 
 ### Testfeuer {#test-fire}
 
-**Testfeuer** schaltet den Laser bei stehendem Kopf für einige Sekunden mit geringer Leistung ein, etwa um den Fokus zu finden oder den Versatz des Rotpunkt-Zeigers zu prüfen. Es ist **standardmäßig aus** und muss je Gerät unter **Geräteeinstellungen → Rahmen & Zeiger → Testfeuer im Bewegen-Fenster** freigegeben werden, mit Leistung und Dauer (Vorgabe 1 % und 5 s). Die Maschine muss verbunden und im Leerlauf sein. Es funktioniert mit GRBL, grblHAL, FluidNC, Marlin und Smoothieware, nicht mit xTool oder Ruida.
+**Testfeuer** schaltet den Laser für einige Sekunden mit geringer Leistung ein, etwa um den Fokus zu finden oder den Versatz des Rotpunkt-Zeigers zu prüfen. Es ist **standardmäßig aus** und muss je Gerät unter **Geräteeinstellungen → Rahmen & Zeiger → Testfeuer im Bewegen-Fenster** freigegeben werden, mit Leistung und Dauer (Vorgabe 1 % und 5 s). Die Maschine muss verbunden und im Leerlauf sein. Es funktioniert mit GRBL, grblHAL, FluidNC, Marlin und Smoothieware, nicht mit xTool oder Ruida. Während das Testfeuer aktiv ist, bleibt das Jog-Pad bedienbar, sodass der Kopf bei eingeschaltetem Laser positioniert werden kann; alles andere bleibt bis zum Ende des Feuers gesperrt.
 
 :::danger
 Ein Laser, der auf eine Stelle feuert, kann das Material entzünden und Augen verletzen. Nutze Testfeuer nur, wenn du mit geeignetem Augenschutz an der Maschine stehst und ihren Ausschalter erreichst. Die Zeitgrenze setzt nur die Software durch. Prüfe nach jedem Testfeuer den Laser an der Maschine und bestätige, dass er aus ist, bevor KizamuBeam weitere Befehle annimmt.

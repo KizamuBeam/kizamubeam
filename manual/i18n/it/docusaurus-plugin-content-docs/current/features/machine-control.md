@@ -91,7 +91,7 @@ La finestra **Sposta** muove la testa a passi, imposta e cancella l’origine ut
 
 ### Prova di accensione {#test-fire}
 
-La **Prova di accensione** accende il laser a bassa potenza per qualche secondo con la testa ferma, per esempio per trovare il fuoco o controllare l'offset del punto rosso. È **disattivata per impostazione predefinita** e va abilitata per ogni dispositivo in **Impostazioni dispositivo → Riquadro e puntatore → Prova di accensione nella finestra Sposta**, con potenza e durata (predefinite 1 % e 5 s). La macchina deve essere connessa e inattiva. Funziona con GRBL, grblHAL, FluidNC, Marlin e Smoothieware, non con xTool o Ruida.
+La **Prova di accensione** accende il laser a bassa potenza per qualche secondo, per esempio per trovare il fuoco o controllare l'offset del punto rosso. È **disattivata per impostazione predefinita** e va abilitata per ogni dispositivo in **Impostazioni dispositivo → Riquadro e puntatore → Prova di accensione nella finestra Sposta**, con potenza e durata (predefinite 1 % e 5 s). La macchina deve essere connessa e inattiva. Funziona con GRBL, grblHAL, FluidNC, Marlin e Smoothieware, non con xTool o Ruida. Mentre la prova è attiva, il pad di spostamento resta abilitato così la testa può essere posizionata con il laser acceso; tutto il resto resta bloccato fino alla fine della prova.
 
 :::danger
 Un laser che spara in un punto può incendiare il materiale e ferire gli occhi. Usa la prova di accensione solo se sei alla macchina con una protezione per gli occhi adatta e puoi raggiungere il suo interruttore di spegnimento. Il limite di tempo è imposto solo dal software. Dopo ogni prova controlla il laser sulla macchina e conferma che è spento prima che KizamuBeam accetti altri comandi.
