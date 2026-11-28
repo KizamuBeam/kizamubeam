@@ -10,6 +10,7 @@
   "Testfeuer": "Tir d'essai",
   "Testfeuer ungeklärt. Laser am Gerät prüfen und Abschaltung bestätigen.": "État du tir d'essai indéterminé. Vérifiez le laser sur la machine et confirmez qu'il est éteint.",
   "Nur vor Ort am Laser verwenden. Software versucht nach Ablauf zu stoppen; keine unabhängige Abschaltgarantie. Bei Störung am Gerät abschalten.": "À utiliser uniquement en présence de l'opérateur devant le laser. Le logiciel tente d'arrêter l'émission à la fin du délai, sans garantie d'arrêt indépendant. En cas d'anomalie, éteignez le laser directement sur la machine.",
+  "Verfahren (Jog) bleibt während des Testfeuers möglich – der Laser bleibt dabei an.": "Le déplacement (jog) reste possible pendant le tir d’essai – le laser reste allumé pendant le déplacement.",
   "Testfeuer läuft oder startet · noch höchstens {s} s (Software-Zeit)": "Tir d'essai en cours de démarrage ou d'exécution · au plus {s} s restantes (temps calculé par le logiciel)",
   "Testfeuer stoppen": "Arrêter le tir d'essai",
   "Testfeuer starten": "Démarrer le tir d'essai",

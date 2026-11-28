@@ -10,6 +10,7 @@
   "Testfeuer": "Test fire",
   "Testfeuer ungeklärt. Laser am Gerät prüfen und Abschaltung bestätigen.": "Test fire unresolved. Check the laser at the device and confirm it is off.",
   "Nur vor Ort am Laser verwenden. Software versucht nach Ablauf zu stoppen; keine unabhängige Abschaltgarantie. Bei Störung am Gerät abschalten.": "Use only while present at the laser. Software attempts to stop after the timeout; no independent shutdown guarantee. If anything fails, switch off at the device.",
+  "Verfahren (Jog) bleibt während des Testfeuers möglich – der Laser bleibt dabei an.": "Jogging remains possible during test fire – the laser stays on while moving.",
   "Testfeuer läuft oder startet · noch höchstens {s} s (Software-Zeit)": "Test fire starting or running · at most {s} s remaining (software time)",
   "Testfeuer stoppen": "Stop test fire",
   "Testfeuer starten": "Start test fire",

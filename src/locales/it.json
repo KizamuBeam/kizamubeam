@@ -10,6 +10,7 @@
   "Testfeuer": "Prova di accensione",
   "Testfeuer ungeklärt. Laser am Gerät prüfen und Abschaltung bestätigen.": "Stato del laser incerto. Controllare il laser sul dispositivo e confermare che sia spento.",
   "Nur vor Ort am Laser verwenden. Software versucht nach Ablauf zu stoppen; keine unabhängige Abschaltgarantie. Bei Störung am Gerät abschalten.": "Usare solo in presenza presso il laser. Il software tenta di arrestare allo scadere del tempo; nessuna garanzia di spegnimento indipendente. In caso di guasto, spegnere sul dispositivo.",
+  "Verfahren (Jog) bleibt während des Testfeuers möglich – der Laser bleibt dabei an.": "Il jogging resta possibile durante il test di fuoco – il laser rimane acceso durante lo spostamento.",
   "Testfeuer läuft oder startet · noch höchstens {s} s (Software-Zeit)": "Prova in avvio o in corso · al massimo {s} s rimanenti (tempo software)",
   "Testfeuer stoppen": "Arresta prova di accensione",
   "Testfeuer starten": "Avvia prova di accensione",

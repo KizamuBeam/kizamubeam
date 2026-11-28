@@ -329,9 +329,16 @@ class Machine {
   }
 
   /** Command of the machine boundary, or the same request to the remote host */
-  private async call(cmd: string, args: Record<string, unknown> = {}) {
+  private async call(cmd: string, args: Record<string, unknown> = {}, opts: { fireMotion?: boolean } = {}) {
     const { invoke } = await import('@tauri-apps/api/core');
-    if (this.fire.locked && cmd !== 'machine_stop') throw new Error(fireLockMessage());
+    if (this.fire.locked && cmd !== 'machine_stop') {
+      // Joggen mit eingeschaltetem Laser (LightBurn-Verhalten): nur explizite
+      // Fahrbefehle aus dem Bewegen-Panel während aktivem Feuer (starting/firing).
+      // Nach Stopp (unknown) bleibt alles gesperrt bis zur Bestätigung am Gerät.
+      const motion = this.fire.state !== 'unknown' &&
+        ((cmd === 'machine_send' && opts.fireMotion === true) || (cmd === 'machine_realtime' && args.byte === 0x85));
+      if (!motion) throw new Error(fireLockMessage());
+    }
     if (!this.remote) return invoke(cmd, args);
     const method = REMOTE_METHOD[cmd];
     if (!method) throw new Error(t('Über einen anderen KizamuBeam nicht möglich.'));
@@ -436,7 +443,10 @@ class Machine {
     }
     if (line.startsWith('<')) {
       this.status = parseStatus(line, this.status, this.wco);
-      if (this.fire.locked && this.fire.state !== 'unknown' && (this.status.state !== 'Idle' || !this.fireOverrideSafe())) void this.fire.stop();
+      // Jog-Fahrten während aktiven Feuers sind erlaubt (LightBurn-Verhalten);
+      // jeder andere Weg aus Idle (Run, Alarm, …) oder ein unsicherer Override stoppt.
+      const jogging = this.status.state === 'Jog';
+      if (this.fire.locked && this.fire.state !== 'unknown' && ((!jogging && this.status.state !== 'Idle') || !this.fireOverrideSafe())) void this.fire.stop();
       // Alarm heißt Positionsverlust (auch nach $X-Entsperrung neu referenzieren)
       if (this.status.state.startsWith('Alarm')) this.homed = false;
       this.trackStoredJob();
@@ -546,14 +556,16 @@ class Machine {
     return this.connected && this.wco.known ? { x: this.wco.v[0], y: this.wco.v[1] } : null;
   }
 
-  /** Eine Zeile senden (Konsole, Bewegen, Home …). Wird abgelehnt, solange ein Job läuft. */
-  async send(line: string, quiet = false) {
+  /** Eine Zeile senden (Konsole, Bewegen, Home …). Wird abgelehnt, solange ein Job läuft.
+   * `fireMotion` kennzeichnet explizite Jog-Befehle aus dem Bewegen-Panel: nur sie
+   * bleiben während aktiven Testfeuers erlaubt (der Laser bleibt dabei an). */
+  async send(line: string, quiet = false, opts: { fireMotion?: boolean } = {}) {
     if (!this.connected) return this.log(t('Nicht verbunden.'), 'error');
     if (!quiet) this.log(line, 'out');
     // Nullpunkt oder Koordinatensystem ändert sich: bis zur nächsten Meldung der Steuerung gilt er als unbekannt
     if (/G\s*(10|92|5[4-9])\b/i.test(line)) this.wco.known = false;
     try {
-      await this.call('machine_send', { line });
+      await this.call('machine_send', { line }, opts);
       // Referenzfahrt merken — schon beim Senden: Scheitern landet nie in Idle, das Z-Gate bleibt dann zu.
       if (homesZ(this.fwId, line)) this.homed = true;
     } catch (e) {

@@ -235,7 +235,8 @@ export function fireControls(getDevice: () => Device, openSettings: () => void) 
       h('label', { for: `${id}-seconds` }, t('Dauer (s)')), seconds),
     error);
   const root = h('section', { class: 'move-fire', 'aria-labelledby': `${id}-title` },
-    h('h4', { id: `${id}-title` }, t('Testfeuer')), controls, status, hint, h('div', { class: 'note' }, warning()));
+    h('h4', { id: `${id}-title` }, t('Testfeuer')), controls, status, hint, h('div', { class: 'note' }, warning()),
+    h('div', { class: 'note' }, t('Verfahren (Jog) bleibt während des Testfeuers möglich – der Laser bleibt dabei an.')));
   if (typeof IntersectionObserver !== 'undefined') {
     inlineAction = action;
     inlineVisible = false;

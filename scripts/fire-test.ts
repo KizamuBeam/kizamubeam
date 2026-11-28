@@ -117,24 +117,49 @@ await test('real machine boundary rejects untrusted, remote, busy, non-Idle and 
   assert.equal(await machine.startFire({ ...d, id: 'other' }, 1, 1, trusted), false);
   assert.equal(calls.length, 0);
 });
-await test('real machine sends firmware-specific activation, blocks other dispatch and retains recovery marker', async () => {
+await test('real machine sends firmware-specific activation, gates dispatch and retains recovery marker', async () => {
   const d = connected();
   assert.equal(await machine.startFire(d, 1, 5, trusted), true);
   assert.deepEqual(calls.map((c) => c.args.line), ['G1 F1000', 'M3 S10']);
   assert.equal(storage.get('kizamubeam.firePending'), '1');
   const n = calls.length;
+  // Beliebige Befehle (Konsole, Overrides, Jobs) bleiben gesperrt …
   await machine.send('G0 X10');
+  await machine.send('M3 S1000');
   await machine.realtime(0x99);
   await machine.resume();
   await machine.runStored('sd', 'test.nc');
   assert.equal(await machine.runJob(['M3 S100'], null), false);
   assert.equal(calls.length, n);
+  // … nur explizite Jog-Befehle aus dem Bewegen-Panel und Jog-Cancel laufen weiter.
+  await machine.send('G0 X10', false, { fireMotion: true });
+  await machine.realtime(0x85);
+  assert.equal(calls.length, n + 2);
+  assert.equal(calls.at(-2)!.cmd, 'machine_send');
+  assert.equal(calls.at(-1)!.cmd, 'machine_realtime');
   await machine.stop();
   assert.equal(calls.at(-1)!.cmd, 'machine_stop');
   assert.equal(machine.fire.state, 'unknown');
+  // Nach Stopp ohne Bestätigung bleibt auch Joggen gesperrt.
+  await machine.send('G0 X10', false, { fireMotion: true });
+  await machine.realtime(0x85);
+  assert.equal(calls.at(-1)!.cmd, 'machine_stop');
   assert.equal(storage.get('kizamubeam.firePending'), '1');
   assert.equal(machine.fire.confirmOff(), true);
   assert.equal(storage.has('kizamubeam.firePending'), false);
+});
+await test('jog status keeps fire alive, run status stops it for local recovery', async () => {
+  const d = connected();
+  assert.equal(await machine.startFire(d, 1, 5, trusted), true);
+  const onLine = (machine as unknown as { onLine(line: string): void }).onLine.bind(machine);
+  onLine('<Jog|MPos:1.000,2.000,0.000|FS:0,0>');
+  assert.equal(machine.status.state, 'Jog');
+  assert.equal(machine.fire.state, 'firing');
+  onLine('<Run|MPos:1.000,2.000,0.000|FS:0,0>');
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(machine.fire.state, 'unknown');
+  assert.equal(calls.at(-1)!.cmd, 'machine_stop');
+  assert.equal(machine.fire.confirmOff(), true);
 });
 await test('connection-generation change never sends a late activation or stop to a replacement connection', async () => {
   const d = connected();
