@@ -3,6 +3,7 @@
 // steht in apps.ts; Symbol, Aufruf und Verfügbarkeit kommen von der Aktion (toolbars.ts). Dazu kommen
 // Vorlagen aus installierten Erweiterungen. Oben stehen Favoriten (Rechtsklick auf eine Kachel) und die
 // zuletzt benutzten Werkzeuge; neue Werkzeuge tragen „NEU“, bis sie einmal benutzt wurden.
+// The window can switch between tiles and a compact list (one row per tool, small icon and name, issue #448).
 // Gemerkt wird alles im localStorage („kizamubeam.apps“).
 import type { Editor } from './editor';
 import { h } from './dom';
@@ -23,6 +24,8 @@ const svgUrl = (svg: string) => 'data:image/svg+xml;charset=utf-8,' + encodeURIC
 /** Gruppe „Aus Erweiterungen“ und die beiden Abschnitte oben */
 type Group = AppGroup | 'pack';
 type Section = Group | 'fav' | 'recent';
+/** Tiles (default) or compact list */
+type View = 'tiles' | 'list';
 
 interface Tile {
   /** Kennung der Aktion bzw. „pack:<Paket>/<Nummer>“ */
@@ -50,12 +53,13 @@ interface State {
   recent: string[];
   /** Schon benutzte Werkzeuge (NEU verschwindet) */
   used: string[];
+  view: View;
 }
 
 const strings = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
 
 function load(): State {
-  const st: State = { filter: '', collapsed: [], favs: [], recent: [], used: [] };
+  const st: State = { filter: '', collapsed: [], favs: [], recent: [], used: [], view: 'tiles' };
   try {
     const raw = JSON.parse(localStorage.getItem(KEY) || 'null');
     const groups: string[] = [...appGroups().map((g) => g.id), 'pack'];
@@ -65,6 +69,7 @@ function load(): State {
       st.favs = strings(raw.favs);
       st.recent = strings(raw.recent).slice(0, 6);
       st.used = strings(raw.used);
+      if (raw.view === 'list') st.view = 'list';
     }
   } catch {
     /* Speicher nicht verfügbar */
@@ -161,7 +166,22 @@ export function buildAppsPanel(ed: Editor) {
   searchBox = search;
   const chips = h('div', { class: 'apps-chips' });
   const list = h('div', { class: 'apps-list' });
-  body.append(h('div', { class: 'apps-top' }, h('label', { class: 'apps-searchbox' }, h('span', { class: 'apps-sicon', icon: 'search' }), search), chips), list);
+  // Switch between tiles and the compact list; the choice is remembered
+  const viewBtn = (view: View, icon: string, label: string) =>
+    h('button', {
+      class: 'apps-viewbtn', 'data-view': view, icon, title: label, 'aria-label': label,
+      onclick: () => {
+        if (st.view === view) return;
+        st.view = view;
+        save(st);
+        render();
+      },
+    });
+  const viewSwitch = h('div', { class: 'apps-view', role: 'group', 'aria-label': t('Ansicht') },
+    viewBtn('tiles', 'viewTiles', t('Kacheln')),
+    viewBtn('list', 'viewList', t('Liste')),
+  );
+  body.append(h('div', { class: 'apps-top' }, h('div', { class: 'apps-row' }, h('label', { class: 'apps-searchbox' }, h('span', { class: 'apps-sicon', icon: 'search' }), search), viewSwitch), chips), list);
 
   const use = (tile: Tile) => {
     if (tile.run() === false) return;
@@ -195,6 +215,8 @@ export function buildAppsPanel(ed: Editor) {
   const tileEl = (tile: Tile) => {
     const fav = st.favs.includes(tile.key);
     const isNew = tile.isNew && !st.used.includes(tile.key);
+    const badges = [isNew ? h('span', { class: 'app-new' }, t('NEU')) : null, fav ? h('span', { class: 'app-fav', icon: 'star' }) : null];
+    const rows = st.view === 'list';
     return h('button', {
       class: 'app-tile', 'data-g': tile.group, 'data-key': tile.key,
       title: `${tile.name}\n${tile.desc}\n${fav ? t('Rechtsklick: aus den Favoriten entfernen') : t('Rechtsklick: zu den Favoriten')}`,
@@ -210,10 +232,11 @@ export function buildAppsPanel(ed: Editor) {
           : tile.png
             ? h('img', { class: 'app-png', src: tile.png, alt: '', draggable: 'false' })
             : h('span', { class: 'app-icon', icon: tile.icon ?? '' }),
-        isNew ? h('span', { class: 'app-new' }, t('NEU')) : null,
-        fav ? h('span', { class: 'app-fav', icon: 'star' }) : null,
+        ...(rows ? [] : badges),
       ),
       h('span', { class: 'app-name' }, tile.name),
+      // In the list the star and NEU sit at the end of the row instead of on the icon
+      ...(rows ? badges : []),
     );
   };
 
@@ -277,6 +300,12 @@ export function buildAppsPanel(ed: Editor) {
 
   const render = () => {
     renderChips();
+    list.classList.toggle('rows', st.view === 'list');
+    viewSwitch.querySelectorAll<HTMLElement>('.apps-viewbtn').forEach((b) => {
+      const on = b.dataset.view === st.view;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-pressed', String(on));
+    });
     const q = search.value.trim();
     if (q) {
       const found = hits(q);

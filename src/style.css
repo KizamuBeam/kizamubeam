@@ -5328,6 +5328,48 @@ input.bound {
   flex-direction: column;
   gap: 6px;
 }
+.apps-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.apps-row .apps-searchbox {
+  flex: 1;
+  min-width: 0;
+}
+.apps-view {
+  display: flex;
+  flex: none;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.apps-viewbtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+}
+.apps-viewbtn + .apps-viewbtn {
+  border-left: 1px solid var(--line);
+}
+.apps-viewbtn svg {
+  width: 15px;
+  height: 15px;
+}
+.apps-viewbtn:hover {
+  color: var(--text);
+}
+.apps-viewbtn.on {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
 .apps-searchbox {
   display: flex;
   align-items: center;
@@ -5523,6 +5565,63 @@ input.bound {
   -webkit-box-orient: vertical;
   overflow-wrap: break-word;
   hyphens: auto;
+}
+
+/* Werkzeugkasten as a compact list (#448): one row per tool, small icon left, name right */
+.apps-list.rows .apps-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.apps-list.rows .app-tile {
+  flex-direction: row;
+  gap: 8px;
+  padding: 3px 6px 3px 3px;
+  border-radius: 5px;
+  color: var(--text);
+  text-align: left;
+}
+.apps-list.rows .app-art {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  aspect-ratio: auto;
+  border-radius: 5px;
+}
+.apps-list.rows .app-icon svg {
+  width: 16px;
+  height: 16px;
+}
+.apps-list.rows .app-png {
+  width: 18px;
+  height: 18px;
+}
+.apps-list.rows .app-art.img img {
+  padding: 1px;
+}
+.apps-list.rows .app-name {
+  flex: 1;
+  text-align: left;
+  display: block;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.apps-list.rows .app-new,
+.apps-list.rows .app-fav {
+  position: static;
+  flex: none;
+}
+.apps-list.rows .app-tile:hover,
+.apps-list.rows .app-tile:focus-visible {
+  background: var(--surface-2);
+}
+.apps-list.rows .app-tile:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.apps-list.rows .app-tile:hover .app-art,
+.apps-list.rows .app-tile:focus-visible .app-art {
+  border-color: transparent;
+  box-shadow: none;
 }
 
 /* Strichcodes */

@@ -50,6 +50,7 @@ Per contatori e date a ogni lavoro invece di un elenco fisso, vedi [testo variab
 - **Preferiti**: un clic destro su una tessera la fissa in alto. Sotto i preferiti ci sono i tre strumenti usati per ultimi.
 - Gli strumenti nuovi hanno un’etichetta “NUOVO” finché non li usi una volta.
 - Se uno strumento richiede una selezione, la barra di stato dice cosa selezionare.
+- **Tessere o elenco**: i due pulsanti accanto alla ricerca passano a un elenco compatto con una riga per strumento (icona piccola e nome). Gruppi, filtri e preferiti funzionano allo stesso modo e la casella ricorda la vista.
 
 ## Libreria
 

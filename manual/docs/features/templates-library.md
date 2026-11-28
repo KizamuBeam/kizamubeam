@@ -50,6 +50,7 @@ For counters and dates on each job instead of a fixed list, see [variable text](
 - **Favourites**: right-click a tile to pin it at the top. Below the favourites are the three tools you used last.
 - New tools carry a "NEW" badge until you use them once.
 - If a tool needs a selection, the status bar says what to select.
+- **Tiles or list**: the two buttons next to the search switch to a compact list with one row per tool (small icon and name). Groups, filters and favourites work the same, and the toolbox remembers the view.
 
 ## Library
 

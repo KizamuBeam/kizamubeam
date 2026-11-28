@@ -5905,5 +5905,7 @@
   "Einbrennen": "Fijar",
   "Kanten: Verformung übernommen — ein Satz ließ sich nicht kreisförmig halten (Kanten zu kurz).": "Aristas: deformación aplicada — un conjunto no pudo mantenerse circular (aristas demasiado cortas).",
   "Kanten: Satz-Geometrie verändert — Kantenpaar erneut wählen.": "Aristas: geometría del conjunto modificada — vuelve a elegir el par de aristas.",
-  "Kanten: Knotenbearbeitung — Kantensätze eingebrannt (Geometrie bleibt).": "Aristas: edición de nodos — conjuntos fijados (geometría conservada)."
+  "Kanten: Knotenbearbeitung — Kantensätze eingebrannt (Geometrie bleibt).": "Aristas: edición de nodos — conjuntos fijados (geometría conservada).",
+  "Kacheln": "Mosaicos",
+  "Liste": "Lista"
 }

@@ -5905,5 +5905,7 @@
   "Einbrennen": "Bake",
   "Kanten: Verformung übernommen — ein Satz ließ sich nicht kreisförmig halten (Kanten zu kurz).": "Edges: deformation applied — one set could not be kept circular (edges too short).",
   "Kanten: Satz-Geometrie verändert — Kantenpaar erneut wählen.": "Edges: set geometry changed — please pick the edge pair again.",
-  "Kanten: Knotenbearbeitung — Kantensätze eingebrannt (Geometrie bleibt).": "Edges: node editing — corner sets baked (geometry kept)."
+  "Kanten: Knotenbearbeitung — Kantensätze eingebrannt (Geometrie bleibt).": "Edges: node editing — corner sets baked (geometry kept).",
+  "Kacheln": "Tiles",
+  "Liste": "List"
 }
