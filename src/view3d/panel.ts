@@ -29,6 +29,9 @@ import { onImageReady } from '../images';
 import type { MockupBg, RenderMode, Scene3D, Viewer3D, ViewPreset, ViewSolid } from './viewer';
 import { saveDataUrl } from '../files';
 import { plateAnchor } from '../multilayer';
+import { ContextAction, showEditorMenu } from '../contextMenu';
+import type { Axis } from './arrange';
+import type { PartHit } from './viewer';
 
 /** Hintergründe des Mockups (Liste hier, damit three.js erst mit dem Fenster geladen wird) */
 const MOCKUP_BGS: MockupBg[] = ['studio', 'white', 'grey', 'dark', 'theme'];
@@ -488,6 +491,13 @@ export function buildView3dPanel(ed: Editor) {
       await saveDataUrl(t('mockup.png'), 'PNG', 'png', viewer.snapshot(2));
     },
   }, t('Bild speichern …'));
+  /** Shown once parts are hidden, transparent, moved or rotated */
+  const resetBtn = h('button', {
+    class: 'small',
+    hidden: true,
+    title: t('Alle Teile wieder einblenden, undurchsichtig zeigen und an ihren Platz in der Baugruppe setzen'),
+    onclick: () => viewer?.resetParts(),
+  }, t('Anordnung zurücksetzen'));
   const thIn = h('input', { type: 'number', min: '0.3', max: '50', step: '0.1', value: String(set.th), class: 'v3d-th' }) as HTMLInputElement;
   const view = (p: ViewPreset) => viewer?.view(p);
   const bar = h(
@@ -515,6 +525,7 @@ export function buildView3dPanel(ed: Editor) {
     h('label', { class: 'v3d-check', title: t('Ohne Raster, mit weichen Schatten und eigenem Hintergrund, z. B. für Bilder für Kunden') }, mockBox, t('Mockup')),
     bgSel,
     shotBtn,
+    resetBtn,
   );
   body.append(bar, h('div', { class: 'v3d-stage' }, host, hint), status);
 
@@ -523,6 +534,8 @@ export function buildView3dPanel(ed: Editor) {
   let lastKey = '';
   let info = '';
   let queued = 0;
+  /** A part is being moved or rotated: the status line shows the hint */
+  let arranging = false;
 
   const update = () => {
     window.clearTimeout(queued);
@@ -548,13 +561,72 @@ export function buildView3dPanel(ed: Editor) {
       ? t('Teile: {n}', { n: new Set(scene.solids.map(partKey)).size }) + (asms ? ` (${t('Baugruppen: {n}', { n: asms })})` : '')
       : '';
     info = parts ? `${parts} · ${set.overlaps ? overlapText(scene.overlaps, scene.solids) : ''}` : '';
-    statusText.textContent = info;
+    if (!arranging) statusText.textContent = info;
+    resetBtn.hidden = !viewer.arranged();
     looseBtn.hidden = !loose.length;
     looseBtn.textContent = (info ? ' · ' : '') + tn('{n} Gravur ohne Teil', '{n} Gravuren ohne Teil', loose.length);
     status.classList.toggle('v3d-bad', set.overlaps && scene.overlaps.length > 0);
   };
   const schedule = () => {
     if (!queued) queued = window.setTimeout(update, 150);
+  };
+
+  /** Short name of a part of an assembly („Box …: Boden“ → „Boden“) and the assembly („Box …“) */
+  const shortName = (label: string) => (label.includes(': ') ? label.slice(label.lastIndexOf(': ') + 2) : label);
+  const groupName = (label: string) => (label.includes(': ') ? label.slice(0, label.lastIndexOf(': ')) : t('Baugruppe'));
+
+  /** Actions for one part or a whole assembly */
+  const arrangeActions = (v: Viewer3D, keys: string[], hit: PartHit, one: boolean): ContextAction[] => {
+    const ghost = keys.every((k) => v.isGhost(k));
+    const turn = (axis: Axis, deg: number): ContextAction => ({
+      id: `v3d-rot-${axis}${deg}`,
+      label: t('{deg}° um {axis}', { deg: deg > 0 ? `+${deg}` : String(deg), axis: axis.toUpperCase() }),
+      run: () => v.rotateParts(keys, axis, deg),
+    });
+    return [
+      { id: 'v3d-hide', label: t('Ausblenden'), run: () => v.setHidden(keys, true) },
+      { id: 'v3d-ghost', label: t('Transparent'), checked: ghost, run: () => v.setGhost(keys, !ghost) },
+      { id: 'v3d-move', label: t('Verschieben'), run: () => v.startArrange('move', keys, hit.point) },
+      {
+        id: 'v3d-rotate',
+        label: t('Drehen'),
+        run: () => {},
+        items: [
+          { id: 'v3d-rotate-free', label: t('Mit der Maus drehen'), run: () => v.startArrange('rotate', keys) },
+          turn('x', 90),
+          turn('x', -90),
+          turn('y', 90),
+          turn('y', -90),
+          turn('z', 90),
+          turn('z', -90),
+          { id: 'v3d-rot-flip', label: t('Umdrehen (180° um X)'), run: () => v.rotateParts(keys, 'x', 180) },
+        ],
+      },
+      { id: 'v3d-only', label: one ? t('Nur dieses Teil zeigen') : t('Nur diese Baugruppe zeigen'), run: () => v.isolate(keys) },
+      { id: 'v3d-reset', label: t('Lage zurücksetzen'), enabled: keys.some((k) => v.isMoved(k) || v.isGhost(k)), run: () => v.resetParts(keys) },
+    ];
+  };
+
+  const showMenu = (x: number, y: number, hit: PartHit | null) => {
+    const v = viewer;
+    if (!v) return;
+    const groups: ContextAction[][] = [];
+    if (hit) {
+      groups.push([{ id: 'v3d-title', label: shortName(hit.label), enabled: false, run: () => {} }, ...arrangeActions(v, [hit.key], hit, true)]);
+      if (hit.groupKeys.length > 1)
+        groups.push([{ id: 'v3d-group', label: t('Ganze Baugruppe: {name}', { name: groupName(hit.label) }), run: () => {}, items: arrangeActions(v, hit.groupKeys, hit, false) }]);
+    }
+    const hidden = v.partList().filter((p) => v.isHidden(p.key));
+    const more: ContextAction[] = [];
+    if (hidden.length)
+      more.push(
+        { id: 'v3d-hidden', label: t('Einblenden'), run: () => {}, items: hidden.map((p) => ({ id: `v3d-show-${p.key}`, label: p.label, run: () => v.setHidden([p.key], false) })) },
+        { id: 'v3d-show-all', label: t('Alle einblenden'), run: () => v.showAll() },
+      );
+    if (v.arranged()) more.push({ id: 'v3d-reset-all', label: t('Anordnung zurücksetzen'), run: () => v.resetParts() });
+    groups.push(more);
+    if (groups.every((g) => !g.length)) return;
+    showEditorMenu(x, y, groups);
   };
 
   const open = () => {
@@ -568,7 +640,22 @@ export function buildView3dPanel(ed: Editor) {
             hint.textContent = t('3D-Darstellung nicht möglich: {msg}', { msg: e instanceof Error ? e.message : String(e) });
             return;
           }
-          viewer.onHover = (label) => (statusText.textContent = label ?? info);
+          viewer.onHover = (label) => {
+            if (!arranging) statusText.textContent = label ?? info;
+          };
+          viewer.onContextMenu = showMenu;
+          viewer.arrangeTexts = {
+            move: (axis, mm) =>
+              (axis ? t('Verschieben entlang {axis}: {d}', { axis: axis.toUpperCase(), d: mm }) : t('Verschieben: {d}', { d: mm })) +
+              ' · ' +
+              t('Klick setzt, Esc bricht ab, X/Y/Z sperrt die Achse, Umschalt: ganze mm'),
+            rotate: (axis, deg) => t('Drehen um {axis}: {d}', { axis: axis.toUpperCase(), d: deg }) + ' · ' + t('Klick setzt, Esc bricht ab, X/Y/Z wählt die Achse, Umschalt: 15°-Schritte'),
+          };
+          viewer.onArrangeHint = (text) => {
+            arranging = text !== null;
+            statusText.textContent = text ?? info;
+          };
+          viewer.onArrangeChange = () => (resetBtn.hidden = !viewer?.arranged());
           viewer.isVisible = () => isShown('view3d');
           viewer.setExplode(Number(explode.value));
           viewer.setShowOverlaps(set.overlaps);
